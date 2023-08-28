@@ -1,0 +1,19 @@
+Matplotlib created a temporary cache directory at /tmp/matplotlib-ct6hj_uz because the default path (/home/bbd0953/.config/matplotlib) is not a writable directory; it is highly recommended to set the MPLCONFIGDIR environment variable to a writable directory, in particular to speed up the import of Matplotlib and to better support multiprocessing.
+/work/bbd0953/DDPM/model/firstgalaxydata.py:178: UserWarning: Could not find masking parameters, only available for LOFAR data. mask_param will be None.
+  warnings.warn("Could not find masking parameters, only available for LOFAR data. "
+Prepare training...
+Working on: cuda
+14:02:40 - Start training...
+Running 0:00:02.706984                       - epoch 0, step 0 - loss: 0.4678876996040344
+Running 0:06:40.119647                       - epoch 0, step 100 - loss: 0.024229226633906364
+Running 0:09:45.275379                       - epoch 1, step 0 - loss: 0.11392878741025925
+Running 0:16:23.272841                       - epoch 1, step 100 - loss: 0.0870610699057579
+Running 0:19:28.580416                       - epoch 2, step 0 - loss: 0.01178148202598095
+Running 0:26:06.445127                       - epoch 2, step 100 - loss: 53.986839294433594
+Running 0:29:10.994274                       - epoch 3, step 0 - loss: 8758.3017578125
+Running 0:35:48.427434                       - epoch 3, step 100 - loss: 0.626506507396698
+Running 0:38:53.792362                       - epoch 4, step 0 - loss: 0.1668872833251953
+Running 0:45:32.476194                       - epoch 4, step 100 - loss: 0.11185584962368011
+Running 0:48:38.008722                       - epoch 5, step 0 - loss: 0.07768087834119797
+Running 0:55:16.790497                       - epoch 5, step 100 - loss: 0.07754825800657272
+Training time 0:58:22.309965 - Done!
