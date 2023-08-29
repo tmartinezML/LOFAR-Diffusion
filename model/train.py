@@ -9,6 +9,8 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import ToTensor, Compose, CenterCrop
 from torchvision.utils import save_image
 
+from torch_ema import ExponentialMovingAverage as EMA
+
 from model.unet import Unet
 from model.firstgalaxydata import FIRSTGalaxyData
 from model.diffusion import Diffusion
@@ -55,6 +57,7 @@ if __name__ == "__main__":
     model.to(device)
 
     optimizer = Adam(model.parameters(), lr=learning_rate)
+    ema = EMA(model.parameters(), decay=0.9999)
 
     transform = Compose([
         ToTensor(),
@@ -94,11 +97,12 @@ if __name__ == "__main__":
 
             loss.backward()
             optimizer.step()
+            ema.update()
 
             losses.append([epoch, step, loss.item()])
 
             # save generated images
-            if True: #step != 0 and step % save_and_sample_every == 0:
+            if step != 0 and step % save_and_sample_every == 0:
                 milestone = step // save_and_sample_every
                 all_images = diffusion.sample(model, image_size=image_size, 
                                               batch_size=4, channels=channels)
@@ -115,8 +119,6 @@ if __name__ == "__main__":
                     results_folder/f"sample_epoch{epoch}-{milestone}.png"
                 )
                 save_image(all_images, outname, nrow=4)
-            break
-        break
 
 
     t0_string = t0.strftime("%y-%m-%d_%H:%M:%S")

@@ -1,3 +1,4 @@
 *.h5
 *.zip
 galaxy_data/
+.*
