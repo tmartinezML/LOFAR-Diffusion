@@ -4,8 +4,11 @@ https://huggingface.co/blog/annotated-diffusion
 
 """
 import math
-from inspect import isfunction
+from inspect import isfunction, signature
 from functools import partial
+from abc import abstractmethod
+import logging
+
 
 import torch
 from torch import Tensor, einsum
@@ -14,6 +17,8 @@ import torch.nn.functional as F
 
 from einops import rearrange, reduce
 from einops.layers.torch import Rearrange
+
+from utils.model_utils import customModelClass
 
 
 def default(val, d):
@@ -65,7 +70,7 @@ class Residual(nn.Module):
         return self.fn(x, *args, **kwargs) + x
 
 
-def Upsample(dim, dim_out=None):
+def Upsample(dim, dim_out=None, use_conv=True):
     """
     Upsampling layer, NxN --> 2Nx2N
 
@@ -85,7 +90,10 @@ def Upsample(dim, dim_out=None):
         # Upsampling quadruples each pixel.
         nn.Upsample(scale_factor=2, mode="nearest"),
         # Convolution leaves image size unchanged.
-        nn.Conv2d(dim, default(dim_out, dim), 3, padding=1)
+        (
+            nn.Conv2d(dim, default(dim_out, dim), 3, padding=1) if use_conv
+            else nn.Identity()
+        ),
     )
 
 
@@ -346,39 +354,39 @@ class PreNorm(nn.Module):
         x = self.norm(x)
         return self.fn(x)
 
-
-class Unet(nn.Module):
+class Unet(customModelClass):
     def __init__(
         self,
-        dim,
-        init_dim=None,
-        out_dim=None,
-        dim_mults=(1, 2, 4, 8),
-        channels=3,
+        init_channels,
+        out_channels=None,
+        channel_mults=(1, 2, 4, 8),
+        image_channels=3,
         self_condition=False,
-        resnet_block_groups=4,
+        resnet_norm_groups=4,
     ):
         super().__init__()
 
         # determine dimensions
-        self.channels = channels
+        self.channels = image_channels
         self.self_condition = self_condition
-        input_channels = channels * (2 if self_condition else 1)
+        image_channels = image_channels * (2 if self_condition else 1)
 
-        init_dim = default(init_dim, dim)
-        self.init_conv = nn.Conv2d(input_channels, init_dim, 1, padding=0)
+        self.init_channels = init_channels
+        self.init_conv = nn.Conv2d(image_channels, self.init_channels,
+                                    1, padding=0)
 
-        dims = [init_dim, *map(lambda m: dim * m, dim_mults)]
+        dims = [self.init_channels, *map(lambda m: self.init_channels * m,
+                                          channel_mults)]
         in_out = list(zip(dims[:-1], dims[1:]))
 
-        block_klass = partial(ResnetBlock, groups=resnet_block_groups)
+        block_klass = partial(ResnetBlock, groups=resnet_norm_groups)
 
         # time embeddings
-        time_dim = dim * 4
+        time_dim = self.init_channels * 4
 
         self.time_mlp = nn.Sequential(
-            SinusoidalPositionEmbeddings(dim),
-            nn.Linear(dim, time_dim),
+            SinusoidalPositionEmbeddings(self.init_channels),
+            nn.Linear(self.init_channels, time_dim),
             nn.GELU(),
             nn.Linear(time_dim, time_dim)
         )
@@ -428,10 +436,12 @@ class Unet(nn.Module):
                 )
             )
 
-        self.out_dim = default(out_dim, channels)
+        self.out_dim = default(out_channels, image_channels)
 
-        self.final_res_block = block_klass(dim * 2, dim, time_emb_dim=time_dim)
-        self.final_conv = nn.Conv2d(dim, self.out_dim, 1)
+        self.final_res_block = block_klass(self.init_channels * 2, 
+                                           self.init_channels, 
+                                           time_emb_dim=time_dim)
+        self.final_conv = nn.Conv2d(self.init_channels, self.out_dim, 1)
 
     def forward(self, x, time, x_self_cond=None):
         if self.self_condition:
@@ -473,3 +483,224 @@ class Unet(nn.Module):
 
         x = self.final_res_block(x, t)
         return self.final_conv(x)
+
+class TimestepBlock(nn.Module):
+    """
+    Any module where forward() takes timestep embeddings as a second argument.
+    """
+
+    @abstractmethod
+    def forward(self, x, emb):
+        """
+        Apply the module to `x` given `emb` timestep embeddings.
+        """
+    
+class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
+    def forward(self, x, emb):
+        for layer in self:
+            if isinstance(layer, TimestepBlock):
+                x = layer(x, emb)
+            else:
+                x = layer(x)
+        return x
+
+# Create a class representing a BigGAN residual block consistent with the other
+# implementations of this file.
+class BigGANBlock(TimestepBlock):
+    def __init__(self,
+                dim,
+                dim_out,
+                time_emb_dim,
+                dropout,
+                *,
+                norm_groups=32,
+                up=False,
+                down=False,
+                use_conv=False,):
+        super().__init__()
+
+        self.in_layers = nn.Sequential(
+            nn.GroupNorm(norm_groups, dim),
+            nn.SiLU(),
+            WeightStandardizedConv2d(dim, dim_out, 3, padding=1),
+        )
+
+        self.updown = up or down
+        if up:
+            self.h_upd = Upsample(dim, use_conv=False)
+            self.x_upd = Upsample(dim, use_conv=False)
+        elif down:
+            self.h_upd = Downsample(dim)
+            self.x_upd = Downsample(dim)
+        else:
+            self.h_upd = nn.Identity()
+            self.x_upd = nn.Identity()
+
+        self.emb_layers = nn.Sequential(
+            nn.SiLU(),
+            nn.Linear(time_emb_dim, dim_out * 2),
+        )
+
+        self.out_layers = nn.Sequential(
+            nn.GroupNorm(norm_groups, dim_out),
+            nn.SiLU(),
+            nn.Dropout(p=dropout),
+            WeightStandardizedConv2d(dim_out, dim_out, 3, padding=1),
+        )
+
+        if dim == dim_out:
+            self.res_conv = nn.Identity()
+        elif use_conv:
+            self.res_conv = WeightStandardizedConv2d(dim, dim_out, 3)
+        else:
+            self.res_conv = nn.Conv2d(dim, dim_out, 1)
+
+    def forward(self, x, time_emb):
+        if self.updown:
+            in_pre, in_conv = self.in_layers[:-1], self.in_layers[-1]
+            h = in_pre(x)
+            h = self.h_upd(h)
+            x = self.x_upd(x)
+            h = in_conv(h)
+        else:
+            h = self.in_layers(x)
+
+        time_emb = self.emb_layers(time_emb)
+        time_emb = rearrange(time_emb, "b c -> b c 1 1")
+        scale, shift = time_emb.chunk(2, dim=1)
+
+        out_norm, out_post = self.out_layers[0], self.out_layers[1:]
+        h = out_norm(h) * (scale + 1) + shift
+        h = out_post(h)
+        return h + self.res_conv(x)
+    
+    
+class ImprovedUnet(customModelClass):
+    def __init__(
+        self,
+        init_channels,
+        out_channels=None,
+        channel_mults=(1, 2, 4, 8),
+        image_channels=3,
+        self_condition=False,
+        norm_groups=32,
+        dropout=0,
+        num_res_blocks=2,
+        attention_levels=3,
+        attention_heads=4,
+        attention_head_channels=32,
+    ):
+        super().__init__()
+
+        # determine dimensions
+        self.input_channels = image_channels * (2 if self_condition else 1)
+        self.self_condition = self_condition
+        self.out_channels = default(out_channels, 2 * image_channels)
+
+        self.init_channels = init_channels
+
+        # time embeddings
+        time_dim = init_channels * 4
+
+        self.time_emb = nn.Sequential(
+            SinusoidalPositionEmbeddings(init_channels),
+            nn.Linear(init_channels, time_dim),
+            nn.GELU(),
+            nn.Linear(time_dim, time_dim)
+        )
+
+        # layers
+        self.input_block = nn.ModuleList([
+            # Initial convolution
+            TimestepEmbedSequential(
+                nn.Conv2d(self.input_channels, self.init_channels, 3, padding=1)
+            )
+        ])
+        self.output_block = nn.ModuleList([])
+
+        input_block_chans = [self.init_channels]
+        ch = self.init_channels
+
+        for level, mult in enumerate(channel_mults):
+            for _ in range(num_res_blocks):
+                layers = [
+                    BigGANBlock(ch, int(mult * init_channels),
+                                      time_dim, dropout, 
+                                      norm_groups=norm_groups)
+                ]
+                ch = int(mult * init_channels)
+                if len(channel_mults) - level <= attention_levels:
+                    layers.append(Residual(LinearAttention(
+                        ch, heads=attention_heads,
+                        dim_head=attention_head_channels
+                    )))
+
+                self.input_block.append(TimestepEmbedSequential(*layers))
+                input_block_chans.append(ch)
+
+            if level != len(channel_mults) - 1:  # Downsample
+                self.input_block.append(BigGANBlock(ch, ch, time_dim,
+                                                dropout=dropout, down=True,
+                                                norm_groups=norm_groups))
+                input_block_chans.append(ch)
+                
+        self.middle_block = TimestepEmbedSequential(
+            BigGANBlock(ch, ch, time_dim, dropout, norm_groups=norm_groups),
+            Residual(LinearAttention(
+                ch, heads=attention_heads,
+                dim_head=attention_head_channels
+            )),
+            BigGANBlock(ch, ch, time_dim, dropout, norm_groups=norm_groups),
+        )
+
+        for level, mult in list(enumerate(channel_mults))[::-1]:
+            # See:
+            # https://github.com/openai/guided-diffusion/blob/main/guided_diffusion/unet.py#L396
+            # l. 568
+            for i in range(num_res_blocks+1):  # WHY +1???
+                ich = input_block_chans.pop()
+                layers = [
+                    BigGANBlock(ch + ich, int(mult * init_channels),
+                                time_dim, dropout)
+                ]
+                ch = int(mult * init_channels)
+                if len(channel_mults) - level <= attention_levels:
+                    layers.append(Residual(LinearAttention(
+                        ch, heads=attention_heads,
+                        dim_head=attention_head_channels
+                )))
+
+                if level and i == num_res_blocks:
+                    layers.append(BigGANBlock(ch, ch, time_dim,
+                                              dropout=dropout, up=True,
+                                              norm_groups=norm_groups))
+
+                self.output_block.append(TimestepEmbedSequential(*layers))
+
+        self.out = nn.Sequential(
+            nn.GroupNorm(norm_groups, ch),
+            nn.SiLU(),
+            nn.Conv2d(ch, self.out_channels, 3, padding=1),
+        )
+
+    def forward(self, x, time, x_self_cond=None):
+        if self.self_condition:
+            x_self_cond = default(x_self_cond, lambda: torch.zeros_like(x))
+            x = torch.cat((x_self_cond, x), dim=1)
+
+        t = self.time_emb(time)
+        h = []
+        for i, module in enumerate(self.input_block):
+            x = module(x, t)
+            h.append(x)
+        x = self.middle_block(x, t)
+        for i, module in enumerate(self.output_block):
+            x = torch.cat((x, h.pop()), dim=1)
+            x = module(x, t)
+        return self.out(x)
+
+
+
+        
+
+        

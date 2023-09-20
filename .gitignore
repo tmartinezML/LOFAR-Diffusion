@@ -1,4 +1,8 @@
 *.h5
 *.zip
 galaxy_data/
+jobs/
+analysis_results/
+images/
+results/
 .*

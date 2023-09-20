@@ -9,7 +9,7 @@ import torchvision.transforms as transforms
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from torchvision.datasets.utils import download_url
-from model.basic_utils import get_class_dict, get_class_dict_rev
+from utils.data import get_class_dict, get_class_dict_rev
 import zipfile
 import warnings
 import copy
@@ -102,7 +102,7 @@ class FIRSTGalaxyData(data.Dataset):
         :param is_download: bool, optional (default is False)
             flag, whether a download should be forced
         """
-        self.root = os.path.expanduser(root)
+        self.root = root  # os.path.expanduser(root)
         self.input_data_list = [os.path.join(
             "galaxy_data_h5.h5")] if input_data_list is None else input_data_list
         self.selected_split = selected_split
