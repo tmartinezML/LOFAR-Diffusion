@@ -1,25 +1,0 @@
-Matplotlib created a temporary cache directory at /tmp/matplotlib-om1xzi8l because the default path (/home/bbd0953/.config/matplotlib) is not a writable directory; it is highly recommended to set the MPLCONFIGDIR environment variable to a writable directory, in particular to speed up the import of Matplotlib and to better support multiprocessing.
-
-
-
-######################DDPM Workout######################
-Prepare training...
-Working on: cuda
-/work/bbd0953/DDPM/model/firstgalaxydata.py:178: UserWarning: Could not find masking parameters, only available for LOFAR data. mask_param will be None.
-  warnings.warn("Could not find masking parameters, only available for LOFAR data. "
-11:12:05 - Start training...
-Running 0:00:16.662221                       - epoch 0, step 0 - loss: 0.4343
-Sampling loop time step:   0%|          | 0/10 [00:00<?, ?it/s]Sampling loop time step:  30%|███       | 3/10 [00:00<00:00, 25.35it/s]Sampling loop time step:  60%|██████    | 6/10 [00:00<00:00, 27.62it/s]Sampling loop time step: 100%|██████████| 10/10 [00:00<00:00, 29.45it/s]Sampling loop time step: 100%|██████████| 10/10 [00:00<00:00, 28.64it/s]
-/work/bbd0953/DDPM/model/diffusion.py:164: UserWarning: Creating a tensor from a list of numpy.ndarrays is extremely slow. Please consider converting the list to a single numpy.ndarray with numpy.array() before converting to a tensor. (Triggered internally at ../torch/csrc/utils/tensor_new.cpp:245.)
-  return torch.Tensor(imgs)
-Traceback (most recent call last):
-  File "/sw/env/gcc-10.3.0_openmpi-4.1.1/pkgsrc/2022Q1/lib/python3.9/runpy.py", line 197, in _run_module_as_main
-    return _run_code(code, main_globals, None,
-  File "/sw/env/gcc-10.3.0_openmpi-4.1.1/pkgsrc/2022Q1/lib/python3.9/runpy.py", line 87, in _run_code
-    exec(code, run_globals)
-  File "/work/bbd0953/DDPM/model/train.py", line 107, in <module>
-    all_images = torch.cat(
-TypeError: cat() received an invalid combination of arguments - got (Tensor, Tensor), but expected one of:
- * (tuple of Tensors tensors, int dim, *, Tensor out)
- * (tuple of Tensors tensors, name dim, *, Tensor out)
-
