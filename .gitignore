@@ -3,6 +3,6 @@
 galaxy_data/
 jobs/
 analysis_results/
-images/
-results/
+images
+results
 .*
