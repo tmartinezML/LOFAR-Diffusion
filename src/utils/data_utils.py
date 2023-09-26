@@ -45,7 +45,7 @@ class ImagePathDataset(torch.utils.data.Dataset):
     #  https://github.com/mseitzer/pytorch-fid/blob/master/src/pytorch_fid/fid_score.py
     def __init__(self, path, transforms=ToTensor()):
         self.path = path
-        self.files = sorted(self.path.iterdir())
+        self.files = sorted(self.path.glob("*.png"))
         self.transforms = transforms
 
         print("Loading images...")
@@ -64,7 +64,7 @@ class ImagePathDataset(torch.utils.data.Dataset):
         return img
     
 class LofarSubset(ImagePathDataset):
-    image_path = Path("data/lofar_subset")
+    image_path = Path("/storage/tmartinez/image_data/lofar_subset")
     def __init__(self, img_size=80):
         super().__init__(self.image_path, transforms=lofar_transform(img_size))
 

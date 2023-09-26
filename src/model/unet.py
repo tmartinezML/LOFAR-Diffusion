@@ -18,7 +18,7 @@ import torch.nn.functional as F
 from einops import rearrange, reduce
 from einops.layers.torch import Rearrange
 
-from utils.model_utils import customModelClass
+from utils.model_utils import customModelClass, construct_from_config
 
 
 def default(val, d):
@@ -579,9 +579,10 @@ class ImprovedUnet(customModelClass):
     def __init__(
         self,
         init_channels,
+        learn_variance=False,
         out_channels=None,
         channel_mults=(1, 2, 4, 8),
-        image_channels=3,
+        image_channels=1,
         self_condition=False,
         norm_groups=32,
         dropout=0,
@@ -589,13 +590,16 @@ class ImprovedUnet(customModelClass):
         attention_levels=3,
         attention_heads=4,
         attention_head_channels=32,
+
     ):
         super().__init__()
 
         # determine dimensions
         self.input_channels = image_channels * (2 if self_condition else 1)
         self.self_condition = self_condition
-        self.out_channels = default(out_channels, 2 * image_channels)
+        self.out_channels = default(out_channels, image_channels)
+        if learn_variance:
+            self.out_channels *= 2
 
         self.init_channels = init_channels
 
@@ -698,6 +702,37 @@ class ImprovedUnet(customModelClass):
             x = torch.cat((x, h.pop()), dim=1)
             x = module(x, t)
         return self.out(x)
+
+
+class EDMPrecond(customModelClass):
+    def __init__(
+        self,
+        model,
+        sigma_min = 0,
+        sigma_max = torch.inf,
+        sigma_data = 0.5,
+        ):
+        super().__init__()
+        self.model = model
+        self.sigma_min = sigma_min
+        self.sigma_max = sigma_max
+        self.sigma_data = sigma_data
+
+    @classmethod
+    def from_config(cls, config):
+        model = ImprovedUnet.from_config(config)
+        return construct_from_config(cls, config, model=model)
+
+    def forward(self, x, sigma):
+        sigma = sigma.view([-1, 1, 1, 1])
+        c_skip = self.sigma_data**2 / (sigma**2 + self.sigma_data**2)
+        c_out = sigma * self.sigma_data / (sigma**2 + self.sigma_data**2).sqrt()
+        c_in = 1 / (self.sigma_data**2 + sigma**2).sqrt()
+        c_noise = sigma.log() / 4
+
+        F_x = self.model((c_in * x), c_noise.flatten())
+        D_x = c_skip * x + c_out * F_x
+        return D_x
 
 
 

@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 from tqdm.auto import tqdm
 
-from utils.utils import construct_from_hyperparams
+from utils.model_utils import construct_from_config
 
 
 def cosine_beta_schedule(timesteps, s=8e-3):
@@ -172,8 +172,8 @@ class Diffusion():
         )
 
     @classmethod
-    def from_hyperparams(cls, hp):
-        return construct_from_hyperparams(cls, hp)
+    def from_config(cls, conf):
+        return construct_from_config(cls, conf)
         
 
     def q_posterior_mean_variance(self, x_start, x_t, t):
@@ -308,7 +308,7 @@ class Diffusion():
         return loss
 
     @torch.no_grad()
-    def p_sample(self, model, x, t, t_index):
+    def p_sample_step(self, model, x, t, t_index):
         model_mean, _, model_log_var, _ = self.p_mean_variance(
             model, x, t
         )
@@ -334,18 +334,18 @@ class Diffusion():
                       desc="Sampling loop time step", total=self.timesteps):
 
             sample_ts = torch.full((b,), t, device=device, dtype=torch.long)
-            img = self.p_sample(model, img, sample_ts, t)
+            img = self.p_sample_step(model, img, sample_ts, t)
             imgs.append(img.cpu().numpy())
 
         return torch.Tensor(np.array(imgs))
 
     @torch.no_grad()
-    def sample(self, model, image_size, batch_size=16, channels=1):
+    def p_sampling(self, model, image_size, batch_size=16, channels=1):
         shape = (batch_size, channels, image_size, image_size)
         return self.p_sample_loop(model, shape=shape)
 
     @torch.no_grad()
-    def ddim_sample(self, model, x, t, t_next):
+    def ddim_sample_step(self, model, x, t, t_next):
 
         model_mean, _, model_log_var, x0_pred = self.p_mean_variance(
             model, x, t
@@ -389,13 +389,13 @@ class Diffusion():
             sample_ts = torch.full((b,), t, device=device, dtype=torch.long)
             sample_t_nexts = torch.full((b,), t-step, device=device, 
                                         dtype=torch.long)
-            img = self.ddim_sample(model, img, sample_ts, sample_t_nexts)
+            img = self.ddim_sample_step(model, img, sample_ts, sample_t_nexts)
             imgs.append(img.cpu().numpy())
 
         return torch.Tensor(np.array(imgs))
     
     @torch.no_grad()
-    def ddim(self, model, image_size, batch_size=16, channels=1,
+    def ddim_sampling(self, model, image_size, batch_size=16, channels=1,
                     inference_steps=100):
         shape = (batch_size, channels, image_size, image_size)
         return self.ddim_sample_loop(model, shape=shape, 

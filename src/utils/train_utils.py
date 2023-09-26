@@ -15,8 +15,9 @@ from torch.nn.parallel import DataParallel
 from torch_ema import ExponentialMovingAverage as EMA
 import pandas as pd
 
-from model.unet import Unet, ImprovedUnet
+import model.unet as unet
 from model.diffusion import Diffusion
+from model.edm_diffusion import EDM_Diffusion
 from utils.data_utils import LofarSubset, load_data
 
 def get_free_gpu():
@@ -62,6 +63,11 @@ class outputManager():
         self.log_file = self.results_folder.joinpath(
             f"training_log_{self.model_name}.log"
         )
+
+        self.files = [
+            self.train_loss_file, self.val_loss_file, self.model_file,
+            self.ema_file, self.config_file, self.log_file
+        ]
     
     def _writer(self, f):
         return csv.writer(f, delimiter=";", quoting=csv.QUOTE_NONE)
@@ -73,8 +79,7 @@ class outputManager():
             )
 
     def init_training_loop(self):
-        for f in [self.train_loss_file, self.model_file, self.ema_file,
-                    self.hyperparam_file]:
+        for f in self.files:
             if not self.override and f.exists():
                 raise FileExistsError(f"File {f} already exists.")
             if self.override and f.exists():
@@ -129,7 +134,7 @@ class outputManager():
 class DiffusionTrainer:
     def __init__(self, *, config, dataset, device=None, parent_dir=None):
         self.config = config
-        self.loss_type = "huber" if not self.config.learn_variance else "hybrid"
+        self.loss_type = self.config.loss_type
         # Get free GPU
         device_ids_by_space = get_free_gpu()
         self.device = device or (
@@ -140,7 +145,7 @@ class DiffusionTrainer:
         logging.info(f"Working on: {self.device}")
 
         # Initialize model
-        unetModel = ImprovedUnet if self.config.use_improved_unet else Unet
+        unetModel = getattr(unet, self.config.model_type)
         self.model = unetModel.from_config(self.config).to(self.device)
 
         if self.config.n_devices > 1:
@@ -155,15 +160,16 @@ class DiffusionTrainer:
         self.model_params = self.model.parameters()
 
         # Initialize data, diffusion and training instances
-        self.diffusion = Diffusion(
-            self.config.timesteps, 
-            schedule=self.config.schedule,
-            learn_variance=self.config.learn_variance
+        diffusion_class = (
+            EDM_Diffusion if self.config.model_type == "EDMPrecond"
+            else Diffusion
         )
+        self.diffusion = diffusion_class.from_config(self.config)
 
         self.train_set = dataset
         self.val_every = (
-            self.config.val_every if hasattr(self.config, "val_every") else 0
+            self.config.val_every if hasattr(self.config, "val_every")
+            else self.config.log_interval
         )
         if self.val_every:
             self.train_set, self.val_set = random_split(
@@ -200,9 +206,13 @@ class DiffusionTrainer:
             losses = []
             for batch in self.val_loader:
                 batch = batch.to(self.device)
-                t = torch.randint(0, self.diffusion.timesteps, (batch.shape[0],),
-                                device=self.device).long()
-                loss = self.diffusion.p_losses(self.model, batch, t,
+                if isinstance(self.diffusion, EDM_Diffusion):
+                    loss = self.diffusion.edm_loss(self.model, batch)
+                else:
+                    t = torch.randint(0, self.diffusion.timesteps,
+                                      (batch.shape[0],),
+                                      device=self.device).long()
+                    loss = self.diffusion.p_losses(self.model, batch, t,
                                                 loss_type=self.loss_type)
                 losses.append(loss.item())
         return torch.Tensor(losses).mean().item()
@@ -229,18 +239,21 @@ class DiffusionTrainer:
         for i in range(iterations):
             self.optimizer.zero_grad()
             batch = next(self.train_data).to(self.device)
-            
-            # Algorithm 1, line 3: sample t uniformally for every example in
-            # the batch.
-            t = torch.randint(0, self.diffusion.timesteps, (batch.shape[0],),
-                            device=self.device).long()
 
-            try:
-                loss = self.diffusion.p_losses(self.model, batch, t,
-                                            loss_type=self.loss_type)
-            except RuntimeError:
-                print(f"Error at iteration {i}, batch shape {batch.shape}")
-                raise
+            if isinstance(self.diffusion, EDM_Diffusion):
+                loss = self.diffusion.edm_loss(self.model, batch)
+            
+            else:
+                # Algorithm 1, line 3: sample t uniformally for every example in
+                # the batch.
+                t = torch.randint(0, self.diffusion.timesteps, (batch.shape[0],),
+                                device=self.device).long()
+                try:
+                    loss = self.diffusion.p_losses(self.model, batch, t,
+                                                loss_type=self.loss_type)
+                except RuntimeError:
+                    print(f"Error at iteration {i}, batch shape {batch.shape}")
+                    raise
 
             loss_buffer.append([i, loss.item()])
 
@@ -264,7 +277,7 @@ class DiffusionTrainer:
                     if save_model:
                         OM.save_model(self.model)
                         OM.save_ema(self.model, self.ema)
-                    OM.save_config(self.config.hparam_dict, 
+                    OM.save_config(self.config.param_dict, 
                                             iterations=i+1)
                     
             if self.val_every and (i+1) % self.val_every == 0:
