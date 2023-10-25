@@ -4,21 +4,22 @@ https://huggingface.co/blog/annotated-diffusion
 
 """
 import math
-from inspect import isfunction, signature
+from inspect import isfunction
 from functools import partial
 from abc import abstractmethod
-import logging
 
 
 import torch
-from torch import Tensor, einsum
 import torch.nn as nn
 import torch.nn.functional as F
+from torch import einsum
+from torch.cuda.amp import autocast
 
 from einops import rearrange, reduce
 from einops.layers.torch import Rearrange
+from utils.config_utils import construct_from_config
 
-from utils.model_utils import customModelClass, construct_from_config
+from utils.config_utils import customModelClass
 
 
 def default(val, d):
@@ -68,6 +69,26 @@ class Residual(nn.Module):
             Output of function with input tensor added.
         """
         return self.fn(x, *args, **kwargs) + x
+
+
+def zero_module(module):
+    """
+    Sets all parameters of a module to zero. Used for initializing the 
+    optimizers.
+
+    Parameters
+    ----------
+    module : nn.Module
+        Module to be zeroed.
+
+    Returns
+    -------
+    nn.Module
+        Zeroed module.
+    """
+    for param in module.parameters():
+        param.detach().zero_()
+    return module
 
 
 def Upsample(dim, dim_out=None, use_conv=True):
@@ -138,13 +159,15 @@ class SinusoidalPositionEmbeddings(nn.Module):
         self.dim = dim
 
     def forward(self, time):
-        device = time.device
-        half_dim = self.dim // 2
-        embeddings = math.log(1e5) / (half_dim - 1)
-        embeddings = torch.exp(
-            torch.arange(half_dim, device=device) * -embeddings)
-        embeddings = time[:, None] * embeddings[None, :]
-        embeddings = torch.cat((embeddings.sin(), embeddings.cos()), dim=-1)
+        with autocast(enabled=False):  # Force fp32
+            device = time.device
+            half_dim = self.dim // 2
+            embeddings = math.log(1e5) / (half_dim - 1)
+            embeddings = torch.exp(
+                torch.arange(half_dim, device=device) * -embeddings)
+            embeddings = time[:, None] * embeddings[None, :]
+            embeddings = torch.cat(
+                (embeddings.sin(), embeddings.cos()), dim=-1)
         return embeddings
 
 
@@ -262,31 +285,38 @@ class Attention(nn.Module):
         self.heads = heads
         hidden_dim = dim_head * heads
         self.to_qkv = nn.Conv2d(dim, hidden_dim * 3, 1, bias=False)
-        self.to_out = nn.Conv2d(hidden_dim, dim, 1)
+        self.to_out = nn.Sequential(
+            nn.Conv2d(hidden_dim, dim, 1),
+            nn.GroupNorm(1, dim),
+        )
 
     def forward(self, x):
-        b, c, h, w = x.shape
-        # After to_qkv: [b, dim_head*heads*3, h, w]
-        # After chunk: 3 Tensors (q, k and v) of [b, dim_head*heads, h, w]
-        qkv = self.to_qkv(x).chunk(3, dim=1)
-        q, k, v = map(
-            lambda t: rearrange(t, "b (h c) x y -> b h c (x y)", h=self.heads),
-            qkv
-        )
-        q = q * self.scale
+        with autocast(enabled=False):
+            x = x.to(torch.float32)
+            b, c, h, w = x.shape
+            # After to_qkv: [b, dim_head*heads*3, h, w]
+            # After chunk: 3 Tensors (q, k and v) of [b, dim_head*heads, h, w]
+            qkv = self.to_qkv(x).chunk(3, dim=1)
+            q, k, v = map(
+                lambda t: rearrange(t, "b (h c) x y -> b h c (x y)", h=self.heads),
+                qkv
+            )
+            q = q * self.scale
 
-        # q, k, and v have dim [b, heads, dim_heads, h*w]
-        # Dot product: Sum over channels
-        sim = einsum("b h d i, b h d j -> b h i j", q, k)
-        # Now: [b, heads, h*w, h*w], one sum for each q-v pixel pair.
-        # Max trick for numerical stability: Subtraction does not change
-        # softmax output.
-        sim = sim - sim.amax(dim=-1, keepdim=True).detach()
-        attn = sim.softmax(dim=-1)
+            # q, k, and v have dim [b, heads, dim_heads, h*w]
+            # Dot product: Sum over channels
+            sim = einsum("b h d i, b h d j -> b h i j", q, k)
+            # Now: [b, heads, h*w, h*w], one sum for each q-v pixel pair.
+            # Max trick for numerical stability: Subtraction does not change
+            # softmax output.
+            sim = sim - sim.amax(dim=-1, keepdim=True).detach()
+            attn = torch.softmax(sim.float(), dim=-1).type(sim.dtype)
+            assert not torch.isnan(attn).any(), \
+                f"attn has nan values: {attn}\n{sim}\n{q}\n{k}"
 
-        out = einsum("b h i j, b h d j -> b h i d", attn, v)
-        out = rearrange(out, "b h (x y) d -> b (h d) x y", x=h, y=w)
-        return self.to_out(out)
+            out = einsum("b h i j, b h d j -> b h i d", attn, v)
+            out = rearrange(out, "b h (x y) d -> b (h d) x y", x=h, y=w)
+            return self.to_out(out)
 
 
 class LinearAttention(nn.Module):
@@ -314,22 +344,35 @@ class LinearAttention(nn.Module):
                                     nn.GroupNorm(1, dim))
 
     def forward(self, x):
-        b, c, h, w = x.shape
-        qkv = self.to_qkv(x).chunk(3, dim=1)
-        q, k, v = map(
-            lambda t: rearrange(t, "b (h c) x y -> b h c (x y)", h=self.heads),
-            qkv
-        )
+        with autocast(enabled=False):  # Force fp32
+            x = x.to(torch.float32)
+            b, c, h, w = x.shape
+            # Tuple of 3 tensors of shape [b, dim_head*heads, h, w]:
+            qkv = self.to_qkv(x).chunk(3, dim=1)
+            # Three tensors of shape [b, heads, dim_head, h*w]:
+            q, k, v = map(
+                lambda t: rearrange(
+                    t, "b (h c) x y -> b h c (x y)", h=self.heads),
+                qkv
+            )
 
-        q = q.softmax(dim=-2)
-        k = k.softmax(dim=-1)
+            q_shift = q - q.amax(dim=-2, keepdim=True).detach()
+            k_shift = k - k.amax(dim=-1, keepdim=True).detach()
 
-        q = q * self.scale
-        context = torch.einsum("b h d n, b h e n -> b h d e", k, v)
+            q_norm = q_shift.softmax(dim=-2)
+            k_norm = k_shift.softmax(dim=-1)
 
-        out = torch.einsum("b h d e, b h d n -> b h e n", context, q)
-        out = rearrange(out, "b h c (x y) -> b (h c) x y",
-                        h=self.heads, x=h, y=w)
+            assert not torch.isnan(q_norm).any(), \
+                f"q has nan values: {q_norm}\n{q_shift}\n{q}"
+            assert not torch.isnan(k_norm).any(), \
+                f"k has nan values: {k_norm}\n{k_shift}\n{k}"
+
+            q_norm = q_norm * self.scale
+            context = torch.einsum("b h d n, b h e n -> b h d e", k_norm, v)
+
+            out = torch.einsum("b h d e, b h d n -> b h e n", context, q_norm)
+            out = rearrange(out, "b h c (x y) -> b (h c) x y",
+                            h=self.heads, x=h, y=w)
         return self.to_out(out)
 
 
@@ -354,6 +397,7 @@ class PreNorm(nn.Module):
         x = self.norm(x)
         return self.fn(x)
 
+
 class Unet(customModelClass):
     def __init__(
         self,
@@ -373,10 +417,10 @@ class Unet(customModelClass):
 
         self.init_channels = init_channels
         self.init_conv = nn.Conv2d(image_channels, self.init_channels,
-                                    1, padding=0)
+                                   1, padding=0)
 
         dims = [self.init_channels, *map(lambda m: self.init_channels * m,
-                                          channel_mults)]
+                                         channel_mults)]
         in_out = list(zip(dims[:-1], dims[1:]))
 
         block_klass = partial(ResnetBlock, groups=resnet_norm_groups)
@@ -438,8 +482,8 @@ class Unet(customModelClass):
 
         self.out_dim = default(out_channels, image_channels)
 
-        self.final_res_block = block_klass(self.init_channels * 2, 
-                                           self.init_channels, 
+        self.final_res_block = block_klass(self.init_channels * 2,
+                                           self.init_channels,
                                            time_emb_dim=time_dim)
         self.final_conv = nn.Conv2d(self.init_channels, self.out_dim, 1)
 
@@ -484,6 +528,8 @@ class Unet(customModelClass):
         x = self.final_res_block(x, t)
         return self.final_conv(x)
 
+
+
 class TimestepBlock(nn.Module):
     """
     Any module where forward() takes timestep embeddings as a second argument.
@@ -494,7 +540,8 @@ class TimestepBlock(nn.Module):
         """
         Apply the module to `x` given `emb` timestep embeddings.
         """
-    
+
+
 class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
     def forward(self, x, emb):
         for layer in self:
@@ -506,17 +553,19 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
 
 # Create a class representing a BigGAN residual block consistent with the other
 # implementations of this file.
+
+
 class BigGANBlock(TimestepBlock):
     def __init__(self,
-                dim,
-                dim_out,
-                time_emb_dim,
-                dropout,
-                *,
-                norm_groups=32,
-                up=False,
-                down=False,
-                use_conv=False,):
+                 dim,
+                 dim_out,
+                 time_emb_dim,
+                 dropout,
+                 *,
+                 norm_groups=32,
+                 up=False,
+                 down=False,
+                 use_conv=False,):
         super().__init__()
 
         self.in_layers = nn.Sequential(
@@ -573,8 +622,8 @@ class BigGANBlock(TimestepBlock):
         h = out_norm(h) * (scale + 1) + shift
         h = out_post(h)
         return h + self.res_conv(x)
-    
-    
+            
+            
 class ImprovedUnet(customModelClass):
     def __init__(
         self,
@@ -617,7 +666,8 @@ class ImprovedUnet(customModelClass):
         self.input_block = nn.ModuleList([
             # Initial convolution
             TimestepEmbedSequential(
-                nn.Conv2d(self.input_channels, self.init_channels, 3, padding=1)
+                nn.Conv2d(self.input_channels,
+                          self.init_channels, 3, padding=1)
             )
         ])
         self.output_block = nn.ModuleList([])
@@ -629,12 +679,12 @@ class ImprovedUnet(customModelClass):
             for _ in range(num_res_blocks):
                 layers = [
                     BigGANBlock(ch, int(mult * init_channels),
-                                      time_dim, dropout, 
-                                      norm_groups=norm_groups)
+                                time_dim, dropout,
+                                norm_groups=norm_groups)
                 ]
                 ch = int(mult * init_channels)
                 if len(channel_mults) - level <= attention_levels:
-                    layers.append(Residual(LinearAttention(
+                    layers.append(Residual(Attention(
                         ch, heads=attention_heads,
                         dim_head=attention_head_channels
                     )))
@@ -644,13 +694,13 @@ class ImprovedUnet(customModelClass):
 
             if level != len(channel_mults) - 1:  # Downsample
                 self.input_block.append(BigGANBlock(ch, ch, time_dim,
-                                                dropout=dropout, down=True,
-                                                norm_groups=norm_groups))
+                                                    dropout=dropout, down=True,
+                                                    norm_groups=norm_groups))
                 input_block_chans.append(ch)
-                
+
         self.middle_block = TimestepEmbedSequential(
             BigGANBlock(ch, ch, time_dim, dropout, norm_groups=norm_groups),
-            Residual(LinearAttention(
+            Residual(Attention(
                 ch, heads=attention_heads,
                 dim_head=attention_head_channels
             )),
@@ -661,7 +711,7 @@ class ImprovedUnet(customModelClass):
             # See:
             # https://github.com/openai/guided-diffusion/blob/main/guided_diffusion/unet.py#L396
             # l. 568
-            for i in range(num_res_blocks+1):  # WHY +1???
+            for i in range(num_res_blocks + 1):  # WHY +1???
                 ich = input_block_chans.pop()
                 layers = [
                     BigGANBlock(ch + ich, int(mult * init_channels),
@@ -669,12 +719,12 @@ class ImprovedUnet(customModelClass):
                 ]
                 ch = int(mult * init_channels)
                 if len(channel_mults) - level <= attention_levels:
-                    layers.append(Residual(LinearAttention(
+                    layers.append(Residual(Attention(
                         ch, heads=attention_heads,
                         dim_head=attention_head_channels
-                )))
+                    )))
 
-                if level and i == num_res_blocks:
+                if level and i == num_res_blocks:  # Upsample
                     layers.append(BigGANBlock(ch, ch, time_dim,
                                               dropout=dropout, up=True,
                                               norm_groups=norm_groups))
@@ -684,7 +734,7 @@ class ImprovedUnet(customModelClass):
         self.out = nn.Sequential(
             nn.GroupNorm(norm_groups, ch),
             nn.SiLU(),
-            nn.Conv2d(ch, self.out_channels, 3, padding=1),
+            zero_module(nn.Conv2d(ch, self.out_channels, 3, padding=1)),
         )
 
     def forward(self, x, time, x_self_cond=None):
@@ -708,10 +758,10 @@ class EDMPrecond(customModelClass):
     def __init__(
         self,
         model,
-        sigma_min = 0,
-        sigma_max = torch.inf,
-        sigma_data = 0.5,
-        ):
+        sigma_min=0,
+        sigma_max=torch.inf,
+        sigma_data=0.5,
+    ):
         super().__init__()
         self.model = model
         self.sigma_min = sigma_min
@@ -726,16 +776,11 @@ class EDMPrecond(customModelClass):
     def forward(self, x, sigma):
         sigma = sigma.view([-1, 1, 1, 1])
         c_skip = self.sigma_data**2 / (sigma**2 + self.sigma_data**2)
-        c_out = sigma * self.sigma_data / (sigma**2 + self.sigma_data**2).sqrt()
+        c_out = sigma * self.sigma_data / \
+            (sigma**2 + self.sigma_data**2).sqrt()
         c_in = 1 / (self.sigma_data**2 + sigma**2).sqrt()
         c_noise = sigma.log() / 4
 
         F_x = self.model((c_in * x), c_noise.flatten())
         D_x = c_skip * x + c_out * F_x
         return D_x
-
-
-
-        
-
-        

@@ -32,3 +32,466 @@ INFO: 13:31:46 - Running 1:07:23.042425 - Iteration 2000 - Loss: 1.33e-02 - 1 da
 INFO: 13:32:32 - Iteration 2000 - Validation loss: 1.34e-02 
 INFO: 13:40:16 - Running 1:15:52.999806 - Iteration 2250 - Loss: 1.23e-02 - 1 day, 8:27:46.788526 remaining - 0:00:02.023667 per it.
 INFO: 13:41:02 - Iteration 2250 - Validation loss: 1.27e-02 
+INFO: 13:48:46 - Running 1:24:22.937224 - Iteration 2500 - Loss: 1.87e-02 - 1 day, 8:20:53.346149 remaining - 0:00:02.025276 per it.
+INFO: 13:49:32 - Iteration 2500 - Validation loss: 1.50e-02 
+INFO: 13:57:16 - Running 1:32:53.345956 - Iteration 2750 - Loss: 1.29e-02 - 1 day, 8:13:52.193929 remaining - 0:00:02.026763 per it.
+INFO: 13:58:03 - Iteration 2750 - Validation loss: 1.21e-02 
+INFO: 14:05:47 - Running 1:41:23.640372 - Iteration 3000 - Loss: 1.18e-02 - 1 day, 8:06:33.930273 remaining - 0:00:02.027964 per it.
+INFO: 14:06:33 - Iteration 3000 - Validation loss: 1.20e-02 
+INFO: 14:14:17 - Running 1:49:53.899755 - Iteration 3250 - Loss: 1.63e-02 - 1 day, 7:59:04.017903 remaining - 0:00:02.028969 per it.
+INFO: 14:15:03 - Iteration 3250 - Validation loss: 1.25e-02 
+INFO: 14:22:47 - Running 1:58:24.260293 - Iteration 3500 - Loss: 1.03e-02 - 1 day, 7:51:27.106353 remaining - 0:00:02.029860 per it.
+INFO: 14:23:33 - Iteration 3500 - Validation loss: 1.13e-02 
+INFO: 14:31:17 - Running 2:06:54.342225 - Iteration 3750 - Loss: 1.15e-02 - 1 day, 7:43:38.908770 remaining - 0:00:02.030558 per it.
+INFO: 14:32:20 - Iteration 3750 - Validation loss: 1.17e-02 
+INFO: 14:40:04 - Running 2:15:41.080093 - Iteration 4000 - Loss: 1.17e-02 - 1 day, 7:39:38.626776 remaining - 0:00:02.035333 per it.
+INFO: 14:40:50 - Iteration 4000 - Validation loss: 1.14e-02 
+INFO: 14:48:34 - Running 2:24:11.341379 - Iteration 4250 - Loss: 1.20e-02 - 1 day, 7:31:28.524056 remaining - 0:00:02.035669 per it.
+INFO: 14:49:21 - Iteration 4250 - Validation loss: 1.11e-02 
+INFO: 14:57:05 - Running 2:32:41.745504 - Iteration 4500 - Loss: 1.05e-02 - 1 day, 7:23:17.967230 remaining - 0:00:02.035999 per it.
+INFO: 14:57:51 - Iteration 4500 - Validation loss: 1.21e-02 
+INFO: 15:05:35 - Running 2:41:12.062237 - Iteration 4750 - Loss: 9.44e-03 - 1 day, 7:15:04.275694 remaining - 0:00:02.036276 per it.
+INFO: 15:06:21 - Iteration 4750 - Validation loss: 1.13e-02 
+INFO: 15:14:05 - Running 2:49:41.984584 - Iteration 5000 - Loss: 1.21e-02 - 1 day, 7:06:44.590192 remaining - 0:00:02.036447 per it.
+INFO: 15:14:51 - Iteration 5000 - Validation loss: 1.11e-02 
+INFO: 15:22:35 - Running 2:58:12.325959 - Iteration 5250 - Loss: 1.20e-02 - 1 day, 6:58:28.317756 remaining - 0:00:02.036682 per it.
+INFO: 15:23:21 - Iteration 5250 - Validation loss: 1.16e-02 
+INFO: 15:31:05 - Running 3:06:42.246731 - Iteration 5500 - Loss: 8.70e-03 - 1 day, 6:50:06.578612 remaining - 0:00:02.036818 per it.
+INFO: 15:31:51 - Iteration 5500 - Validation loss: 1.07e-02 
+INFO: 15:39:35 - Running 3:15:12.192308 - Iteration 5750 - Loss: 1.35e-02 - 1 day, 6:41:44.358852 remaining - 0:00:02.036947 per it.
+INFO: 15:40:22 - Iteration 5750 - Validation loss: 1.20e-02 
+INFO: 15:48:06 - Running 3:23:42.533222 - Iteration 6000 - Loss: 1.03e-02 - 1 day, 6:33:25.055316 remaining - 0:00:02.037131 per it.
+INFO: 15:48:52 - Iteration 6000 - Validation loss: 1.07e-02 
+INFO: 15:56:36 - Running 3:32:12.787764 - Iteration 6250 - Loss: 1.13e-02 - 1 day, 6:25:04.134574 remaining - 0:00:02.037286 per it.
+INFO: 15:57:22 - Iteration 6250 - Validation loss: 1.12e-02 
+INFO: 16:05:06 - Running 3:40:43.099525 - Iteration 6500 - Loss: 1.08e-02 - 1 day, 6:16:42.967956 remaining - 0:00:02.037439 per it.
+INFO: 16:05:53 - Iteration 6500 - Validation loss: 1.06e-02 
+INFO: 16:13:37 - Running 3:49:14.172434 - Iteration 6750 - Loss: 1.63e-02 - 1 day, 6:08:27.115922 remaining - 0:00:02.037692 per it.
+INFO: 16:14:24 - Iteration 6750 - Validation loss: 1.03e-02 
+INFO: 16:22:08 - Running 3:57:44.788034 - Iteration 7000 - Loss: 1.08e-02 - 1 day, 6:00:06.717399 remaining - 0:00:02.037863 per it.
+INFO: 16:22:54 - Iteration 7000 - Validation loss: 1.12e-02 
+INFO: 16:30:38 - Running 4:06:15.126519 - Iteration 7250 - Loss: 1.17e-02 - 1 day, 5:51:43.612840 remaining - 0:00:02.037983 per it.
+INFO: 16:31:25 - Iteration 7250 - Validation loss: 1.06e-02 
+INFO: 16:39:10 - Running 4:14:46.350366 - Iteration 7500 - Loss: 1.01e-02 - 1 day, 5:43:26.214686 remaining - 0:00:02.038214 per it.
+INFO: 16:39:55 - Iteration 7500 - Validation loss: 1.03e-02 
+INFO: 16:47:39 - Running 4:23:16.326027 - Iteration 7750 - Loss: 1.15e-02 - 1 day, 5:34:59.513093 remaining - 0:00:02.038268 per it.
+INFO: 16:48:25 - Iteration 7750 - Validation loss: 1.05e-02 
+INFO: 16:56:10 - Running 4:31:46.417603 - Iteration 8000 - Loss: 9.95e-03 - 1 day, 5:26:33.343079 remaining - 0:00:02.038334 per it.
+INFO: 16:56:57 - Iteration 8000 - Validation loss: 1.01e-02 
+INFO: 17:04:41 - Running 4:40:17.418237 - Iteration 8250 - Loss: 1.09e-02 - 1 day, 5:18:12.647004 remaining - 0:00:02.038505 per it.
+INFO: 17:05:27 - Iteration 8250 - Validation loss: 1.02e-02 
+INFO: 17:13:11 - Running 4:48:47.760729 - Iteration 8500 - Loss: 1.10e-02 - 1 day, 5:09:47.371713 remaining - 0:00:02.038590 per it.
+INFO: 17:13:57 - Iteration 8500 - Validation loss: 9.98e-03 
+INFO: 17:21:41 - Running 4:57:17.894346 - Iteration 8750 - Loss: 9.06e-03 - 1 day, 5:01:20.561082 remaining - 0:00:02.038645 per it.
+INFO: 17:22:34 - Iteration 8750 - Validation loss: 9.89e-03 
+INFO: 17:30:18 - Running 5:05:54.773924 - Iteration 9000 - Loss: 1.20e-02 - 1 day, 4:53:31.814805 remaining - 0:00:02.039447 per it.
+INFO: 17:31:04 - Iteration 9000 - Validation loss: 9.81e-03 
+INFO: 17:38:49 - Running 5:14:25.371308 - Iteration 9250 - Loss: 9.10e-03 - 1 day, 4:45:05.980151 remaining - 0:00:02.039527 per it.
+INFO: 17:39:35 - Iteration 9250 - Validation loss: 9.90e-03 
+INFO: 17:47:19 - Running 5:22:56.294756 - Iteration 9500 - Loss: 1.06e-02 - 1 day, 4:36:41.641607 remaining - 0:00:02.039636 per it.
+INFO: 17:48:06 - Iteration 9500 - Validation loss: 9.79e-03 
+INFO: 17:55:50 - Running 5:31:26.879910 - Iteration 9750 - Loss: 7.74e-03 - 1 day, 4:28:15.220681 remaining - 0:00:02.039706 per it.
+INFO: 17:56:37 - Iteration 9750 - Validation loss: 9.62e-03 
+INFO: 18:04:21 - Running 5:39:57.632862 - Iteration 10000 - Loss: 1.03e-02 - 1 day, 4:19:49.414980 remaining - 0:00:02.039788 per it.
+INFO: 18:05:07 - Iteration 10000 - Validation loss: 9.41e-03 
+INFO: 18:12:51 - Running 5:48:27.937430 - Iteration 10250 - Loss: 1.14e-02 - 1 day, 4:11:21.208301 remaining - 0:00:02.039823 per it.
+INFO: 18:13:37 - Iteration 10250 - Validation loss: 9.44e-03 
+INFO: 18:21:21 - Running 5:56:58.295717 - Iteration 10500 - Loss: 9.86e-03 - 1 day, 4:02:53.155894 remaining - 0:00:02.039862 per it.
+INFO: 18:22:08 - Iteration 10500 - Validation loss: 9.49e-03 
+INFO: 18:29:52 - Running 6:05:29.254679 - Iteration 10750 - Loss: 8.04e-03 - 1 day, 3:54:27.736360 remaining - 0:00:02.039954 per it.
+INFO: 18:30:39 - Iteration 10750 - Validation loss: 9.21e-03 
+INFO: 18:38:23 - Running 6:14:00.106429 - Iteration 11000 - Loss: 1.09e-02 - 1 day, 3:46:01.601516 remaining - 0:00:02.040033 per it.
+INFO: 18:39:09 - Iteration 11000 - Validation loss: 9.13e-03 
+INFO: 18:46:53 - Running 6:22:30.347834 - Iteration 11250 - Loss: 1.00e-02 - 1 day, 3:37:32.589128 remaining - 0:00:02.040053 per it.
+INFO: 18:47:40 - Iteration 11250 - Validation loss: 8.66e-03 
+INFO: 18:55:24 - Running 6:31:00.512061 - Iteration 11500 - Loss: 8.86e-03 - 1 day, 3:29:03.216975 remaining - 0:00:02.040066 per it.
+INFO: 18:56:10 - Iteration 11500 - Validation loss: 8.92e-03 
+INFO: 19:03:54 - Running 6:39:31.234576 - Iteration 11750 - Loss: 8.07e-03 - 1 day, 3:20:36.100188 remaining - 0:00:02.040126 per it.
+INFO: 19:04:41 - Iteration 11750 - Validation loss: 8.48e-03 
+INFO: 19:12:25 - Running 6:48:01.944182 - Iteration 12000 - Loss: 8.93e-03 - 1 day, 3:12:08.787132 remaining - 0:00:02.040183 per it.
+INFO: 19:13:12 - Iteration 12000 - Validation loss: 8.32e-03 
+INFO: 19:20:56 - Running 6:56:33.254382 - Iteration 12250 - Loss: 8.02e-03 - 1 day, 3:03:43.664495 remaining - 0:00:02.040286 per it.
+INFO: 19:21:43 - Iteration 12250 - Validation loss: 8.17e-03 
+INFO: 19:29:27 - Running 7:05:03.955846 - Iteration 12500 - Loss: 7.50e-03 - 1 day, 2:55:15.989226 remaining - 0:00:02.040337 per it.
+INFO: 19:30:14 - Iteration 12500 - Validation loss: 8.21e-03 
+INFO: 19:37:58 - Running 7:13:34.749449 - Iteration 12750 - Loss: 7.33e-03 - 1 day, 2:46:48.532792 remaining - 0:00:02.040392 per it.
+INFO: 19:38:44 - Iteration 12750 - Validation loss: 7.92e-03 
+INFO: 19:46:28 - Running 7:22:04.600331 - Iteration 13000 - Loss: 8.42e-03 - 1 day, 2:38:17.543415 remaining - 0:00:02.040373 per it.
+INFO: 19:47:14 - Iteration 13000 - Validation loss: 7.81e-03 
+INFO: 19:54:58 - Running 7:30:35.234203 - Iteration 13250 - Loss: 7.61e-03 - 1 day, 2:29:49.357986 remaining - 0:00:02.040414 per it.
+INFO: 19:55:45 - Iteration 13250 - Validation loss: 7.83e-03 
+INFO: 20:03:29 - Running 7:39:05.949949 - Iteration 13500 - Loss: 7.07e-03 - 1 day, 2:21:21.361718 remaining - 0:00:02.040459 per it.
+INFO: 20:04:16 - Iteration 13500 - Validation loss: 7.87e-03 
+INFO: 20:12:00 - Running 7:47:36.456747 - Iteration 13750 - Loss: 7.94e-03 - 1 day, 2:12:52.558416 remaining - 0:00:02.040488 per it.
+INFO: 20:12:46 - Iteration 13750 - Validation loss: 7.56e-03 
+INFO: 20:20:30 - Running 7:56:06.559030 - Iteration 14000 - Loss: 7.62e-03 - 1 day, 2:04:22.377715 remaining - 0:00:02.040486 per it.
+INFO: 20:21:16 - Iteration 14000 - Validation loss: 7.63e-03 
+INFO: 20:29:00 - Running 8:04:36.911561 - Iteration 14250 - Loss: 6.98e-03 - 1 day, 1:55:52.989606 remaining - 0:00:02.040503 per it.
+INFO: 20:29:46 - Iteration 14250 - Validation loss: 7.43e-03 
+INFO: 20:37:30 - Running 8:13:07.175435 - Iteration 14500 - Loss: 8.41e-03 - 1 day, 1:47:23.305511 remaining - 0:00:02.040512 per it.
+INFO: 20:38:16 - Iteration 14500 - Validation loss: 7.14e-03 
+INFO: 20:46:00 - Running 8:21:37.062048 - Iteration 14750 - Loss: 7.98e-03 - 1 day, 1:38:52.437180 remaining - 0:00:02.040496 per it.
+INFO: 20:46:47 - Iteration 14750 - Validation loss: 7.00e-03 
+INFO: 20:54:30 - Running 8:30:07.225796 - Iteration 15000 - Loss: 7.28e-03 - 1 day, 1:30:22.426638 remaining - 0:00:02.040498 per it.
+INFO: 20:55:17 - Iteration 15000 - Validation loss: 7.20e-03 
+INFO: 21:03:01 - Running 8:38:37.638517 - Iteration 15250 - Loss: 4.52e-03 - 1 day, 1:21:53.153160 remaining - 0:00:02.040517 per it.
+INFO: 21:03:47 - Iteration 15250 - Validation loss: 6.74e-03 
+INFO: 21:11:31 - Running 8:47:07.736269 - Iteration 15500 - Loss: 7.07e-03 - 1 day, 1:13:22.930204 remaining - 0:00:02.040515 per it.
+INFO: 21:12:17 - Iteration 15500 - Validation loss: 6.91e-03 
+INFO: 21:20:01 - Running 8:55:38.081300 - Iteration 15750 - Loss: 7.93e-03 - 1 day, 1:04:53.404572 remaining - 0:00:02.040529 per it.
+INFO: 21:20:48 - Iteration 15750 - Validation loss: 6.71e-03 
+INFO: 21:28:31 - Running 9:04:08.338537 - Iteration 16000 - Loss: 8.27e-03 - 1 day, 0:56:23.621340 remaining - 0:00:02.040537 per it.
+INFO: 21:29:18 - Iteration 16000 - Validation loss: 6.55e-03 
+INFO: 21:37:01 - Running 9:12:38.324169 - Iteration 16250 - Loss: 8.52e-03 - 1 day, 0:47:53.087540 remaining - 0:00:02.040528 per it.
+INFO: 21:37:48 - Iteration 16250 - Validation loss: 6.71e-03 
+INFO: 21:45:32 - Running 9:21:08.782666 - Iteration 16500 - Loss: 7.00e-03 - 1 day, 0:39:23.817486 remaining - 0:00:02.040548 per it.
+INFO: 21:46:18 - Iteration 16500 - Validation loss: 6.64e-03 
+INFO: 21:54:02 - Running 9:29:39.333136 - Iteration 16750 - Loss: 6.13e-03 - 1 day, 0:30:54.744985 remaining - 0:00:02.040572 per it.
+INFO: 21:54:49 - Iteration 16750 - Validation loss: 6.57e-03 
+INFO: 22:02:33 - Running 9:38:10.000852 - Iteration 17000 - Loss: 7.16e-03 - 1 day, 0:22:25.935738 remaining - 0:00:02.040603 per it.
+INFO: 22:03:20 - Iteration 17000 - Validation loss: 6.35e-03 
+INFO: 22:11:04 - Running 9:46:40.689302 - Iteration 17250 - Loss: 6.42e-03 - 1 day, 0:13:57.116310 remaining - 0:00:02.040634 per it.
+INFO: 22:11:51 - Iteration 17250 - Validation loss: 6.28e-03 
+INFO: 22:19:35 - Running 9:55:12.085615 - Iteration 17500 - Loss: 4.41e-03 - 1 day, 0:05:29.957225 remaining - 0:00:02.040705 per it.
+INFO: 22:20:22 - Iteration 17500 - Validation loss: 6.30e-03 
+INFO: 22:28:06 - Running 10:03:42.762085 - Iteration 17750 - Loss: 6.99e-03 - 23:57:00.972316 remaining - 0:00:02.040733 per it.
+INFO: 22:28:52 - Iteration 17750 - Validation loss: 6.12e-03 
+INFO: 22:36:36 - Running 10:12:12.812924 - Iteration 18000 - Loss: 5.43e-03 - 23:48:30.482347 remaining - 0:00:02.040726 per it.
+INFO: 22:37:22 - Iteration 18000 - Validation loss: 6.32e-03 
+INFO: 22:45:07 - Running 10:20:43.703671 - Iteration 18250 - Loss: 5.37e-03 - 23:40:01.927078 remaining - 0:00:02.040765 per it.
+INFO: 22:45:53 - Iteration 18250 - Validation loss: 6.38e-03 
+INFO: 22:53:38 - Running 10:29:14.596012 - Iteration 18500 - Loss: 6.36e-03 - 23:31:33.309607 remaining - 0:00:02.040803 per it.
+INFO: 22:54:24 - Iteration 18500 - Validation loss: 6.22e-03 
+INFO: 23:02:09 - Running 10:37:45.450013 - Iteration 18750 - Loss: 6.49e-03 - 23:23:04.538539 remaining - 0:00:02.040837 per it.
+INFO: 23:02:55 - Iteration 18750 - Validation loss: 6.09e-03 
+INFO: 23:10:39 - Running 10:46:15.735694 - Iteration 19000 - Loss: 5.37e-03 - 23:14:34.496735 remaining - 0:00:02.040841 per it.
+INFO: 23:11:25 - Iteration 19000 - Validation loss: 5.84e-03 
+INFO: 23:19:09 - Running 10:54:46.158518 - Iteration 19250 - Loss: 5.52e-03 - 23:06:04.737495 remaining - 0:00:02.040852 per it.
+INFO: 23:19:56 - Iteration 19250 - Validation loss: 6.29e-03 
+INFO: 23:27:40 - Running 11:03:16.445813 - Iteration 19500 - Loss: 6.50e-03 - 22:57:34.677620 remaining - 0:00:02.040856 per it.
+INFO: 23:28:26 - Iteration 19500 - Validation loss: 5.82e-03 
+INFO: 23:36:10 - Running 11:11:47.167022 - Iteration 19750 - Loss: 5.39e-03 - 22:49:05.497789 remaining - 0:00:02.040882 per it.
+INFO: 23:36:57 - Iteration 19750 - Validation loss: 5.84e-03 
+INFO: 23:44:41 - Running 11:20:17.844809 - Iteration 20000 - Loss: 6.60e-03 - 22:40:36.192820 remaining - 0:00:02.040905 per it.
+INFO: 23:45:27 - Iteration 20000 - Validation loss: 5.98e-03 
+INFO: 23:53:11 - Running 11:28:48.223318 - Iteration 20250 - Loss: 6.06e-03 - 22:32:06.265183 remaining - 0:00:02.040912 per it.
+INFO: 23:53:58 - Iteration 20250 - Validation loss: 5.84e-03 
+INFO: 00:01:42 - Running 11:37:18.381589 - Iteration 20500 - Loss: 6.36e-03 - 22:23:35.904633 remaining - 0:00:02.040909 per it.
+INFO: 00:02:28 - Iteration 20500 - Validation loss: 6.07e-03 
+INFO: 00:10:12 - Running 11:45:48.785846 - Iteration 20750 - Loss: 6.15e-03 - 22:15:05.590916 remaining - 0:00:02.040907 per it.
+INFO: 00:10:58 - Iteration 20750 - Validation loss: 6.03e-03 
+INFO: 00:18:42 - Running 11:54:19.290739 - Iteration 21000 - Loss: 4.71e-03 - 22:06:36.290354 remaining - 0:00:02.040931 per it.
+INFO: 00:19:29 - Iteration 21000 - Validation loss: 5.57e-03 
+INFO: 00:27:13 - Running 12:02:49.958740 - Iteration 21250 - Loss: 7.41e-03 - 21:58:06.855674 remaining - 0:00:02.040951 per it.
+INFO: 00:28:00 - Iteration 21250 - Validation loss: 5.56e-03 
+INFO: 00:35:44 - Running 12:11:20.567712 - Iteration 21500 - Loss: 5.62e-03 - 21:49:37.279999 remaining - 0:00:02.040968 per it.
+INFO: 00:36:30 - Iteration 21500 - Validation loss: 5.98e-03 
+INFO: 00:44:14 - Running 12:19:50.985836 - Iteration 21750 - Loss: 4.86e-03 - 21:41:07.349048 remaining - 0:00:02.040976 per it.
+INFO: 00:45:00 - Iteration 21750 - Validation loss: 5.57e-03 
+INFO: 00:52:44 - Running 12:28:21.230284 - Iteration 22000 - Loss: 4.35e-03 - 21:32:37.103770 remaining - 0:00:02.040976 per it.
+INFO: 00:53:30 - Iteration 22000 - Validation loss: 5.70e-03 
+INFO: 01:01:14 - Running 12:36:51.283460 - Iteration 22250 - Loss: 5.35e-03 - 21:24:06.537046 remaining - 0:00:02.040968 per it.
+INFO: 01:02:01 - Iteration 22250 - Validation loss: 5.45e-03 
+INFO: 01:09:45 - Running 12:45:21.494641 - Iteration 22500 - Loss: 5.24e-03 - 21:15:36.240053 remaining - 0:00:02.040966 per it.
+INFO: 01:10:31 - Iteration 22500 - Validation loss: 5.47e-03 
+INFO: 01:18:15 - Running 12:53:51.792928 - Iteration 22750 - Loss: 6.65e-03 - 21:07:06.094071 remaining - 0:00:02.040969 per it.
+INFO: 01:19:01 - Iteration 22750 - Validation loss: 5.58e-03 
+INFO: 01:26:45 - Running 13:02:22.280577 - Iteration 23000 - Loss: 5.26e-03 - 20:58:36.248829 remaining - 0:00:02.040980 per it.
+INFO: 01:27:31 - Iteration 23000 - Validation loss: 5.44e-03 
+INFO: 01:35:15 - Running 13:10:52.291527 - Iteration 23250 - Loss: 6.86e-03 - 20:50:05.630080 remaining - 0:00:02.040970 per it.
+INFO: 01:36:02 - Iteration 23250 - Validation loss: 5.46e-03 
+INFO: 01:43:46 - Running 13:19:22.819353 - Iteration 23500 - Loss: 6.87e-03 - 20:41:35.833162 remaining - 0:00:02.040982 per it.
+INFO: 01:44:32 - Iteration 23500 - Validation loss: 5.41e-03 
+INFO: 01:52:16 - Running 13:27:53.197191 - Iteration 23750 - Loss: 6.13e-03 - 20:33:05.788441 remaining - 0:00:02.040987 per it.
+INFO: 01:53:03 - Iteration 23750 - Validation loss: 5.41e-03 
+INFO: 02:00:47 - Running 13:36:23.519608 - Iteration 24000 - Loss: 6.05e-03 - 20:24:35.657810 remaining - 0:00:02.040990 per it.
+INFO: 02:01:33 - Iteration 24000 - Validation loss: 5.28e-03 
+INFO: 02:09:17 - Running 13:44:53.887850 - Iteration 24250 - Loss: 4.81e-03 - 20:16:05.587598 remaining - 0:00:02.040995 per it.
+INFO: 02:10:03 - Iteration 24250 - Validation loss: 5.25e-03 
+INFO: 02:17:47 - Running 13:53:24.033224 - Iteration 24500 - Loss: 4.57e-03 - 20:07:35.187599 remaining - 0:00:02.040991 per it.
+INFO: 02:18:33 - Iteration 24500 - Validation loss: 5.22e-03 
+INFO: 02:26:17 - Running 14:01:54.194527 - Iteration 24750 - Loss: 5.49e-03 - 19:59:04.814287 remaining - 0:00:02.040988 per it.
+INFO: 02:27:04 - Iteration 24750 - Validation loss: 5.09e-03 
+INFO: 02:34:47 - Running 14:10:24.285463 - Iteration 25000 - Loss: 5.50e-03 - 19:50:34.352608 remaining - 0:00:02.040982 per it.
+INFO: 02:35:34 - Iteration 25000 - Validation loss: 5.22e-03 
+INFO: 02:43:18 - Running 14:18:54.735470 - Iteration 25250 - Loss: 5.23e-03 - 19:42:04.388786 remaining - 0:00:02.040990 per it.
+INFO: 02:44:04 - Iteration 25250 - Validation loss: 5.60e-03 
+INFO: 02:51:48 - Running 14:27:24.682889 - Iteration 25500 - Loss: 5.30e-03 - 19:33:33.735273 remaining - 0:00:02.040978 per it.
+INFO: 02:52:34 - Iteration 25500 - Validation loss: 5.30e-03 
+INFO: 03:00:18 - Running 14:35:54.927960 - Iteration 25750 - Loss: 7.00e-03 - 19:25:03.490956 remaining - 0:00:02.040978 per it.
+INFO: 03:01:05 - Iteration 25750 - Validation loss: 5.23e-03 
+INFO: 03:08:48 - Running 14:44:25.085162 - Iteration 26000 - Loss: 6.25e-03 - 19:16:33.132932 remaining - 0:00:02.040974 per it.
+INFO: 03:09:35 - Iteration 26000 - Validation loss: 5.06e-03 
+INFO: 03:17:19 - Running 14:52:55.848750 - Iteration 26250 - Loss: 4.54e-03 - 19:08:03.556438 remaining - 0:00:02.040994 per it.
+INFO: 03:18:05 - Iteration 26250 - Validation loss: 5.21e-03 
+INFO: 03:25:49 - Running 15:01:25.981405 - Iteration 26500 - Loss: 4.69e-03 - 18:59:33.163493 remaining - 0:00:02.040990 per it.
+INFO: 03:26:35 - Iteration 26500 - Validation loss: 5.07e-03 
+INFO: 03:34:20 - Running 15:09:56.520543 - Iteration 26750 - Loss: 3.90e-03 - 18:51:03.278504 remaining - 0:00:02.041001 per it.
+INFO: 03:35:06 - Iteration 26750 - Validation loss: 5.24e-03 
+INFO: 03:42:50 - Running 15:18:27.328922 - Iteration 27000 - Loss: 5.99e-03 - 18:42:33.709229 remaining - 0:00:02.041021 per it.
+INFO: 03:43:37 - Iteration 27000 - Validation loss: 5.18e-03 
+INFO: 03:51:21 - Running 15:26:57.884089 - Iteration 27250 - Loss: 5.37e-03 - 18:34:03.813688 remaining - 0:00:02.041032 per it.
+INFO: 03:52:07 - Iteration 27250 - Validation loss: 5.32e-03 
+INFO: 03:59:52 - Running 15:35:28.641446 - Iteration 27500 - Loss: 5.52e-03 - 18:25:34.146080 remaining - 0:00:02.041051 per it.
+INFO: 04:00:38 - Iteration 27500 - Validation loss: 5.01e-03 
+INFO: 04:08:22 - Running 15:43:59.204995 - Iteration 27750 - Loss: 5.22e-03 - 18:17:04.231860 remaining - 0:00:02.041061 per it.
+INFO: 04:09:09 - Iteration 27750 - Validation loss: 5.08e-03 
+INFO: 04:16:53 - Running 15:52:29.711211 - Iteration 28000 - Loss: 4.76e-03 - 18:08:34.244480 remaining - 0:00:02.041070 per it.
+INFO: 04:17:39 - Iteration 28000 - Validation loss: 5.20e-03 
+INFO: 04:25:23 - Running 16:01:00.145992 - Iteration 28250 - Loss: 4.38e-03 - 18:00:04.163740 remaining - 0:00:02.041076 per it.
+INFO: 04:26:10 - Iteration 28250 - Validation loss: 5.08e-03 
+INFO: 04:33:53 - Running 16:09:30.118611 - Iteration 28500 - Loss: 3.96e-03 - 17:51:33.564685 remaining - 0:00:02.041066 per it.
+INFO: 04:34:40 - Iteration 28500 - Validation loss: 5.07e-03 
+INFO: 04:42:24 - Running 16:18:00.401509 - Iteration 28750 - Loss: 4.86e-03 - 17:43:03.318385 remaining - 0:00:02.041066 per it.
+INFO: 04:43:10 - Iteration 28750 - Validation loss: 5.10e-03 
+INFO: 04:50:54 - Running 16:26:30.434147 - Iteration 29000 - Loss: 4.23e-03 - 17:34:32.801106 remaining - 0:00:02.041058 per it.
+INFO: 04:51:40 - Iteration 29000 - Validation loss: 5.12e-03 
+INFO: 04:59:24 - Running 16:35:00.614242 - Iteration 29250 - Loss: 4.87e-03 - 17:26:02.448451 remaining - 0:00:02.041055 per it.
+INFO: 05:00:10 - Iteration 29250 - Validation loss: 4.74e-03 
+INFO: 05:07:54 - Running 16:43:31.047189 - Iteration 29500 - Loss: 6.60e-03 - 17:17:32.359788 remaining - 0:00:02.041061 per it.
+INFO: 05:08:40 - Iteration 29500 - Validation loss: 5.14e-03 
+INFO: 05:16:24 - Running 16:52:01.170534 - Iteration 29750 - Loss: 3.91e-03 - 17:09:01.947232 remaining - 0:00:02.041056 per it.
+INFO: 05:17:11 - Iteration 29750 - Validation loss: 5.08e-03 
+INFO: 05:24:55 - Running 17:00:31.422364 - Iteration 30000 - Loss: 4.51e-03 - 17:00:31.674061 remaining - 0:00:02.041056 per it.
+INFO: 05:25:41 - Iteration 30000 - Validation loss: 4.92e-03 
+INFO: 05:33:25 - Running 17:09:01.703737 - Iteration 30250 - Loss: 4.19e-03 - 16:52:01.428806 remaining - 0:00:02.041056 per it.
+INFO: 05:34:11 - Iteration 30250 - Validation loss: 4.86e-03 
+INFO: 05:41:55 - Running 17:17:32.198322 - Iteration 30500 - Loss: 5.54e-03 - 16:43:31.385808 remaining - 0:00:02.041064 per it.
+INFO: 05:42:41 - Iteration 30500 - Validation loss: 5.05e-03 
+INFO: 05:50:26 - Running 17:26:02.407359 - Iteration 30750 - Loss: 6.23e-03 - 16:35:01.065967 remaining - 0:00:02.041062 per it.
+INFO: 05:51:12 - Iteration 30750 - Validation loss: 5.27e-03 
+INFO: 05:58:56 - Running 17:34:32.693410 - Iteration 31000 - Loss: 4.70e-03 - 16:26:30.818210 remaining - 0:00:02.041063 per it.
+INFO: 05:59:42 - Iteration 31000 - Validation loss: 4.93e-03 
+INFO: 06:07:26 - Running 17:43:03.250513 - Iteration 31250 - Loss: 3.30e-03 - 16:18:00.820411 remaining - 0:00:02.041072 per it.
+INFO: 06:08:13 - Iteration 31250 - Validation loss: 4.78e-03 
+INFO: 06:15:57 - Running 17:51:33.968278 - Iteration 31500 - Loss: 5.50e-03 - 16:09:30.961052 remaining - 0:00:02.041086 per it.
+INFO: 06:16:43 - Iteration 31500 - Validation loss: 4.85e-03 
+INFO: 06:24:28 - Running 18:00:04.699954 - Iteration 31750 - Loss: 4.05e-03 - 16:01:01.099182 remaining - 0:00:02.041101 per it.
+INFO: 06:25:15 - Iteration 31750 - Validation loss: 4.81e-03 
+INFO: 06:33:00 - Running 18:08:36.426470 - Iteration 32000 - Loss: 4.75e-03 - 15:52:32.094206 remaining - 0:00:02.041146 per it.
+INFO: 06:33:46 - Iteration 32000 - Validation loss: 4.78e-03 
+INFO: 06:41:30 - Running 18:17:07.179678 - Iteration 32250 - Loss: 4.78e-03 - 15:44:02.208684 remaining - 0:00:02.041161 per it.
+INFO: 06:42:17 - Iteration 32250 - Validation loss: 4.79e-03 
+INFO: 06:50:01 - Running 18:25:37.639788 - Iteration 32500 - Loss: 4.99e-03 - 15:35:32.062651 remaining - 0:00:02.041166 per it.
+INFO: 06:50:47 - Iteration 32500 - Validation loss: 4.82e-03 
+INFO: 06:58:31 - Running 18:34:08.185796 - Iteration 32750 - Loss: 3.82e-03 - 15:27:01.981383 remaining - 0:00:02.041174 per it.
+INFO: 06:59:18 - Iteration 32750 - Validation loss: 5.10e-03 
+INFO: 07:07:02 - Running 18:42:39.005404 - Iteration 33000 - Loss: 3.40e-03 - 15:18:32.118322 remaining - 0:00:02.041190 per it.
+INFO: 07:07:48 - Iteration 33000 - Validation loss: 4.68e-03 
+INFO: 07:15:32 - Running 18:51:09.349266 - Iteration 33250 - Loss: 6.49e-03 - 15:10:01.858324 remaining - 0:00:02.041191 per it.
+INFO: 07:16:19 - Iteration 33250 - Validation loss: 4.99e-03 
+INFO: 07:24:03 - Running 18:59:39.774280 - Iteration 33500 - Loss: 3.69e-03 - 15:01:31.661175 remaining - 0:00:02.041195 per it.
+INFO: 07:24:49 - Iteration 33500 - Validation loss: 4.52e-03 
+INFO: 07:32:34 - Running 19:08:10.471385 - Iteration 33750 - Loss: 4.24e-03 - 14:53:01.673131 remaining - 0:00:02.041207 per it.
+INFO: 07:33:20 - Iteration 33750 - Validation loss: 4.67e-03 
+INFO: 07:41:04 - Running 19:16:40.631112 - Iteration 34000 - Loss: 4.63e-03 - 14:44:31.261893 remaining - 0:00:02.041202 per it.
+INFO: 07:41:50 - Iteration 34000 - Validation loss: 4.73e-03 
+INFO: 07:49:34 - Running 19:25:11.178330 - Iteration 34250 - Loss: 6.24e-03 - 14:36:01.148667 remaining - 0:00:02.041210 per it.
+INFO: 07:50:21 - Iteration 34250 - Validation loss: 4.63e-03 
+INFO: 07:58:05 - Running 19:33:41.729295 - Iteration 34500 - Loss: 3.61e-03 - 14:27:31.030362 remaining - 0:00:02.041217 per it.
+INFO: 07:58:51 - Iteration 34500 - Validation loss: 4.72e-03 
+INFO: 08:06:35 - Running 19:42:12.212678 - Iteration 34750 - Loss: 6.23e-03 - 14:19:00.854065 remaining - 0:00:02.041222 per it.
+INFO: 08:07:22 - Iteration 34750 - Validation loss: 4.83e-03 
+INFO: 08:15:06 - Running 19:50:42.861203 - Iteration 35000 - Loss: 3.69e-03 - 14:10:30.795655 remaining - 0:00:02.041232 per it.
+INFO: 08:15:52 - Iteration 35000 - Validation loss: 4.77e-03 
+INFO: 08:23:36 - Running 19:59:12.945444 - Iteration 35250 - Loss: 5.27e-03 - 14:02:00.330394 remaining - 0:00:02.041225 per it.
+INFO: 08:24:22 - Iteration 35250 - Validation loss: 4.76e-03 
+INFO: 08:32:06 - Running 20:07:43.143869 - Iteration 35500 - Loss: 3.96e-03 - 13:53:29.948806 remaining - 0:00:02.041222 per it.
+INFO: 08:32:53 - Iteration 35500 - Validation loss: 4.73e-03 
+INFO: 08:40:36 - Running 20:16:13.073318 - Iteration 35750 - Loss: 4.99e-03 - 13:44:59.387819 remaining - 0:00:02.041212 per it.
+INFO: 08:41:23 - Iteration 35750 - Validation loss: 4.47e-03 
+INFO: 08:49:07 - Running 20:24:43.748635 - Iteration 36000 - Loss: 5.54e-03 - 13:36:29.332416 remaining - 0:00:02.041222 per it.
+INFO: 08:49:54 - Iteration 36000 - Validation loss: 4.96e-03 
+INFO: 08:57:37 - Running 20:33:14.137511 - Iteration 36250 - Loss: 4.64e-03 - 13:27:59.081919 remaining - 0:00:02.041225 per it.
+INFO: 08:58:23 - Iteration 36250 - Validation loss: 4.42e-03 
+INFO: 09:06:07 - Running 20:41:43.890591 - Iteration 36500 - Loss: 4.22e-03 - 13:19:28.420364 remaining - 0:00:02.041209 per it.
+INFO: 09:06:54 - Iteration 36500 - Validation loss: 4.62e-03 
+INFO: 09:14:37 - Running 20:50:14.062817 - Iteration 36750 - Loss: 6.16e-03 - 13:10:58.035998 remaining - 0:00:02.041206 per it.
+INFO: 09:15:23 - Iteration 36750 - Validation loss: 4.43e-03 
+INFO: 09:23:07 - Running 20:58:44.037679 - Iteration 37000 - Loss: 3.93e-03 - 13:02:27.530871 remaining - 0:00:02.041197 per it.
+INFO: 09:23:53 - Iteration 37000 - Validation loss: 4.59e-03 
+INFO: 09:31:37 - Running 21:07:13.699562 - Iteration 37250 - Loss: 4.25e-03 - 12:53:56.841875 remaining - 0:00:02.041180 per it.
+INFO: 09:32:23 - Iteration 37250 - Validation loss: 4.67e-03 
+INFO: 09:40:07 - Running 21:15:43.493947 - Iteration 37500 - Loss: 5.15e-03 - 12:45:26.246984 remaining - 0:00:02.041167 per it.
+INFO: 09:40:53 - Iteration 37500 - Validation loss: 4.35e-03 
+INFO: 09:48:37 - Running 21:24:13.571073 - Iteration 37750 - Loss: 6.31e-03 - 12:36:55.829146 remaining - 0:00:02.041161 per it.
+INFO: 09:49:23 - Iteration 37750 - Validation loss: 4.45e-03 
+INFO: 09:57:07 - Running 21:32:43.457850 - Iteration 38000 - Loss: 5.49e-03 - 12:28:25.304586 remaining - 0:00:02.041150 per it.
+INFO: 09:57:53 - Iteration 38000 - Validation loss: 4.52e-03 
+INFO: 10:05:36 - Running 21:41:13.256257 - Iteration 38250 - Loss: 4.11e-03 - 12:19:54.739177 remaining - 0:00:02.041137 per it.
+INFO: 10:06:23 - Iteration 38250 - Validation loss: 4.45e-03 
+INFO: 10:14:06 - Running 21:49:43.277499 - Iteration 38500 - Loss: 4.86e-03 - 12:11:24.307946 remaining - 0:00:02.041131 per it.
+INFO: 10:14:53 - Iteration 38500 - Validation loss: 4.46e-03 
+INFO: 10:22:37 - Running 21:58:13.449345 - Iteration 38750 - Loss: 3.76e-03 - 12:02:53.965315 remaining - 0:00:02.041128 per it.
+INFO: 10:23:23 - Iteration 38750 - Validation loss: 4.37e-03 
+INFO: 10:31:06 - Running 22:06:43.219714 - Iteration 39000 - Loss: 4.03e-03 - 11:54:23.407156 remaining - 0:00:02.041115 per it.
+INFO: 10:31:52 - Iteration 39000 - Validation loss: 4.53e-03 
+INFO: 10:39:36 - Running 22:15:13.080512 - Iteration 39250 - Loss: 5.56e-03 - 11:45:52.908074 remaining - 0:00:02.041104 per it.
+INFO: 10:40:23 - Iteration 39250 - Validation loss: 4.43e-03 
+INFO: 10:48:06 - Running 22:23:42.947133 - Iteration 39500 - Loss: 4.43e-03 - 11:37:22.419540 remaining - 0:00:02.041094 per it.
+INFO: 10:48:52 - Iteration 39500 - Validation loss: 4.56e-03 
+INFO: 10:56:36 - Running 22:32:12.750735 - Iteration 39750 - Loss: 3.96e-03 - 11:28:51.906218 remaining - 0:00:02.041082 per it.
+INFO: 10:57:22 - Iteration 39750 - Validation loss: 4.52e-03 
+INFO: 11:05:06 - Running 22:40:42.707914 - Iteration 40000 - Loss: 4.85e-03 - 11:20:21.479208 remaining - 0:00:02.041074 per it.
+INFO: 11:05:52 - Iteration 40000 - Validation loss: 4.63e-03 
+INFO: 11:13:36 - Running 22:49:12.551128 - Iteration 40250 - Loss: 4.16e-03 - 11:11:51.002692 remaining - 0:00:02.041063 per it.
+INFO: 11:14:22 - Iteration 40250 - Validation loss: 4.39e-03 
+INFO: 11:22:06 - Running 22:57:42.535671 - Iteration 40500 - Loss: 4.32e-03 - 11:03:20.601182 remaining - 0:00:02.041056 per it.
+INFO: 11:22:52 - Iteration 40500 - Validation loss: 4.54e-03 
+INFO: 11:30:35 - Running 23:06:12.235326 - Iteration 40750 - Loss: 4.85e-03 - 10:54:50.070234 remaining - 0:00:02.041043 per it.
+INFO: 11:31:21 - Iteration 40750 - Validation loss: 4.49e-03 
+INFO: 11:39:05 - Running 23:14:42.070021 - Iteration 41000 - Loss: 3.31e-03 - 10:46:19.612276 remaining - 0:00:02.041032 per it.
+INFO: 11:39:51 - Iteration 41000 - Validation loss: 4.35e-03 
+INFO: 11:47:35 - Running 23:23:11.877488 - Iteration 41250 - Loss: 4.65e-03 - 10:37:49.149578 remaining - 0:00:02.041021 per it.
+INFO: 11:48:21 - Iteration 41250 - Validation loss: 4.45e-03 
+INFO: 11:56:05 - Running 23:31:41.836863 - Iteration 41500 - Loss: 4.01e-03 - 10:29:18.761926 remaining - 0:00:02.041014 per it.
+INFO: 11:56:51 - Iteration 41500 - Validation loss: 4.72e-03 
+INFO: 12:04:35 - Running 23:40:11.569557 - Iteration 41750 - Loss: 6.13e-03 - 10:20:48.280535 remaining - 0:00:02.041002 per it.
+INFO: 12:05:21 - Iteration 41750 - Validation loss: 4.36e-03 
+INFO: 12:13:05 - Running 23:48:41.769610 - Iteration 42000 - Loss: 4.06e-03 - 10:12:18.008849 remaining - 0:00:02.041000 per it.
+INFO: 12:13:51 - Iteration 42000 - Validation loss: 4.72e-03 
+INFO: 12:21:35 - Running 23:57:11.703101 - Iteration 42250 - Loss: 4.04e-03 - 10:03:47.626094 remaining - 0:00:02.040993 per it.
+INFO: 12:22:25 - Iteration 42250 - Validation loss: 4.41e-03 
+INFO: 12:30:09 - Running 1 day, 0:05:45.452945 - Iteration 42500 - Loss: 4.91e-03 - 9:55:18.819550 remaining - 0:00:02.041075 per it.
+INFO: 12:30:55 - Iteration 42500 - Validation loss: 4.19e-03 
+INFO: 12:38:38 - Running 1 day, 0:14:15.271507 - Iteration 42750 - Loss: 3.69e-03 - 9:46:48.368976 remaining - 0:00:02.041065 per it.
+INFO: 12:39:24 - Iteration 42750 - Validation loss: 4.37e-03 
+INFO: 12:47:08 - Running 1 day, 0:22:45.020424 - Iteration 43000 - Loss: 4.73e-03 - 9:38:17.898464 remaining - 0:00:02.041053 per it.
+INFO: 12:47:54 - Iteration 43000 - Validation loss: 4.43e-03 
+INFO: 12:55:38 - Running 1 day, 0:31:14.807515 - Iteration 43250 - Loss: 3.51e-03 - 9:29:47.450469 remaining - 0:00:02.041042 per it.
+INFO: 12:56:24 - Iteration 43250 - Validation loss: 4.39e-03 
+INFO: 13:04:08 - Running 1 day, 0:39:44.691409 - Iteration 43500 - Loss: 3.43e-03 - 9:21:17.047326 remaining - 0:00:02.041033 per it.
+INFO: 13:04:54 - Iteration 43500 - Validation loss: 4.38e-03 
+INFO: 13:12:38 - Running 1 day, 0:48:14.639045 - Iteration 43750 - Loss: 4.62e-03 - 9:12:46.673368 remaining - 0:00:02.041026 per it.
+INFO: 13:13:24 - Iteration 43750 - Validation loss: 4.60e-03 
+INFO: 13:21:07 - Running 1 day, 0:56:44.259849 - Iteration 44000 - Loss: 5.47e-03 - 9:04:16.185431 remaining - 0:00:02.041012 per it.
+INFO: 13:21:54 - Iteration 44000 - Validation loss: 4.34e-03 
+INFO: 13:29:38 - Running 1 day, 1:05:14.462174 - Iteration 44250 - Loss: 4.89e-03 - 8:55:45.914657 remaining - 0:00:02.041010 per it.
+INFO: 13:30:24 - Iteration 44250 - Validation loss: 4.41e-03 
+INFO: 13:38:08 - Running 1 day, 1:13:44.367085 - Iteration 44500 - Loss: 4.38e-03 - 8:47:15.541244 remaining - 0:00:02.041003 per it.
+INFO: 13:38:54 - Iteration 44500 - Validation loss: 4.58e-03 
+INFO: 13:46:37 - Running 1 day, 1:22:14.070738 - Iteration 44750 - Loss: 3.59e-03 - 8:38:45.103828 remaining - 0:00:02.040990 per it.
+INFO: 13:47:23 - Iteration 44750 - Validation loss: 4.33e-03 
+INFO: 13:55:07 - Running 1 day, 1:30:44.167999 - Iteration 45000 - Loss: 4.26e-03 - 8:30:14.806464 remaining - 0:00:02.040987 per it.
+INFO: 13:55:54 - Iteration 45000 - Validation loss: 4.53e-03 
+INFO: 14:03:38 - Running 1 day, 1:39:14.453006 - Iteration 45250 - Loss: 3.74e-03 - 8:21:44.571867 remaining - 0:00:02.040988 per it.
+INFO: 14:04:24 - Iteration 45250 - Validation loss: 4.30e-03 
+INFO: 14:12:07 - Running 1 day, 1:47:44.167829 - Iteration 45500 - Loss: 5.00e-03 - 8:13:14.155396 remaining - 0:00:02.040976 per it.
+INFO: 14:12:54 - Iteration 45500 - Validation loss: 4.17e-03 
+INFO: 14:20:38 - Running 1 day, 1:56:14.415422 - Iteration 45750 - Loss: 4.59e-03 - 8:04:43.912412 remaining - 0:00:02.040976 per it.
+INFO: 14:21:24 - Iteration 45750 - Validation loss: 4.21e-03 
+INFO: 14:29:08 - Running 1 day, 2:04:44.591432 - Iteration 46000 - Loss: 4.68e-03 - 7:56:13.648032 remaining - 0:00:02.040975 per it.
+INFO: 14:29:54 - Iteration 46000 - Validation loss: 4.48e-03 
+INFO: 14:37:38 - Running 1 day, 2:13:15.009639 - Iteration 46250 - Loss: 4.39e-03 - 7:47:43.455642 remaining - 0:00:02.040979 per it.
+INFO: 14:38:24 - Iteration 46250 - Validation loss: 4.45e-03 
+INFO: 14:46:08 - Running 1 day, 2:21:44.887080 - Iteration 46500 - Loss: 3.69e-03 - 7:39:13.105026 remaining - 0:00:02.040971 per it.
+INFO: 14:46:54 - Iteration 46500 - Validation loss: 4.39e-03 
+INFO: 14:54:38 - Running 1 day, 2:30:15.270154 - Iteration 46750 - Loss: 4.29e-03 - 7:30:42.901598 remaining - 0:00:02.040974 per it.
+INFO: 14:55:25 - Iteration 46750 - Validation loss: 4.36e-03 
+INFO: 15:03:09 - Running 1 day, 2:38:45.904245 - Iteration 47000 - Loss: 4.20e-03 - 7:22:12.766537 remaining - 0:00:02.040982 per it.
+INFO: 15:03:56 - Iteration 47000 - Validation loss: 4.38e-03 
+INFO: 15:11:40 - Running 1 day, 2:47:16.357222 - Iteration 47250 - Loss: 4.74e-03 - 7:13:42.576937 remaining - 0:00:02.040986 per it.
+INFO: 15:12:26 - Iteration 47250 - Validation loss: 4.25e-03 
+INFO: 15:20:10 - Running 1 day, 2:55:46.753276 - Iteration 47500 - Loss: 4.39e-03 - 7:05:12.369549 remaining - 0:00:02.040990 per it.
+INFO: 15:20:56 - Iteration 47500 - Validation loss: 4.41e-03 
+INFO: 15:28:40 - Running 1 day, 3:04:16.736573 - Iteration 47750 - Loss: 3.29e-03 - 6:56:42.054677 remaining - 0:00:02.040984 per it.
+INFO: 15:29:26 - Iteration 47750 - Validation loss: 4.06e-03 
+INFO: 15:37:10 - Running 1 day, 3:12:46.981602 - Iteration 48000 - Loss: 3.74e-03 - 6:48:11.808105 remaining - 0:00:02.040984 per it.
+INFO: 15:37:56 - Iteration 48000 - Validation loss: 4.40e-03 
+INFO: 15:45:40 - Running 1 day, 3:21:16.742440 - Iteration 48250 - Loss: 5.12e-03 - 6:39:41.444107 remaining - 0:00:02.040974 per it.
+INFO: 15:46:26 - Iteration 48250 - Validation loss: 4.24e-03 
+INFO: 15:54:10 - Running 1 day, 3:29:46.678457 - Iteration 48500 - Loss: 4.70e-03 - 6:31:11.127727 remaining - 0:00:02.040968 per it.
+INFO: 15:54:56 - Iteration 48500 - Validation loss: 4.63e-03 
+INFO: 16:02:40 - Running 1 day, 3:38:16.784461 - Iteration 48750 - Loss: 6.90e-03 - 6:22:40.854199 remaining - 0:00:02.040965 per it.
+INFO: 16:03:26 - Iteration 48750 - Validation loss: 4.34e-03 
+INFO: 16:11:10 - Running 1 day, 3:46:46.685226 - Iteration 49000 - Loss: 5.91e-03 - 6:14:10.536803 remaining - 0:00:02.040958 per it.
+INFO: 16:11:57 - Iteration 49000 - Validation loss: 4.25e-03 
+INFO: 16:19:41 - Running 1 day, 3:55:17.909779 - Iteration 49250 - Loss: 5.09e-03 - 6:05:40.512374 remaining - 0:00:02.040978 per it.
+INFO: 16:20:28 - Iteration 49250 - Validation loss: 4.23e-03 
+INFO: 16:28:12 - Running 1 day, 4:03:48.498857 - Iteration 49500 - Loss: 5.23e-03 - 5:57:10.341008 remaining - 0:00:02.040985 per it.
+INFO: 16:28:58 - Iteration 49500 - Validation loss: 4.21e-03 
+INFO: 16:36:41 - Running 1 day, 4:12:18.314811 - Iteration 49750 - Loss: 4.81e-03 - 5:48:40.006182 remaining - 0:00:02.040976 per it.
+INFO: 16:37:28 - Iteration 49750 - Validation loss: 4.13e-03 
+INFO: 16:45:12 - Running 1 day, 4:20:49.195833 - Iteration 50000 - Loss: 4.52e-03 - 5:40:09.845705 remaining - 0:00:02.040985 per it.
+INFO: 16:45:59 - Iteration 50000 - Validation loss: 4.36e-03 
+INFO: 16:53:42 - Running 1 day, 4:29:19.173475 - Iteration 50250 - Loss: 2.87e-03 - 5:31:39.589850 remaining - 0:00:02.040984 per it.
+INFO: 16:54:29 - Iteration 50250 - Validation loss: 4.41e-03 
+INFO: 17:02:13 - Running 1 day, 4:37:49.489369 - Iteration 50500 - Loss: 4.16e-03 - 5:23:09.357401 remaining - 0:00:02.040985 per it.
+INFO: 17:02:59 - Iteration 50500 - Validation loss: 4.20e-03 
+INFO: 17:10:43 - Running 1 day, 4:46:19.811933 - Iteration 50750 - Loss: 4.14e-03 - 5:14:39.124913 remaining - 0:00:02.040986 per it.
+INFO: 17:11:29 - Iteration 50750 - Validation loss: 4.27e-03 
+INFO: 17:19:13 - Running 1 day, 4:54:49.895627 - Iteration 51000 - Loss: 3.34e-03 - 5:06:08.849194 remaining - 0:00:02.040983 per it.
+INFO: 17:20:00 - Iteration 51000 - Validation loss: 4.27e-03 
+INFO: 17:27:43 - Running 1 day, 5:03:19.996101 - Iteration 51250 - Loss: 4.99e-03 - 4:57:38.578655 remaining - 0:00:02.040980 per it.
+INFO: 17:28:29 - Iteration 51250 - Validation loss: 4.26e-03 
+INFO: 17:36:13 - Running 1 day, 5:11:49.751576 - Iteration 51500 - Loss: 3.45e-03 - 4:49:08.252690 remaining - 0:00:02.040971 per it.
+INFO: 17:36:59 - Iteration 51500 - Validation loss: 4.20e-03 
+INFO: 17:44:43 - Running 1 day, 5:20:19.871255 - Iteration 51750 - Loss: 3.32e-03 - 4:40:37.990457 remaining - 0:00:02.040969 per it.
+INFO: 17:45:30 - Iteration 51750 - Validation loss: 4.31e-03 
+INFO: 17:53:13 - Running 1 day, 5:28:49.849603 - Iteration 52000 - Loss: 4.52e-03 - 4:32:07.707798 remaining - 0:00:02.040963 per it.
+INFO: 17:54:00 - Iteration 52000 - Validation loss: 4.38e-03 
+INFO: 18:01:43 - Running 1 day, 5:37:20.347219 - Iteration 52250 - Loss: 4.99e-03 - 4:23:37.504915 remaining - 0:00:02.040968 per it.
+INFO: 18:02:30 - Iteration 52250 - Validation loss: 4.26e-03 
+INFO: 18:10:14 - Running 1 day, 5:45:50.460926 - Iteration 52500 - Loss: 3.25e-03 - 4:15:07.244621 remaining - 0:00:02.040966 per it.
+INFO: 18:11:00 - Iteration 52500 - Validation loss: 4.11e-03 
+INFO: 18:18:44 - Running 1 day, 5:54:20.585229 - Iteration 52750 - Loss: 7.15e-03 - 4:06:36.986943 remaining - 0:00:02.040964 per it.
+INFO: 18:19:30 - Iteration 52750 - Validation loss: 4.38e-03 
+INFO: 18:27:14 - Running 1 day, 6:02:50.390129 - Iteration 53000 - Loss: 4.14e-03 - 3:58:06.688546 remaining - 0:00:02.040956 per it.
+INFO: 18:28:00 - Iteration 53000 - Validation loss: 4.34e-03 
+INFO: 18:35:43 - Running 1 day, 6:11:20.342545 - Iteration 53250 - Loss: 4.09e-03 - 3:49:36.412973 remaining - 0:00:02.040950 per it.
+INFO: 18:36:30 - Iteration 53250 - Validation loss: 4.05e-03 
+INFO: 18:44:14 - Running 1 day, 6:19:50.582872 - Iteration 53500 - Loss: 3.72e-03 - 3:41:06.175836 remaining - 0:00:02.040950 per it.
+INFO: 18:45:00 - Iteration 53500 - Validation loss: 4.01e-03 
+INFO: 18:52:43 - Running 1 day, 6:28:20.185316 - Iteration 53750 - Loss: 3.48e-03 - 3:32:35.864784 remaining - 0:00:02.040938 per it.
+INFO: 18:53:30 - Iteration 53750 - Validation loss: 4.30e-03 
+INFO: 19:01:13 - Running 1 day, 6:36:50.076314 - Iteration 54000 - Loss: 5.02e-03 - 3:24:05.591987 remaining - 0:00:02.040932 per it.
+INFO: 19:02:00 - Iteration 54000 - Validation loss: 4.21e-03 
+INFO: 19:09:43 - Running 1 day, 6:45:20.088743 - Iteration 54250 - Loss: 3.67e-03 - 3:15:35.335367 remaining - 0:00:02.040928 per it.
+INFO: 19:10:29 - Iteration 54250 - Validation loss: 4.28e-03 
+INFO: 19:18:13 - Running 1 day, 6:53:49.987728 - Iteration 54500 - Loss: 3.57e-03 - 3:07:05.069895 remaining - 0:00:02.040922 per it.
+INFO: 19:18:59 - Iteration 54500 - Validation loss: 4.12e-03 
+INFO: 19:26:43 - Running 1 day, 7:02:19.882377 - Iteration 54750 - Loss: 4.09e-03 - 2:58:34.807374 remaining - 0:00:02.040916 per it.
+INFO: 19:27:30 - Iteration 54750 - Validation loss: 4.15e-03 
+INFO: 19:35:13 - Running 1 day, 7:10:49.958557 - Iteration 55000 - Loss: 4.85e-03 - 2:50:04.564439 remaining - 0:00:02.040913 per it.
+INFO: 19:36:00 - Iteration 55000 - Validation loss: 4.08e-03 
+INFO: 19:43:43 - Running 1 day, 7:19:19.775825 - Iteration 55250 - Loss: 5.15e-03 - 2:41:34.300886 remaining - 0:00:02.040905 per it.
+INFO: 19:44:29 - Iteration 55250 - Validation loss: 4.19e-03 
+INFO: 19:52:13 - Running 1 day, 7:27:49.874668 - Iteration 55500 - Loss: 4.66e-03 - 2:33:04.064121 remaining - 0:00:02.040903 per it.
+INFO: 19:52:59 - Iteration 55500 - Validation loss: 4.24e-03 
+INFO: 20:00:43 - Running 1 day, 7:36:19.764036 - Iteration 55750 - Loss: 3.36e-03 - 2:24:33.812658 remaining - 0:00:02.040897 per it.
+INFO: 20:01:29 - Iteration 55750 - Validation loss: 4.21e-03 
+INFO: 20:09:13 - Running 1 day, 7:44:49.837153 - Iteration 56000 - Loss: 4.23e-03 - 2:16:03.577635 remaining - 0:00:02.040894 per it.
+INFO: 20:09:59 - Iteration 56000 - Validation loss: 4.13e-03 
+INFO: 20:17:43 - Running 1 day, 7:53:19.527144 - Iteration 56250 - Loss: 4.05e-03 - 2:07:33.318535 remaining - 0:00:02.040885 per it.
+INFO: 20:18:30 - Iteration 56250 - Validation loss: 4.16e-03 
+INFO: 20:26:13 - Running 1 day, 8:01:50.135614 - Iteration 56500 - Loss: 3.70e-03 - 1:59:03.121334 remaining - 0:00:02.040892 per it.
+INFO: 20:26:59 - Iteration 56500 - Validation loss: 4.15e-03 
+INFO: 20:34:43 - Running 1 day, 8:10:19.976717 - Iteration 56750 - Loss: 4.45e-03 - 1:50:32.876370 remaining - 0:00:02.040885 per it.
+INFO: 20:35:29 - Iteration 56750 - Validation loss: 4.05e-03 
+INFO: 20:43:13 - Running 1 day, 8:18:49.533358 - Iteration 57000 - Loss: 5.41e-03 - 1:42:02.620169 remaining - 0:00:02.040873 per it.
+INFO: 20:43:59 - Iteration 57000 - Validation loss: 3.96e-03 
+INFO: 20:51:42 - Running 1 day, 8:27:19.054583 - Iteration 57250 - Loss: 3.44e-03 - 1:33:32.368299 remaining - 0:00:02.040861 per it.
+INFO: 20:52:29 - Iteration 57250 - Validation loss: 4.26e-03 
+INFO: 21:00:12 - Running 1 day, 8:35:48.999457 - Iteration 57500 - Loss: 3.35e-03 - 1:25:02.141423 remaining - 0:00:02.040857 per it.
+INFO: 21:00:59 - Iteration 57500 - Validation loss: 4.33e-03 
+INFO: 21:08:42 - Running 1 day, 8:44:19.068990 - Iteration 57750 - Loss: 4.27e-03 - 1:16:31.921553 remaining - 0:00:02.040854 per it.
+INFO: 21:09:28 - Iteration 57750 - Validation loss: 4.15e-03 
+INFO: 21:17:12 - Running 1 day, 8:52:48.774687 - Iteration 58000 - Loss: 5.93e-03 - 1:08:01.690533 remaining - 0:00:02.040845 per it.
+INFO: 21:17:58 - Iteration 58000 - Validation loss: 3.74e-03 
+INFO: 21:25:42 - Running 1 day, 9:01:19.097609 - Iteration 58250 - Loss: 3.58e-03 - 0:59:31.482566 remaining - 0:00:02.040847 per it.
+INFO: 21:26:29 - Iteration 58250 - Validation loss: 4.48e-03 
+INFO: 21:34:12 - Running 1 day, 9:09:49.040077 - Iteration 58500 - Loss: 3.87e-03 - 0:51:01.263836 remaining - 0:00:02.040843 per it.
+INFO: 21:34:59 - Iteration 58500 - Validation loss: 4.18e-03 
+INFO: 21:42:42 - Running 1 day, 9:18:19.308183 - Iteration 58750 - Loss: 4.04e-03 - 0:42:31.054481 remaining - 0:00:02.040844 per it.
+INFO: 21:43:28 - Iteration 58750 - Validation loss: 4.21e-03 
+INFO: 21:51:12 - Running 1 day, 9:26:48.910599 - Iteration 59000 - Loss: 3.60e-03 - 0:34:00.833252 remaining - 0:00:02.040833 per it.
+INFO: 21:51:58 - Iteration 59000 - Validation loss: 3.94e-03 
+INFO: 21:59:42 - Running 1 day, 9:35:18.640804 - Iteration 59250 - Loss: 3.36e-03 - 0:25:30.618897 remaining - 0:00:02.040825 per it.
+INFO: 22:00:28 - Iteration 59250 - Validation loss: 3.91e-03 
+INFO: 22:08:12 - Running 1 day, 9:43:48.354621 - Iteration 59500 - Loss: 4.53e-03 - 0:17:00.408450 remaining - 0:00:02.040817 per it.
+INFO: 22:08:57 - Iteration 59500 - Validation loss: 4.16e-03 
+INFO: 22:16:41 - Running 1 day, 9:52:17.959278 - Iteration 59750 - Loss: 4.21e-03 - 0:08:30.201716 remaining - 0:00:02.040807 per it.
+INFO: 22:17:27 - Iteration 59750 - Validation loss: 4.18e-03 
+INFO: 22:25:11 - Running 1 day, 10:00:47.890637 - Iteration 60000 - Loss: 3.62e-03 - 0:00:00 remaining - 0:00:02.040802 per it.
+INFO: 22:25:57 - Iteration 60000 - Validation loss: 4.04e-03 
+INFO: Training time 1 day, 10:01:34.205901 - Done!

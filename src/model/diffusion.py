@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 from tqdm.auto import tqdm
 
-from utils.model_utils import construct_from_config
+from utils.config_utils import construct_from_config
 
 
 def cosine_beta_schedule(timesteps, s=8e-3):
