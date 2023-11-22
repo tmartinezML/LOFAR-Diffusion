@@ -1936,3 +1936,24 @@ INFO: 13:29:03 - Running 0:56:46.121831 - Iteration 10250 - Loss: 1.01e-02 - 2 d
 INFO: 13:31:43 - Running 0:59:26.619402 - Iteration 10500 - Loss: 9.71e-03 - 2 days, 10:21:13.918000 remaining - 0:00:00.713324 per it.
 INFO: 13:34:25 - Running 1:02:08.299540 - Iteration 10750 - Loss: 8.72e-03 - 2 days, 10:02:42.226000 remaining - 0:00:00.710152 per it.
 INFO: 13:37:07 - Running 1:04:49.759983 - Iteration 11000 - Loss: 1.11e-02 - 2 days, 9:45:25.326000 remaining - 0:00:00.707229 per it.
+INFO: 13:39:49 - Running 1:07:32.551584 - Iteration 11250 - Loss: 9.21e-03 - 2 days, 9:30:32.650000 remaining - 0:00:00.704792 per it.
+INFO: 13:42:31 - Running 1:10:14.390273 - Iteration 11500 - Loss: 9.78e-03 - 2 days, 9:15:53.813000 remaining - 0:00:00.702398 per it.
+INFO: 13:45:13 - Running 1:12:56.462224 - Iteration 11750 - Loss: 1.05e-02 - 2 days, 9:02:23.620500 remaining - 0:00:00.700234 per it.
+INFO: 13:47:54 - Running 1:15:37.434589 - Iteration 12000 - Loss: 1.07e-02 - 2 days, 8:48:53.631000 remaining - 0:00:00.698067 per it.
+INFO: 13:50:36 - Running 1:18:19.586852 - Iteration 12250 - Loss: 9.18e-03 - 2 days, 8:37:02.796250 remaining - 0:00:00.696235 per it.
+INFO: 13:53:19 - Running 1:21:01.758597 - Iteration 12500 - Loss: 9.65e-03 - 2 days, 8:25:52.072500 remaining - 0:00:00.694537 per it.
+INFO: 13:56:10 - Iteration 12500 - Validation loss: 1.01e-02 - Validation EMA loss: 9.92e-03
+INFO: 13:58:50 - Running 1:26:32.720477 - Iteration 12750 - Loss: 1.03e-02 - 2 days, 10:08:40.263250 remaining - 0:00:00.716237 per it.
+INFO: 14:01:32 - Running 1:29:14.982476 - Iteration 13000 - Loss: 9.94e-03 - 2 days, 9:54:47.416000 remaining - 0:00:00.713998 per it.
+INFO: 14:04:13 - Running 1:31:56.479686 - Iteration 13250 - Loss: 1.01e-02 - 2 days, 9:41:08.817000 remaining - 0:00:00.711804 per it.
+INFO: 14:06:55 - Running 1:34:38.300182 - Iteration 13500 - Loss: 9.77e-03 - 2 days, 9:28:23.202000 remaining - 0:00:00.709788 per it.
+INFO: 14:09:36 - Running 1:37:19.177514 - Iteration 13750 - Loss: 9.37e-03 - 2 days, 9:15:40.633750 remaining - 0:00:00.707779 per it.
+INFO: 14:12:18 - Running 1:40:01.103607 - Iteration 14000 - Loss: 9.69e-03 - 2 days, 9:04:09.492000 remaining - 0:00:00.706012 per it.
+INFO: 14:15:04 - Running 1:42:47.267872 - Iteration 14250 - Loss: 1.06e-02 - 2 days, 8:55:29.613250 remaining - 0:00:00.704831 per it.
+INFO: 14:17:50 - Running 1:45:33.454593 - Iteration 14500 - Loss: 1.01e-02 - 2 days, 8:47:09.788500 remaining - 0:00:00.703717 per it.
+INFO: 14:20:35 - Running 1:48:18.424033 - Iteration 14750 - Loss: 9.93e-03 - 2 days, 8:38:29.913000 remaining - 0:00:00.702532 per it.
+INFO: 14:23:17 - Running 1:51:00.307630 - Iteration 15000 - Loss: 1.21e-02 - 2 days, 8:28:34.650000 remaining - 0:00:00.701085 per it.
+INFO: 14:26:07 - Iteration 15000 - Validation loss: 1.01e-02 - Validation EMA loss: 9.78e-03
+INFO: 14:28:46 - Running 1:56:29.220446 - Iteration 15250 - Loss: 1.05e-02 - 2 days, 9:41:45.259250 remaining - 0:00:00.716843 per it.
+INFO: 14:31:28 - Running 1:59:10.968857 - Iteration 15500 - Loss: 9.93e-03 - 2 days, 9:30:20.581500 remaining - 0:00:00.715097 per it.
+INFO: 14:34:10 - Running 2:01:53.420094 - Iteration 15750 - Loss: 1.01e-02 - 2 days, 9:19:41.032000 remaining - 0:00:00.713504 per it.

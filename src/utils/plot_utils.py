@@ -124,7 +124,7 @@ def add_distribution_plot(distr_dict, ax, key,
 
     # Add number of images to label
     if label is not None:
-        label += f" (n={int(torch.sum(counts)):_})"
+        label += f" (n={int(np.sum(counts)):_})"
 
     # Plot distribution and error bars
     ax.stairs(c_norm, edges, alpha=alpha, fill=fill, label=label, color=color)
@@ -203,7 +203,7 @@ def plot_distributions(distr_gen, distr_lofar, error,
 
         # Set properties for distributions plot
         # (x-axis limits, labels, log-scale, grid, legend)
-        xmax = torch.max(torch.cat([
+        xmax = np.max(np.concatenate([
             e_gen[1:][c_gen > 0], e_lofar[1:][c_lofar > 0]
         ])).item()
         ax.set_xlim(left=0, right=xmax)

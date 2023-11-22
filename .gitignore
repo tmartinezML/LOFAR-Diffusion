@@ -6,3 +6,5 @@ analysis_results/
 images
 results
 .*
+*.log
+*.out

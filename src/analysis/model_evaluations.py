@@ -121,7 +121,7 @@ def per_bin_delta(dict1, dict2):
 
         # Calculate delta & error
         delta = 2 * (c1 - c2) / (c1 + c2)
-        delta_err = 4 * torch.sqrt(
+        delta_err = 4 * np.sqrt(
             (e1**2 * c2**2 + e2**2 * c1**2) / (c1 + c2)**4
         )
         # Replace NaN (from division by 0 where c1 = c2 = 0) with 0:
