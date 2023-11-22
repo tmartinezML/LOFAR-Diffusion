@@ -7,21 +7,32 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from matplotlib.animation import FuncAnimation, PillowWriter
 
+from utils.stats_utils import norm, norm_err, cdf, cdf_err, centers
+
 
 def plot_losses(loss_files, logscale=True, stride=1, smooth=20,
-                title=None, ):
-    fig, ax = plt.subplots(dpi=100, figsize=(9, 5), tight_layout=True)
-    # Add data to plot
+                title=None, fig_ax=None):
+    # Create figure and axes
+    fig, ax = fig_ax or plt.subplots(
+        dpi=100, figsize=(9, 5), tight_layout=True)
+
+    # If loss_files is a list, plot each file in a different color and
+    # with labels
     if isinstance(loss_files, Iterable):
         show_legend = True
         colors = mpl.colormaps['turbo'](np.linspace(0, 1, len(loss_files)))
+
+        # Plot each loss file
         for i, lf in enumerate(loss_files):
             sm = smooth[i] if isinstance(smooth, Iterable) else smooth
             add_loss_plot(lf, ax, stride=stride, smooth=sm, color=colors[i],
                           label=lf.stem.replace("losses_", ""))
+
+    # If loss_files is a single file, plot it in black
     else:
         show_legend = False
         add_loss_plot(loss_files, ax, stride=stride, smooth=20)
+
     # Set plot properties
     if logscale:
         ax.set_yscale('log')
@@ -32,6 +43,7 @@ def plot_losses(loss_files, logscale=True, stride=1, smooth=20,
         ax.legend()
     if title is not None:
         ax.set_title(title)
+
     return fig, ax
 
 
@@ -40,23 +52,52 @@ def plot_losses_from_folder(path, **kwargs):
     return plot_losses(loss_files, smooth=[20, 0], **kwargs)
 
 
-def add_loss_plot(loss_file, ax, stride=1, smooth=20, color="black", **kwargs):
+def add_loss_plot(loss_file, ax, stride=1, smooth=20, color="black",
+                  hline=True,
+                  **kwargs):
+    # Read loss file
     df = pd.read_csv(loss_file, delimiter=";", dtype=float)
     step, loss = [df[c] for c in df][:2]  # Can also have 'ema_loss' column
-    k = kwargs if not smooth else {}
-    ax.plot(step[::stride], loss[::stride],
-            color=color,
-            alpha=(0.2 if smooth else 1),
-            **k)
+
+    # If smoothing is desired, plot kwargs are passed to the smoothed plot.
+    kwargs_loss = {} if smooth else kwargs
+
+    # Plot loss
+    ax.plot(
+        step[::stride], loss[::stride],
+        color=color, alpha=(0.2 if smooth else 0.6), **kwargs_loss
+    )
+
+    # Calculate and plot EMA of loss
     if smooth:
         ema = pd.Series(loss).ewm(span=smooth).mean()
         ax.plot(step, ema, color=color, **kwargs)
 
+    # Plot horizontal line at last loss value
+    if hline:
+        ax.axhline(
+            (ema if smooth else loss).to_numpy()[-1],
+            color=color, alpha=0.5, ls="--", lw=1
+        )
 
-def plot_samples(imgs, title=None, vmin=-1, vmax=1, savefig=None):
-    n = int(np.sqrt(imgs.shape[0]))
-    fig, axs = plt.subplots(nrows=n, ncols=n, tight_layout=True,
-                            figsize=(12, 12))
+    # Plot ema loss if availble
+    if 'ema_loss' in df.columns:
+        ax.plot(step, df['ema_loss'], color=color, ls='--', lw=1)
+
+
+def plot_samples(imgs, title=None, vmin=-1, vmax=1, savefig=None,
+                 n_rows=None, n_cols=None):
+    if n_rows is None and n_cols is None:
+        n = int(np.sqrt(imgs.shape[0]))
+        n_rows = n_cols = n
+    elif n_rows is None or n_cols is None:
+        known = n_rows or n_cols
+        n = int(imgs.shape[0] // known)
+        n_rows = n_rows or n
+        n_cols = n_cols or n
+
+    fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, tight_layout=True,
+                            figsize=(3 * n_cols, 3 * n_rows))
     for ax, img in zip(axs.flat, imgs):
         ax.axis('off')
         ax.imshow(img.squeeze(), vmin=vmin, vmax=vmax)
@@ -74,42 +115,41 @@ def plot_samples(imgs, title=None, vmin=-1, vmax=1, savefig=None):
 # -----------------------------#
 
 
-def get_centers(edges):
-    # Helper function to get bin centers from bin edges
-    return (edges[1:] + edges[:-1]) / 2
-
-
-def add_distribution_plot(distr_gen, ax, key,
+def add_distribution_plot(distr_dict, ax, key,
                           label='', color="black", alpha=0.5, fill=False):
-    c_gen, e_gen = distr_gen[key]
-    norm = torch.sum(c_gen)
-    err_gen = torch.sqrt(c_gen)
+    # Extract counts and edges from distribution
+    counts, edges = distr_dict[key]
+    c_norm = norm(counts)
+    c_norm_err = norm_err(counts)
+
+    # Add number of images to label
     if label is not None:
-        label += f" (n={int(norm):_})"
-    ax.stairs(c_gen / norm, e_gen,
-              alpha=alpha, fill=fill, label=label,
-              color=color)
-    ax.errorbar(get_centers(e_gen), c_gen / norm,
-                yerr=err_gen / norm,
-                alpha=0.75 * alpha, ls="none", color=color, elinewidth=0.5,
+        label += f" (n={int(torch.sum(counts)):_})"
+
+    # Plot distribution and error bars
+    ax.stairs(c_norm, edges, alpha=alpha, fill=fill, label=label, color=color)
+    ax.errorbar(centers(edges), c_norm, yerr=c_norm_err,
+                alpha=0.75 * alpha, color=color, ls="none", elinewidth=0.5,
                 capsize=2.5, capthick=0.5)
 
-    return c_gen, e_gen
+    return counts, edges
 
 
-def add_distribution_error_plot(error, ax2, key, color="tab:blue"):
-    c, dc_sq, e = error[key]
-    ax2.stairs(c, e, fill=True, alpha=0.5,
-               color=color)
-    ax2.errorbar(get_centers(e), c,
-                 yerr=torch.sqrt(dc_sq),
-                 alpha=0.5, ls="none", color=color, elinewidth=0.5,
+def add_distribution_delta_plot(delta, ax2, key, color="tab:blue"):
+    # Extract delta and edges from distribution
+    delta, delta_err, edges = delta[key]
+
+    # Plot delta and error bars
+    ax2.stairs(delta, edges, fill=True, alpha=0.5, color=color)
+    ax2.errorbar(centers(edges), delta, yerr=delta_err,
+                 alpha=0.5, color=color, ls="none", elinewidth=0.5,
                  capsize=2.5, capthick=0.5)
 
 
 def plot_distributions(distr_gen, distr_lofar, error,
                        title="Real vs. Generated Distributions", labels=None,
                        landscape_mode=False):
+    # Set plot size and layout
     if not landscape_mode:  # Default
         rows = 6
         cols = 1
@@ -118,28 +158,37 @@ def plot_distributions(distr_gen, distr_lofar, error,
         rows = 2
         cols = 3
         figsize = (24, 6)
+
+    # Create figure and axes
     fig, axs = plt.subplots(rows, cols, dpi=150, tight_layout=True,
                             figsize=figsize,
                             height_ratios=[5, 1] * int(rows / 2))
 
+    # Loop through axes to plot distributions. Every 2nd axis is for the
+    # per-bin delta between both distributions.
     for ax, ax2, key in zip(
-            axs.transpose().flat[::2],  # Large plots for distributions
-            axs.transpose().flat[1::2],  # Small plots for per-bin error
-            distr_lofar.keys()):
-        # Plot distributions of generated data
-        # Single distribution:
-        if isinstance(distr_gen, dict):
+        axs.transpose().flat[::2],  # Large plots for distributions
+        axs.transpose().flat[1::2],  # Small plots for per-bin delta
+        distr_lofar.keys()
+    ):
+
+        # Plot generated distributions.
+        # distr_gen can be either a single dictionary or a list of
+        # dictionaries.
+        if isinstance(distr_gen, dict):  # Single dictionary
             c_gen, e_gen = add_distribution_plot(
                 distr_gen, ax, key, color="tab:blue", alpha=0.5, fill=True,
                 label=f"Generated"
             )
-        # Multiple distributions:
-        elif isinstance(distr_gen, list):
+        elif isinstance(distr_gen, list):  # List of dictionaries
             assert all(isinstance(d, dict) for d in distr_gen), (
                 "If distr_gen is a list, it should contain dictionaries."
             )
+            # Set colors for each distribution
             cmap = 'cividis_r'
             colors = mpl.colormaps[cmap](np.linspace(0, 1, len(distr_gen)))
+
+            # Plot each distribution
             for i, dg in enumerate(distr_gen):
                 label = labels[i] if labels is not None else None
                 c_gen, e_gen = add_distribution_plot(
@@ -152,7 +201,8 @@ def plot_distributions(distr_gen, distr_lofar, error,
             label=f"Real"
         )
 
-        # Set plot properties
+        # Set properties for distributions plot
+        # (x-axis limits, labels, log-scale, grid, legend)
         xmax = torch.max(torch.cat([
             e_gen[1:][c_gen > 0], e_lofar[1:][c_lofar > 0]
         ])).item()
@@ -163,43 +213,49 @@ def plot_distributions(distr_gen, distr_lofar, error,
         ax.grid(alpha=0.3)
         ax.legend()
 
-        # Plot per-bin relative error between both distributions (thin plots)
-        if isinstance(error, dict):
-            add_distribution_error_plot(error, ax2, key)
+        # Plot per-bin relative delta between both distributions (thin plots)
+        if isinstance(error, dict):  # Single dictionary
+            add_distribution_delta_plot(error, ax2, key)
 
-        elif isinstance(error, list):
+        elif isinstance(error, list):  # List of dictionaries
             assert all(isinstance(d, dict) for d in error), (
                 "If error is a list, it should contain dictionaries."
             )
             # cmap and colors are defined above, where distributions are plotted
             for i, e in enumerate(error):
-                add_distribution_error_plot(e, ax2, key, color=colors[i])
+                add_distribution_delta_plot(e, ax2, key, color=colors[i])
 
-        # Set plot properties
+        # Set properties for delta plot
+        # (x-axis limits, labels, grid)
         ax2.set_ylabel(r"$2 \cdot \frac{Real-Gen}{Real+Gen}$")
         ax2.grid(alpha=0.3)
         ax2.set_xlim(left=0, right=xmax)
         ax2.set_ylim(-2.5, 2.5)
 
+    # If necessary, remove y labels from all but the first column
     if landscape_mode:
         for ax in axs.transpose()[1:].flat:
-            # Remove y labels
             ax.set_ylabel(None)
 
+    # Add title to figure
     fig.suptitle(f"{title}")
-    # fig.savefig(f"./analysis/dataset_comparisons/{title.replace('.', '')}.pdf")
+
     return fig
 
 
 def plot_W1_scores(scores_list, x_values=None, x_label='Trial',
                    landscape_mode=False):
-    if x_values is None:
-        x_values = range(len(scores_list))
+    # Set x values if not passed
+    x_values = x_values or range(len(scores_list))
+
+    # Get keys from first dictionary in list
     keys = scores_list[0].keys()
 
+    # Set colors for each distribution
     cmap = 'cividis_r'
     colors = mpl.colormaps[cmap](np.linspace(0, 1, len(scores_list)))
 
+    # Set plot size and layout
     if not landscape_mode:  # Default
         rows = 3
         cols = 1
@@ -209,18 +265,29 @@ def plot_W1_scores(scores_list, x_values=None, x_label='Trial',
         cols = 3
         figsize = (18, 3)
 
+    # Create figure and axes
     fig, axs = plt.subplots(rows, cols, figsize=figsize, sharex=True, dpi=150,
                             tight_layout=True)
 
+    # Loop through axes & keys to plot W1 values.
     for ax, key in zip(axs, keys):
-        ax.scatter(x_values, [score[key]
-                   for score in scores_list], color=colors)
+        # Plot W1 values with error
+        # (Loop so every data point can have a different color)
+        for i, score in enumerate(scores_list):
+            ax.errorbar(
+                x_values[i], score[key][0], yerr=score[key][1],
+                color=colors[i], marker='.',
+                ls="none", elinewidth=0.5, capsize=2.5, capthick=0.5,
+            )
+        # Set properties for W1 plot
         ax.set_title(key)
         ax.grid(alpha=0.3)
 
+    # Set labels depending on layout
     [ax.set_ylabel('W1 score') for ax in axs[:(1 if landscape_mode else 3)]]
     [ax.set_xlabel(x_label) for ax in axs[(0 if landscape_mode else 2):]]
-    return fig
+
+    return fig, axs
 
 # -----------------------------#
 # Visualizing PBT results

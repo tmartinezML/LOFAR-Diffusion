@@ -6,8 +6,7 @@ from torchvision.utils import save_image
 from torchvision.transforms import Lambda
 from tqdm import tqdm
 
-from model.diffusion import Diffusion
-from model.edm_diffusion import EDM_Diffusion
+from model.diffusion import EDM_Diffusion
 from utils.device_utils import distribute_model
 from utils.plot_utils import plot_samples
 from utils.init_utils import (
@@ -135,7 +134,7 @@ def sample_set_from_folder(
         f"samples_{model_name}"
         + (f"_{out_folder_suffix}" if out_folder_suffix else "")
     )
-    Path.mkdir(out_folder, exist_ok=True, parents=False)
+    Path.mkdir(out_folder, exist_ok=True, parents=True)
     info_file = out_folder.joinpath("sampling_info.json")
     i = 0
     while info_file.exists():
@@ -194,34 +193,7 @@ def sample_set_from_folder(
         json.dump(sampling_info, f, indent=4)
 
     print("Sampling done.")
-
-
-if __name__ == "__main__":
-    # Available sampling methods:
-
-    # EDM diffusion:
-    # "edm_stochastic_sampling",
-    # "edm_deterministic_sampling",
-
-    # Original diffusion:
-    # "p_sampling",
-    # "ddim_sampling",
-
-    model_dir = Path(
-        "/home/bbd0953/diffusion/results/InitModel_EDM_SnapshotRun")
-
-    sample_set_from_folder(
-        model_dir,
-        batch_size=1536,
-        n_batches=1,
-        n_devices=3,
-        T=50,
-        use_ema=True,
-        img_size=80,
-        sampling_method="edm_stochastic_sampling",
-        out_parent=OUT_PARENT,
-        out_folder_suffix="T=50",
-    )
+    return out_folder
 
 
 def sneak_peek(model_dir,
@@ -255,3 +227,18 @@ def sneak_peek(model_dir,
     imgs = sampling(model, img_size, batch_size=batch_size)[-1]
     fig, axs = plot_samples(imgs, title=f"Model {model_dir.name} samples")
     return fig, axs
+
+
+if __name__ == "__main__":
+    # Available sampling methods:
+
+    # EDM diffusion:
+    # "edm_stochastic_sampling",
+    # "edm_deterministic_sampling",
+
+    # Original diffusion:
+    # "p_sampling",
+    # "ddim_sampling"
+    pass
+
+    

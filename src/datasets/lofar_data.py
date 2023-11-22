@@ -106,7 +106,6 @@ class LofarUnlabeled(Dataset):
                      (source['LGZ_Size'], 2*source['DC_Maj']),
                      (source['LGZ_Width'], 2*source['DC_Min']))
                 )
-        
         print("Data set initialized.")
 
 

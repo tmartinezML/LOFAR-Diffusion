@@ -11,13 +11,14 @@ from torch import optim
 from torch.utils.data import DataLoader, random_split
 from torch.nn.parallel import DataParallel
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch_ema import ExponentialMovingAverage as EMA
 from torch.cuda.amp import autocast, GradScaler
+from torch.optim.lr_scheduler import StepLR, MultiStepLR, SequentialLR
+from torch_ema import ExponentialMovingAverage as EMA
 
 import model.unet as unet
-from model.diffusion import Diffusion
-from model.edm_diffusion import EDM_Diffusion
+from model.diffusion import EDM_Diffusion
 from utils.data_utils import LofarSubset, LofarDummySet, load_data
+from datasets.firstgalaxydata import FIRSTGalaxyData
 from utils.device_utils import visible_gpus_by_space
 from utils.init_utils import load_config_from_path
 
@@ -28,7 +29,7 @@ class outputManager():
                  override=False, pickup=False, parent_dir=None):
         self.model_name = model_name
         self.override = override
-        self.pickup=pickup
+        self.pickup = pickup
 
         self.parent_dir = parent_dir or Path("/storage/tmartinez/results")
         self.results_folder = self.parent_dir.joinpath(self.model_name)
@@ -65,9 +66,23 @@ class outputManager():
             self.ema_state_file, self.optim_state_file,
             self.config_file, self.log_file,
         ]
-    
+
+        logging.basicConfig(
+            format='%(levelname)s: %(message)s',
+            level=logging.INFO,
+            handlers=[
+                logging.FileHandler(
+                    self.log_file,
+                    mode="a" if self.log_file.exists() else "w",
+                ),
+                logging.StreamHandler(),
+            ],
+            force=True,
+        )
+
     def _loss_files_exist(self):
-        exist = [f.exists() for f in [self.train_loss_file, self.val_loss_file]]
+        exist = [f.exists()
+                 for f in [self.train_loss_file, self.val_loss_file]]
         return all(exist)
 
     def _writer(self, f):
@@ -98,23 +113,12 @@ class outputManager():
     def init_training_loop_pickup(self):
         assert self._loss_files_exist(), \
             f"Loss files for model {self.model_name} do not exist."
-        
+
     def init_training_loop(self):
         if self.pickup:
             self.init_training_loop_pickup()
         else:
             self.init_training_loop_create()
-
-        logging.basicConfig(
-            format='%(levelname)s: %(message)s',
-            level=logging.INFO,
-            handlers=[
-                logging.FileHandler(self.log_file,
-                                    mode=('a' if self.log_file.exists() else 'w')),
-                logging.StreamHandler(),
-            ],
-            force=True,
-        )
 
     def _write_loss(self, file, iteration, loss):
         with open(file, "a") as f:
@@ -135,16 +139,20 @@ class outputManager():
     def save_params_model(self, model):
         torch.save(model.state_dict(), self.pars_model_file)
 
-    def save_snapshot(self, snap_name, model, ema):
+    def save_snapshot(self, snap_name, model, ema, optimizer):
         snap_dir = self.results_folder.joinpath("snapshots")
         snap_dir.mkdir(parents=True, exist_ok=True)
-        # Save model
-        torch.save(model.state_dict(),
-                   snap_dir.joinpath(f"model_{snap_name}.pt"))
-        # Save EMA
         with ema.average_parameters():
-            torch.save(model.state_dict(),
-                       snap_dir.joinpath(f"ema_{snap_name}.pt"))
+            ema_params = model.state_dict()
+
+        torch.save({
+            "model": model.state_dict(),
+            "ema_params": ema_params,
+            "ema_state": ema.state_dict(),
+            "optimizer": optimizer.state_dict(),
+        },
+            snap_dir.joinpath(f"snapshot_{snap_name}.pt")
+        )
 
     def save_params_ema(self, model, ema):
         with ema.average_parameters():
@@ -168,79 +176,90 @@ class outputManager():
         return config["iterations"]
 
 
-def nan_hook(self, inp, out):
-    outputs = out if isinstance(out, tuple) else [out]
-    inputs = inp if isinstance(inp, tuple) else [inp]
+DEBUG_DIR = Path('/home/bbd0953/diffusion/results/debug')
 
-    has_nan = lambda x: torch.isnan(x).any()
-    layer_name = self.__class__.__name__
-
-    for i, x in enumerate(inputs):
-        if x is not None and has_nan(x):
-            raise RuntimeError(f"{layer_name} input {i} has NaNs")
-    
-    for i, x in enumerate(outputs):
-        if x is not None and has_nan(x):
-            raise RuntimeError(f"{layer_name} output {i} has NaNs")
-        
 
 class DiffusionTrainer:
-    def __init__(self, *, config, dataset, device=None, parent_dir=None, 
+    def __init__(self, *, config, dataset, device=None, parent_dir=None,
                  pickup=False):
         # Initialize config & class attributes
         self.config = config
-        self.loss_type = self.config.loss_type
-        self.validate_ema = False
-        if hasattr(self.config, "validate_ema"):
-            self.validate_ema = self.config.validate_ema
+        self.validate_ema = self.config.validate_ema
+
+        # Initialize output manager
+        self.OM = outputManager(self.config.model_name,
+                                override=self.config.override_files,
+                                parent_dir=parent_dir, pickup=pickup)
+        self.iter_start = 0
+        if pickup:
+            self.iter_start = self.OM.read_iter_count()
+            logging.info(f"Starting training at iteration {self.iter_start}.")
 
         # Initialize device
         device_ids_by_space = visible_gpus_by_space()
-        self.device = device or (
-            torch.device("cuda", device_ids_by_space[0])
-            if torch.cuda.is_available()
-            else "cpu"
-        )
+        self.device = device or torch.device("cuda", device_ids_by_space[0])
         logging.info(f"Working on: {self.device}")
 
-        # Initialize model & EMA
-        unetModel = getattr(unet, self.config.model_type)
-        self.model = unetModel.from_config(self.config)
-        for layer in self.model.model.modules():
-            layer.register_forward_hook(nan_hook)
+        # Initialize Model
+        unetClass = getattr(unet, self.config.model_type)
+        self.model = unetClass.from_config(self.config)
+        # Load state dict of pretrained model if specified
+        if self.config.pretrained_model:
+            self.model.load_state_dict(
+                torch.load(self.config.pretrained_model, map_location='cpu')
+            )
+            logging.info(
+                f"Loaded pretrained model from: \
+                  \n\t{self.config.pretrained_model}"
+            )
         self.inner_model = self.model
         self.model.to(self.device)
+        # Initialize parallel training
         if self.config.n_devices > 1:
-            # Initialize parallel training
             dev_ids = device_ids_by_space[:self.config.n_devices]
-            logging.info(f"Parallel training on multiple GPUs: \
-                        {dev_ids}.")
-            self.model.to(f'cuda:{dev_ids[0]}')  # Necessary for DDP
-            self.model = DataParallel(
-                self.model,
-                device_ids=dev_ids
+            logging.info(
+                f"Parallel training on multiple GPUs: {dev_ids}."
             )
+            self.model.to(f'cuda:{dev_ids[0]}')  # Necessary for DataParallel
+            self.model = DataParallel(self.model, device_ids=dev_ids)
             self.inner_model = self.model.module
+
+        # Initialize EMA
         self.ema = EMA(self.model.parameters(), decay=self.config.ema_rate)
 
         # Initialize diffusion
-        diffusion_class = (
-            EDM_Diffusion if self.config.model_type == "EDMPrecond"
-            else Diffusion
-        )
-        self.diffusion = diffusion_class.from_config(self.config)
+        self.diffusion = EDM_Diffusion.from_config(self.config)
 
         # Initialize data
+        self.dataset = dataset
         self.config.batch_size = int(self.config.batch_size)
-        self.train_set = dataset
         self.val_every = (
             self.config.val_every if hasattr(self.config, "val_every")
             else self.config.log_interval
         )
-        if self.val_every:
-            # Split dataset into train and validation sets
+        self.init_data_sets(split=bool(self.val_every))
+
+        # Initialize optimizer & LR scheduler
+        self.optimizer = None
+        self.init_optimizer()
+        if False:
+            self.scheduler = SequentialLR(
+                self.optimizer,
+                schedulers=[
+                    StepLR(self.optimizer, step_size=100_000, gamma=1),
+                    StepLR(self.optimizer, step_size=5_000, gamma=0.8),
+                ],
+                milestones=[100_000]
+            )
+
+    def init_data_sets(self, split=True):
+        self.train_set = self.dataset
+        # Split dataset into train and validation sets
+        if split:
+            # Manual seed for reproducibility of results
+            generator = torch.Generator().manual_seed(42)
             self.train_set, self.val_set = random_split(
-                dataset, [0.1, 0.9]
+                self.dataset, [0.9, 0.1], generator=generator
             )
             assert len(self.val_set) >= self.config.batch_size, \
                 f"Batch size {self.config.batch_size} larger than validation set."
@@ -253,20 +272,6 @@ class DiffusionTrainer:
             f"Batch size {self.config.batch_size} larger than training set."
         self.train_data = load_data(self.train_set, self.config.batch_size)
 
-        # Initialize optimizer
-        self.optimizer = None
-        self.init_optimizer()
-
-        # Initialize output manager
-        self.OM = outputManager(self.config.model_name,
-                                override=self.config.override_files,
-                                parent_dir=parent_dir, pickup=pickup)
-        
-        self.iter_start = 0
-        if pickup:
-            self.iter_start = self.OM.read_iter_count()
-            logging.info(f"Starting training at iteration {self.iter_start}.")
-        
     def init_optimizer(self):
         if hasattr(self.config, "optimizer"):
             self.optimizer = getattr(optim, self.config.optimizer)(
@@ -275,7 +280,13 @@ class DiffusionTrainer:
         else:
             self.optimizer = optim.Adam(self.model.parameters(),
                                         lr=self.config.learning_rate)
-    
+
+        if hasattr(self.config, "optimizer_file") and \
+                self.config.optimizer_file is not None:
+            logging.info(f"Loading optimizer state from: \
+                            \n\t{self.config.optimizer_file}")
+            self.load_optimizer(self.config.optimizer_file)
+
     @classmethod
     def from_pickup(self, path, config=None, iterations=None, **kwargs):
         assert config is not None or iterations is not None, \
@@ -302,7 +313,7 @@ class DiffusionTrainer:
             logging.warning(
                 "EMA state file not found. Loading from model parameters.")
             self.load_ema_from_model_dict()
-    
+
     def load_ema_from_model_dict(self):
         dummy_model = deepcopy(self.inner_model)
         dummy_model.load_state_dict(
@@ -319,10 +330,14 @@ class DiffusionTrainer:
             torch.load(self.OM.ema_state_file, map_location='cpu')
         )
 
-    def load_optimizer(self):
-        if self.OM.optim_state_file.exists():
+    def load_optimizer(self, file=None):
+        file = file or self.OM.optim_state_file
+        if type(file) == str:
+            file = Path(file)
+
+        if file.exists():
             self.optimizer.load_state_dict(
-                torch.load(self.OM.optim_state_file, map_location='cpu')
+                torch.load(file, map_location='cpu')
             )
         else:
             logging.warning(
@@ -367,11 +382,12 @@ class DiffusionTrainer:
         # Start training loop
         logging.info(
             f"Starting training loop at {t0.strftime('%H:%M:%S')}...\n"
-            f"Training for {iterations:_} iterations - "\
-            f"Starting from {self.iter_start:_} - "\
+            f"Training for {iterations:_} iterations - "
+            f"Starting from {self.iter_start:_} - "
             f"Remaining iterations {iterations - self.iter_start:_}"
         )
         for i in range(self.iter_start, iterations):
+
             # Perform training step
             loss = self.training_step(scaler)
             loss_buffer.append([i + 1, loss.item()])
@@ -389,7 +405,7 @@ class DiffusionTrainer:
                 )
                 if write_output:
                     self.log_step_write_output(OM, save_model, loss_buffer, i)
-            
+
             # Calculate validation loss, log & write
             if self.val_every and (i + 1) % self.val_every == 0:
                 val_loss = self.validation_loss(eval_ema=self.validate_ema)
@@ -407,18 +423,35 @@ class DiffusionTrainer:
                     save_model and \
                     (i + 1) % self.config.snapshot_interval == 0:
                 logging.info(f"Saving snapshot at iteration {i+1}...")
-                OM.save_snapshot(f"iter_{i+1:08d}", self.inner_model, self.ema)
+                OM.save_snapshot(f"iter_{i+1:08d}",
+                                 self.inner_model,
+                                 self.ema,
+                                 self.optimizer)
 
         logging.info(f"Training time {dt()} - Done!")
 
     def training_step(self, scaler):
         self.optimizer.zero_grad()
-        batch = next(self.train_data).to(self.device)
+        batch = next(self.train_data)
+        labels = None
+        if isinstance(batch, list):
+            batch, labels = batch
+
         with autocast():
-            loss = self.batch_loss(batch)
+            try:
+                loss = self.batch_loss(batch, labels=labels)
+            except (ValueError, RuntimeError) as e:
+                print("Error in training step batch loss calculation.")
+                torch.save(self.inner_model.state_dict(),
+                           DEBUG_DIR.joinpath("model.pt"))
+                torch.save(batch, DEBUG_DIR.joinpath("batch.pt"))
+                raise e
+
         scaler.scale(loss).backward()
         scaler.step(self.optimizer)
         scaler.update()
+        if hasattr(self, "scheduler"):
+            self.scheduler.step()
         self.ema.update()
         return loss
 
@@ -428,30 +461,46 @@ class DiffusionTrainer:
         with torch.no_grad():
             losses = []
             ema_losses = []
+
+            # Loop through all batches in validation set
             for batch in self.val_loader:
-                losses.append(self.batch_loss(batch).item())
+
+                # Set class labels if present
+                labels = None
+                if isinstance(batch, list):
+                    batch, labels = batch
+
+                # Calculate loss
+                losses.append(
+                    self.batch_loss(batch, labels=labels).item()
+                )
+
+                # Calculate EMA loss
                 if eval_ema:
-                    ema_losses.append(self.batch_loss_ema(batch).item())
+                    ema_losses.append(
+                        self.batch_loss_ema(batch, labels=labels).item()
+                    )
+
+        # Return mean loss
         output = [torch.Tensor(l).mean().item() for l in [losses, ema_losses]]
         self.model.train()
+
         return output
 
-    def batch_loss(self, batch):
+    def batch_loss(self, batch, labels=None):
         batch = batch.to(self.device)
+        if labels is not None:
+            labels = labels.to(self.device)
         with autocast():
-            if isinstance(self.diffusion, EDM_Diffusion):
-                loss = self.diffusion.edm_loss(self.model, batch)
-            else:
-                t = torch.randint(0, self.diffusion.timesteps,
-                                  (batch.shape[0],),
-                                  device=self.device).long()
-                loss = self.diffusion.p_losses(self.model, batch, t,
-                                               loss_type=self.loss_type)
+            loss = self.diffusion.edm_loss(
+                self.model, batch, class_labels=labels
+            )
+
         return loss
 
-    def batch_loss_ema(self, batch):
+    def batch_loss_ema(self, batch, labels=None):
         with self.ema.average_parameters():
-            loss = self.batch_loss(batch)
+            loss = self.batch_loss(batch, labels=labels)
         return loss
 
     def log_step_write_output(self, OM, save_model, loss_buffer, i):
@@ -474,6 +523,7 @@ class LofarDiffusionTrainer(DiffusionTrainer):
 
 class DummyDiffusionTrainer(DiffusionTrainer):
     def __init__(self, *, config, **kwargs):
+        config.batch_size = 1
         super().__init__(config=config, dataset=LofarDummySet(),
                          **kwargs)
 
@@ -503,3 +553,14 @@ class LofarParallelDiffusionTrainer(ParallelDiffusionTrainer):
     def __init__(self, *, config, rank, parent_dir=None):
         super().__init__(config=config, dataset=LofarSubset(),
                          rank=rank, parent_dir=parent_dir)
+
+
+class FIRSTDiffusionTrainer(DiffusionTrainer):
+    def __init__(self, *, config, **kwargs):
+        assert config.n_labels == 4, \
+            f"FIRSTDiffusionTrainer supports exactly 4 labels, \
+              {config.n_labels} given."
+        super().__init__(
+            config=config,
+            dataset=FIRSTGalaxyData(root="/home/bbd0953/diffusion/image_data"),
+            **kwargs)

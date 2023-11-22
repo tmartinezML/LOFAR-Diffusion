@@ -36,17 +36,17 @@ def visible_gpus_by_space(renumber=True):
 
 
 def distribute_model(model, n_devices=1):
+    device_ids = visible_gpus_by_space()[:n_devices]
     if n_devices == 1:
-        model.to(torch.device('cuda', visible_gpus_by_space()[0]))
+        model.to(torch.device('cuda', device_ids[0]))
 
     else:
-        device_ids = visible_gpus_by_space()[:n_devices]
         model.to(torch.device('cuda', device_ids[0]))
         model = DataParallel(
             model,
             device_ids=device_ids
         )
-    return model
+    return model, device_ids
 
 
 def set_visible_devices(n_gpu):

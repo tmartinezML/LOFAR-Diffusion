@@ -1,5 +1,6 @@
 import os
 import tempfile
+import logging
 
 from ray import train, tune
 from ray.train import Checkpoint
@@ -105,71 +106,15 @@ def train_wrapper(parameter_space, pretrained=None):
         i += 1
 
 
-def run_tune_Bayes_ASHA(parameter_space, name, algo, n_samples, max_iter, n_gpu):
-    algo = BayesOptSearch(random_search_steps=4)
-    scheduler = ASHAScheduler(
-        max_t=max_iter,
-        grace_period=1000,
-        reduction_factor=2
-    )
-    tuner = tune.Tuner(
-        tune.with_resources(
-            tune.with_parameters(train_wrapper),
-            resources={"cpu": N_CPU, "gpu": n_gpu}
-        ),
-        tune_config=tune.TuneConfig(
-            metric="val_ema_loss",
-            mode="min",
-            scheduler=scheduler,
-            num_samples=n_samples,
-            search_alg=algo,
-        ),
-        run_config=train.RunConfig(
-            storage_path=STORAGE_PARENT,
-            name=name,
-        ),
-        param_space=parameter_space,
-    )
-    results = tuner.fit()
-    return results
-
-
-def run_tune_PBT(parameter_space, name, n_samples):
-    scheduler = PopulationBasedTraining(
-        time_attr='training_iteration',
-        perturbation_interval=CHECKPOINT_INTERVAL,  # Recommended
-        metric='val_ema_loss',
-        mode='min',
-        hyperparam_mutations=parameter_space,
-    )
-    tuner = tune.Tuner(
-        tune.with_resources(
-            tune.with_parameters(train_wrapper),
-            resources={"cpu": N_CPU, "gpu": 1}
-        ),
-        tune_config=tune.TuneConfig(
-            scheduler=scheduler,
-            num_samples=n_samples,
-        ),
-        run_config=train.RunConfig(
-            storage_path=STORAGE_PARENT,
-            name=name,
-            stop={"nan": True}
-        ),
-        param_space=parameter_space,
-    )
-    results = tuner.fit()
-    return results
-
-
-def run_tune_BOHB(parameter_space, name, n_samples, pretrained=None):
+def run_tune_BOHB(parameter_space, name, n_samples, 
+                  max_t=10_000, pretrained=None):
     algo = tune.search.ConcurrencyLimiter(
         TuneBOHB(), max_concurrent=4
     )
     scheduler = HyperBandForBOHB(
         time_attr='training_iteration',
-        max_t=10_000,
-        reduction_factor=2,
+        max_t=max_t,
+        reduction_factor=3,
 
     )
     tuner = tune.Tuner(
@@ -179,7 +124,7 @@ def run_tune_BOHB(parameter_space, name, n_samples, pretrained=None):
         ),
         tune_config=tune.TuneConfig(
             scheduler=scheduler,
-            metric="val_ema_loss",
+            metric="val_loss",
             mode="min",
             num_samples=n_samples,
             search_alg=algo,
@@ -196,47 +141,81 @@ def run_tune_BOHB(parameter_space, name, n_samples, pretrained=None):
 
 
 if __name__ == "__main__":
+    # Set up logger to output to file,
+    # and to always print timestamp
+    logfile = "/home/bbd0953/diffusion/results/tune/tune.log"
+    logger = logging.getLogger("tune")
+    logger.setLevel(logging.INFO)
+    fh = logging.FileHandler(logfile)
+    fh.setLevel(logging.INFO)
+    logger.addHandler(fh)
+    formatter = logging.Formatter(
+        "%(asctime)s - %(levelname)s: %(message)s"
+    )
+    fh.setFormatter(formatter)
+
+    # Global setup
     GLOBAL_CONF = InitModel_EDM_config()
-    GLOBAL_CONF.iterations = 100_000
+    GLOBAL_CONF.channel_mults = (1, 2, 2, 2)
     GLOBAL_TRAINER_CLASS = LofarDiffusionTrainer
     STORAGE_PARENT = "/home/bbd0953/diffusion/results/tune"
-    REPORT_INTERVAL = 3_000
-    CHECKPOINT_INTERVAL = 10 * REPORT_INTERVAL
+    PRETRAINED_PARENT = "/home/bbd0953/diffusion/results/InitModel_EDM_lr=2e-5_bsize=256_(1,2,2,2)/snapshots"
+
+    # Device setup
     N_CPU = 16
     N_GPU = 2
     USE_DDP = True
-    name = "lr_bsize_BOHB_pretrained-20kIter"
-    n_samples = 30
-    # Set visible devices
     set_visible_devices(N_GPU)
 
-    # Tune
+    # Parameter space
     parameter_space = {
-        "learning_rate": tune.quniform(1e-5, 1e-4, 1e-5),
-        "batch_size": tune.choice([64, 128, 256]),
+        "learning_rate": tune.qloguniform(1e-5, 1e-3, 1e-5),
+        # "batch_size": tune.choice([128, 256]),
     }
 
-    # Pretrained checkpoint (optional)
+    # Optimization 1: From scratch
+    if False:
+        logger.info("Running: Optimization 1 (From scratch)")
+        GLOBAL_CONF.iterations = 1_000
+        REPORT_INTERVAL = 100
+        CHECKPOINT_INTERVAL = 200
+        run_tune_BOHB(
+            parameter_space,
+            name="lr_(1,2,2,2)_fromScratch",
+            n_samples=30,
+        )
+        logger.info("Finished: Optimization 1 (From scratch)")
+
+    # Optimization 2: From pretrained 5k
+    logger.info("Running: Optimization 2 (From pretrained 5k)")
     pretrained_cp = (
-        '/home/bbd0953/diffusion/results/'
-        'InitModel_EDM_SnapshotRun/snapshots/ema_iter_20000.pt'
+        PRETRAINED_PARENT + '/model_iter_00005000.pt'
     )
-
-    # Debug:
-    # train_wrapper({"learning_rate": 1e-4, "batch_size": 16}, pretrained_cp)
-
-    # Check if name exists, if so add suffix (prevent overwriting)
-    new_name = name
-    suffix = 00
-    while os.path.exists(os.path.join(STORAGE_PARENT, new_name)):
-        new_name = f"{name}_{suffix:02d}"
-        suffix += 1
-    name = new_name
-
-    # Run tune
-    results = run_tune_BOHB(
+    GLOBAL_CONF.iterations = 6_000
+    REPORT_INTERVAL = 600
+    CHECKPOINT_INTERVAL = REPORT_INTERVAL
+    run_tune_BOHB(
         parameter_space,
-        name,
-        n_samples=n_samples,
-        pretrained=pretrained_cp,
+        name="lr_(1,2,2,2)_pretrained-05k",
+        max_t = GLOBAL_CONF.iterations,
+        n_samples=27,
+        pretrained = pretrained_cp,
     )
+    logger.info("Finished: Optimization 2 (From pretrained 5k)")
+
+    # Optimization 3: From pretrained 15k
+    logger.info("Running: Optimization 3 (From pretrained 15k)")
+    pretrained_cp = (
+        PRETRAINED_PARENT + '/model_iter_00015000.pt'
+    )
+    GLOBAL_CONF.iterations = 15_000
+    REPORT_INTERVAL = 1000
+    CHECKPOINT_INTERVAL = REPORT_INTERVAL
+    run_tune_BOHB(
+        parameter_space,
+        name="lr_(1,2,2,2)_pretrained-15k",
+        n_samples=27,
+        max_t = GLOBAL_CONF.iterations,
+        pretrained = pretrained_cp,
+    )
+    logger.info("Finished: Optimization 3 (From pretrained 15k)")

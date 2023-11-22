@@ -7,9 +7,10 @@ from pathlib import Path
 import torch
 import torch.distributed as dist
 
-from model.configs import InitModel_EDM_config, DummyConfig
+import model.configs as configs
 from model.trainer import (
-    LofarDiffusionTrainer, LofarParallelDiffusionTrainer, DummyDiffusionTrainer
+    LofarDiffusionTrainer, LofarParallelDiffusionTrainer, DummyDiffusionTrainer,
+    FIRSTDiffusionTrainer
 )
 
 
@@ -46,23 +47,24 @@ def ddp_training(rank, world_size, conf):
 
 
 if __name__ == "__main__":
-    logging.info(
-        "\n\n\n######################\n"
-        "DDPM Workout\n"
-        "######################\n"
-        "Prepare training...\n"
-    )
+    # Paths
+    result_parent = Path("/home/bbd0953/diffusion/results")
 
     # Hyperparameters
-    conf = InitModel_EDM_config()
-    conf.model_name = "InitModel_EDM_lr=2e-5_bsize=256"
-    torch.autograd.set_detect_anomaly(True)
+    conf = configs.EDM_small_config()
+    conf.iterations = 200_000
+    conf.log_interval = 250
+    conf.model_name = "EDM_small_splitFix"
 
-    """
-    pickup_path = Path(
-        "/home/bbd0953/diffusion/results/InitModel_EDM_lr=2e-5_bsize=256"
-    )
-    trainer = LofarDiffusionTrainer.from_pickup(pickup_path, iterations=200_000)
-    """
-    trainer = LofarDiffusionTrainer(config=conf)
+    # Class conditioning
+    # conf.n_labels = 4
+    # conf.label_dropout = 0.1
+    # conf.pretrained_model = '/home/bbd0953/diffusion/results/EDM_small_SAFETY/snapshots/ema_iter_00020000.pt'
+    # conf.optimizer_file = '/home/bbd0953/diffusion/results/EDM/optimizer_state_EDM.pt'
+
+
+    pickup_path = Path(f"/home/bbd0953/diffusion/results/") / conf.model_name
+    trainer = LofarDiffusionTrainer.from_pickup(pickup_path, iterations=305_000, config=conf)
+    
+    # trainer = LofarDiffusionTrainer(config=conf)
     trainer.training_loop()

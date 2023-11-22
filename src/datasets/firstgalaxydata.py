@@ -9,7 +9,7 @@ import torchvision.transforms as transforms
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from torchvision.datasets.utils import download_url
-from utils.data import get_class_dict, get_class_dict_rev
+from utils.data_utils import get_class_dict, get_class_dict_rev
 import zipfile
 import warnings
 import copy
