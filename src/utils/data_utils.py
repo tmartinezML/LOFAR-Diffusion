@@ -1,4 +1,6 @@
 from pathlib import Path
+import os
+import random
 
 import torch
 from torch.utils.data import DataLoader
@@ -56,13 +58,28 @@ def clip_and_rescale(img):
     return img_norm
 
 
+def make_subset(dataset, out_dir):
+    os.makedirs(out_dir, exist_ok=True)
+    imgs = dataset.data
+    names = dataset.filenames
+    for img, name in tqdm(zip(imgs, names), total=len(imgs)):
+        img.save(f'{out_dir}/{name}.png')
+
+
 class ImagePathDataset(torch.utils.data.Dataset):
     # From:
     #  https://github.com/mseitzer/pytorch-fid/blob/master/src/pytorch_fid/fid_score.py
-    def __init__(self, path, transforms=ToTensor()):
+    def __init__(self, path, transforms=ToTensor(), n_subset=None):
         self.path = path
         self.files = sorted(self.path.glob("*.png"))
         self.transforms = transforms
+
+        if n_subset is not None:
+            print(
+                f"Selecting {n_subset} random images"
+                f" from {len(self.files)} files."
+            )
+            self.files = random.choices(self.files, k=n_subset)
 
         print("Loading images...")
         def load(f): return Image.open(f).convert("RGB")
@@ -80,16 +97,17 @@ class ImagePathDataset(torch.utils.data.Dataset):
         return img
 
 
-class GeneratedDataset(ImagePathDataset):
-    def __init__(self, path, img_size=80):
-        super().__init__(path, transforms=eval_transform(img_size))
+class EvaluationDataset(ImagePathDataset):
+    def __init__(self, path, img_size=80, **kwargs):
+        super().__init__(path, transforms=eval_transform(img_size), **kwargs)
 
 
 class LofarSubset(ImagePathDataset):
     image_path = Path("/storage/tmartinez/image_data/lofar_subset")
 
-    def __init__(self, img_size=80):
-        super().__init__(self.image_path, transforms=train_transform(img_size))
+    def __init__(self, img_size=80, **kwargs):
+        super().__init__(self.image_path, transforms=train_transform(img_size),
+                         **kwargs)
 
 
 class LofarDummySet(ImagePathDataset):
@@ -97,6 +115,16 @@ class LofarDummySet(ImagePathDataset):
 
     def __init__(self, img_size=80):
         super().__init__(self.image_path, transforms=train_transform(img_size))
+
+
+class LofarZoomUnclipped80(ImagePathDataset):
+    image_path = Path(
+        "/home/bbd0953/diffusion/image_data/lofar_zoom_unclipped_subset_80p"
+    )
+
+    def __init__(self, img_size=80, **kwargs):
+        super().__init__(self.image_path, transforms=train_transform(img_size),
+                          **kwargs)
 
 # ----------------------------------
 # FIRST Dataset:

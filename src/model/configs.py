@@ -121,14 +121,13 @@ def EDM_small_config():
         pretrained_model = None,
         # Diffusion parameters
         timesteps = 1000,
-        learn_variance = False,
         # Training parameters
         batch_size = 256,
         iterations = 200_000,
         learning_rate = 2e-5,
         ema_rate = 0.9999,
         log_interval = 500,
-        snapshot_interval = 10_000,
+        snapshot_interval = 25_000,
         val_every = 2500,
         validate_ema = True,
         write_output = True,

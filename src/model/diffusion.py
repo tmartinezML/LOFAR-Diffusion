@@ -33,7 +33,7 @@ class EDM_Diffusion:
     
     DEBUG_DIR = Path('/home/bbd0953/diffusion/results/debug')
     def edm_loss(self, model, img_batch, sigmas=None, noise=None,
-                 class_labels=None, return_output=False):
+                 class_labels=None, return_output=False, mean=True):
         # Set noise level
         if sigmas is None:
             sigmas = self.sample_sigmas(img_batch)
@@ -59,11 +59,24 @@ class EDM_Diffusion:
             raise e
 
         loss = weight * (D_yn - img_batch)**2
+        if mean:
+            loss = loss.mean()
         
         if return_output:
-            return loss.mean(), D_yn
+            return loss, D_yn
         else:
-            return loss.mean()
+            return loss
+        
+    def noise_schedule(self, sigma_min=2e-3, sigma_max=80, rho=7):
+        # Time steps
+        step_inds = torch.arange(self.timesteps)
+        rho_inv = 1 / rho
+        sigma_steps = (
+            (sigma_max**rho_inv + step_inds / (self.timesteps - 1)
+             * (sigma_min**rho_inv - sigma_max**rho_inv))**rho
+        )
+        sigma_steps = torch.cat([sigma_steps, torch.zeros_like(sigma_steps[:1])])  # t_N=0
+        return step_inds, sigma_steps
 
     @torch.no_grad()
     def edm_stochastic_sampling(self,
@@ -83,6 +96,7 @@ class EDM_Diffusion:
             "Model must be an EDMPrecond instance for stochastic EDM sampling."
         )
         device = next(model.parameters()).device
+        print('Sampling on device:', device)
         latents = torch.randn(
             [batch_size, 1, image_size, image_size], device=device
         )
@@ -98,50 +112,48 @@ class EDM_Diffusion:
         sigma_max = min(sigma_max, model_sigma_max)
 
         # Time steps
-        step_inds = torch.arange(self.timesteps, device=device)
-        rho_inv = 1 / rho
-        t_steps = (
-            (sigma_max**rho_inv + step_inds / (self.timesteps - 1)
-             * (sigma_min**rho_inv - sigma_max**rho_inv))**rho
-        )
-        t_steps = torch.cat([t_steps, torch.zeros_like(t_steps[:1])])  # t_N=0
+        step_inds, sigma_steps = self.noise_schedule(sigma_min, sigma_max, rho)
+        step_inds.to(device)
 
         # Sampling loop.
         imgs = []
-        x_next = latents * t_steps[0]  # Generate initial sample at t_0
+        x_next = latents * sigma_steps[0]  # Generate initial sample at t_0
         imgs.append(x_next.cpu())
 
-        def input_shape(t): return torch.full((batch_size,), t.item(),
-                                              device=t.device)
-        for i, (t_cur, t_next) in tqdm(
-                enumerate(zip(t_steps[:-1], t_steps[1:])),
+        def input_shape(sigma):
+            return torch.full((batch_size,), sigma.item(), device=sigma.device)
+        
+        for i, (sigma_cur, sigma_next) in tqdm(
+                enumerate(zip(sigma_steps[:-1], sigma_steps[1:])),
                 desc="Sampling...",
                 total=self.timesteps):
 
             x_cur = x_next
+            sigma_cur.to(device)
+            sigma_next.to(device)
 
             # Increase noise temporarily
             gamma = (
                 min(S_churn / self.timesteps, np.sqrt(2) - 1)
-                if S_min <= t_cur.item() <= S_max
+                if S_min <= sigma_cur.item() <= S_max
                 else 0
             )
-            t_hat = t_cur + gamma * t_cur
+            sigma_hat = sigma_cur + gamma * sigma_cur
             x_hat = (
                 x_cur
-                + (t_hat**2 - t_cur**2).sqrt()
+                + (sigma_hat**2 - sigma_cur**2).sqrt()
                 * S_noise * torch.randn_like(x_cur)
             )
 
             # Euler step
-            denoised = model(x_hat, input_shape(t_hat))
-            d_cur = (x_hat - denoised) / t_hat
-            x_next = x_hat + d_cur * (t_next - t_hat)
+            denoised = model(x_hat, input_shape(sigma_hat))
+            d_cur = (x_hat - denoised) / sigma_hat
+            x_next = x_hat + d_cur * (sigma_next - sigma_hat)
 
             # Apply 2nd order correction
             if i < self.timesteps - 1:
-                denoised = model(x_next, input_shape(t_next))
-                d_prime = (x_next - denoised) / t_next
-                x_next = x_hat + (t_next - t_hat) * (.5 * d_cur + .5 * d_prime)
+                denoised = model(x_next, input_shape(sigma_next))
+                d_prime = (x_next - denoised) / sigma_next
+                x_next = x_hat + (sigma_next - sigma_hat) * (.5 * d_cur + .5 * d_prime)
             imgs.append(x_next.cpu())
         return imgs

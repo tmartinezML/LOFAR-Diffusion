@@ -8,10 +8,10 @@ from tqdm import tqdm
 
 from model.diffusion import EDM_Diffusion
 from utils.device_utils import distribute_model
-from utils.plot_utils import plot_samples
+from utils.plot_utils import plot_image_grid
 from utils.init_utils import (
-    load_model, load_model_from_folder,
-    load_diffusion_from_config, load_diffusion_from_config_file
+    load_model, load_model_from_folder, load_diffusion_from_config,
+    load_diffusion_from_config_file, load_snapshot
 )
 
 OUT_PARENT = Path("/storage/tmartinez/image_data/generated")
@@ -121,6 +121,7 @@ def sample_set_from_folder(
         T=None,
         use_ema=True,
         img_size=80,
+        snapshot_iter=None,
         sampling_method="edm_stochastic_sampling",
         out_parent=OUT_PARENT,
         out_folder_suffix=None,
@@ -151,8 +152,11 @@ def sample_set_from_folder(
     # Load model & config
     model, config = load_model_from_folder(model_dir, use_ema=use_ema,
                                            return_config=True)
+    if snapshot_iter is not None:
+        model = load_snapshot(
+            model_dir, snapshot_iter, use_ema=use_ema, model=model)
     # Move to GPU
-    model = distribute_model(model, n_devices)
+    model, _ = distribute_model(model, n_devices)
     # Load diffusion
     diffusion = load_diffusion_from_config(config)
     if T:
@@ -211,8 +215,7 @@ def sneak_peek(model_dir,
     assert sampling_method in SAMPLING_METHODS, (
         f"Sampling method {sampling_method} not implemented."
     )
-    diff_class = EDM_Diffusion if "edm" in sampling_method else Diffusion
-    diffusion = diff_class.from_config(conf)
+    diffusion = EDM_Diffusion.from_config(conf)
     if T:
         diffusion.timesteps = T
 
@@ -225,7 +228,8 @@ def sneak_peek(model_dir,
 
     # Sample
     imgs = sampling(model, img_size, batch_size=batch_size)[-1]
-    fig, axs = plot_samples(imgs, title=f"Model {model_dir.name} samples")
+    fig, axs = plot_image_grid(
+        imgs, suptitle=f"Model {model_dir.name} samples")
     return fig, axs
 
 
@@ -239,6 +243,28 @@ if __name__ == "__main__":
     # Original diffusion:
     # "p_sampling",
     # "ddim_sampling"
-    pass
+    model_dir = Path(
+        "/home/bbd0953/diffusion/results/EDM_valFix"
+    )
 
-    
+    n_devices = 2
+    batch_size = 1000 * n_devices  # Equally distributed over GPUs
+    n_batches = 10
+
+    snapshot_iters = [
+        100000, 200000, 300000, 400000
+    ]
+
+    for it in snapshot_iters:
+        sample_set_from_folder(
+            model_dir,
+            batch_size=batch_size,
+            n_batches=n_batches,
+            n_devices=n_devices,
+            T=25,
+            use_ema=True,
+            img_size=80,
+            sampling_method="edm_stochastic_sampling",
+            out_folder_suffix=f"snp_it={it}",
+            snapshot_iter=it,
+        )

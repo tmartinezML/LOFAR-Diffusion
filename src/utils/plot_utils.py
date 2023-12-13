@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+from itertools import compress
 
 import torch
 import numpy as np
@@ -85,11 +86,16 @@ def add_loss_plot(loss_file, ax, stride=1, smooth=20, color="black",
         ax.plot(step, df['ema_loss'], color=color, ls='--', lw=1)
 
 
-def plot_samples(imgs, title=None, vmin=-1, vmax=1, savefig=None,
-                 n_rows=None, n_cols=None):
+def plot_image_grid(imgs, suptitle=None, vmin=-1, vmax=1, savefig=None,
+                    n_rows=None, n_cols=None, titles=None):
+    
+    if isinstance(imgs, list):
+        imgs = np.array(imgs)
+
     if n_rows is None and n_cols is None:
         n = int(np.sqrt(imgs.shape[0]))
-        n_rows = n_cols = n
+        n_cols = n
+        n_rows = n + imgs.shape[0] % n + int(n == 1) 
     elif n_rows is None or n_cols is None:
         known = n_rows or n_cols
         n = int(imgs.shape[0] // known)
@@ -98,12 +104,33 @@ def plot_samples(imgs, title=None, vmin=-1, vmax=1, savefig=None,
 
     fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, tight_layout=True,
                             figsize=(3 * n_cols, 3 * n_rows))
-    for ax, img in zip(axs.flat, imgs):
+    flat_axs = axs.flat if isinstance(axs, np.ndarray) else [axs]
+
+    if titles is not None:
+        assert len(titles) == len(imgs), (
+            f"Number of titles ({len(titles)}) should match number of images "
+            f"({len(imgs)})."
+        )
+    for i, (ax, img) in enumerate(zip(flat_axs, imgs)):
         ax.axis('off')
         ax.imshow(img.squeeze(), vmin=vmin, vmax=vmax)
 
-    if title is not None:
-        fig.suptitle(title, fontsize='xx-large')
+        # Set axis title if titles are passed
+        if titles is not None:
+            title = titles[i]
+            # Convert title to string if necessary
+            match title:
+                case float() | np.float32() | np.float64():
+                    t_str = f"{title:.2e}"
+                case int():
+                    t_str = str(title)
+                case _:
+                    t_str = title
+
+            ax.set_title(t_str)
+
+    if suptitle is not None:
+        fig.suptitle(suptitle, fontsize='xx-large')
 
     if savefig is not None:
         fig.savefig(savefig)
@@ -115,10 +142,9 @@ def plot_samples(imgs, title=None, vmin=-1, vmax=1, savefig=None,
 # -----------------------------#
 
 
-def add_distribution_plot(distr_dict, ax, key,
+def add_distribution_plot(counts, edges, ax,
                           label='', color="black", alpha=0.5, fill=False):
     # Extract counts and edges from distribution
-    counts, edges = distr_dict[key]
     c_norm = norm(counts)
     c_norm_err = norm_err(counts)
 
@@ -126,13 +152,160 @@ def add_distribution_plot(distr_dict, ax, key,
     if label is not None:
         label += f" (n={int(np.sum(counts)):_})"
 
+    # Check if lines or collections are already present in axes
+    # (relevant for x limits)
+    data_present = len(ax.lines) + len(ax.collections) > 0
+
     # Plot distribution and error bars
     ax.stairs(c_norm, edges, alpha=alpha, fill=fill, label=label, color=color)
     ax.errorbar(centers(edges), c_norm, yerr=c_norm_err,
                 alpha=0.75 * alpha, color=color, ls="none", elinewidth=0.5,
                 capsize=2.5, capthick=0.5)
 
+    # Set x limits
+    _, x_max = ax.get_xlim()
+    new_xmax = max(edges[1:][counts > 0]) * 1.02
+    if data_present:
+        new_xmax = max(new_xmax, x_max)
+    ax.set_xlim(-0.02 * new_xmax, new_xmax)
     return counts, edges
+
+
+def pixel_metrics_plot(distributions_dict, pixel_dist=None,
+                       fig_ax=None, color=None, label=None):
+    # Init figure and axes
+    if fig_ax is None:
+        fig, axs = plt.subplots(
+            3, 2, figsize=(10, 10), dpi=150, tight_layout=True,
+            sharex=False
+        )
+    else:
+        fig, axs = fig_ax
+
+    # Assert pixel distribution is either in dict or passed
+    assert pixel_dist is not None or 'Pixel_Intensity' in distributions_dict, (
+        "Pixel distribution should be passed or be present in distributions_dict."
+    )
+    pixel_dist = pixel_dist or distributions_dict['Pixel_Intensity'][0]
+
+    # Keys to plot
+    keys = [
+        'Active_Pixels', 'Image_Mean', 'Active_Mean',
+        'Image_Sigma', 'Active_Sigma'
+    ]
+    color = color if color is not None else "black"
+
+    # Assert all keys are present in distributions_dict
+    assert all(mask := [k in distributions_dict for k in keys]), (
+        f"Not all keys are present in distributions_dict:"
+        f" {compress(keys, ~mask)}"
+    )
+
+    # Plot pixel distribution first
+    ax = axs[0, 0]
+    add_distribution_plot(
+        pixel_dist, np.linspace(0, 1, len(pixel_dist) + 1), ax,
+        label=label, color=color
+    )
+    ax.set_xlabel('Pixel Value')
+
+    # Plot data & set axes properties
+    for ax, key in zip(axs.flatten()[1:], keys):
+        counts, edges = distributions_dict[key]
+        add_distribution_plot(
+            counts, edges, ax,
+            label=label, color=color
+        )
+        ax.set_xlabel(key.replace('_', ' '))
+
+    # Set axes properties
+    for ax in axs.flatten():
+        ax.grid(alpha=0.2)
+        if label is not None:
+            ax.legend(fontsize='small')
+        ax.set_yscale("log")
+    # Put ticks on rhs for plots on the right
+    for ax in axs[:, 1]:
+        ax.yaxis.tick_right()
+
+    return fig, axs
+
+
+def shape_metrics_plot(distributions_dict, COM=None,
+                       fig_ax=None, color=None, label=None):
+    if fig_ax is None:
+        fig, axs = plt.subplots(
+            3, 2, figsize=(10, 10), dpi=150, tight_layout=True
+        )
+    else:
+        fig, axs = fig_ax
+
+    # Assert COM is either in dict or passed
+    assert COM is not None or 'COM' in distributions_dict, (
+        "COM should be passed or be present in distributions_dict."
+    )
+    COM = COM or distributions_dict['COM']
+
+    # Keys to plot
+    keys = [
+        'WPCA_Angle', 'WPCA_Ratio', 'COM_Radius', 'COM_Angle', 'Scatter'
+    ]
+    color = color if color is not None else "black"
+
+    for ax, key in zip(axs.flatten()[:-1], keys):
+        counts, edges = distributions_dict[key]
+        add_distribution_plot(
+            counts, edges, ax,
+            label=label, color=color
+        )
+        ax.set_xlabel(key.replace('_', ' '))
+        if key == 'WPCA_Ratio':
+            ax.set_xlim(left=0.48)
+
+    # COM Distribution
+    ax = axs[-1][-1]
+    ax.set_aspect('equal')
+    ax.set_xlim(0, 80)
+    ax.set_ylim(0, 80)
+    ax.invert_yaxis()
+    ax.set_xlabel('COM x')
+    ax.set_ylabel('COM y')
+    ax.set_title("COM Scatter Plot")
+    # Plot
+    ax.scatter(*COM.T, s=0.2, color=color, alpha=0.2, label=label)
+
+    for ax in axs.flatten()[:-1]:
+        if label is not None:
+            ax.legend(fontsize='small')
+        ax.grid(alpha=0.2)
+        ax.set_yscale("log")
+    # Put ticks on rhs for plots on the right
+    for ax in axs[:, 1]:
+        ax.yaxis.tick_right()
+        ax.yaxis.set_label_position("right")
+
+    return fig, axs
+
+
+def plot_collection(distr_dict_list, plot_fn, labels=None,
+                    colors=None, cmap='cividis', **plot_kwargs):
+    # Set colors if not passed
+    if colors is None:
+        colors = mpl.colormaps[cmap](np.linspace(0, 1, len(distr_dict_list)))
+    elif len(colors) < len(distr_dict_list):
+        colors = [*colors, *mpl.colormaps[cmap](
+            np.linspace(0, 1, len(distr_dict_list) - len(colors))
+        )]
+
+    fig_axs = None
+    for i, distr_dict in enumerate(distr_dict_list):
+        fig_axs = plot_fn(
+            distr_dict, fig_ax=fig_axs, color=colors[i],
+            label=labels[i] if labels is not None else None,
+            **plot_kwargs
+        )
+
+    return fig_axs
 
 
 def add_distribution_delta_plot(delta, ax2, key, color="tab:blue"):
@@ -176,8 +349,9 @@ def plot_distributions(distr_gen, distr_lofar, error,
         # distr_gen can be either a single dictionary or a list of
         # dictionaries.
         if isinstance(distr_gen, dict):  # Single dictionary
-            c_gen, e_gen = add_distribution_plot(
-                distr_gen, ax, key, color="tab:blue", alpha=0.5, fill=True,
+            c_gen, e_gen = distr_gen[key]
+            add_distribution_plot(
+                c_gen, e_gen, ax, color="tab:blue", alpha=0.5, fill=True,
                 label=f"Generated"
             )
         elif isinstance(distr_gen, list):  # List of dictionaries
@@ -191,13 +365,15 @@ def plot_distributions(distr_gen, distr_lofar, error,
             # Plot each distribution
             for i, dg in enumerate(distr_gen):
                 label = labels[i] if labels is not None else None
-                c_gen, e_gen = add_distribution_plot(
-                    dg, ax, key, color=colors[i], alpha=0.8, label=label
+                c_gen, e_gen = dg[key]
+                add_distribution_plot(
+                    c_gen, e_gen, ax, color=colors[i], alpha=0.8, label=label
                 )
 
         # Plot distributions of real lofar data
-        c_lofar, e_lofar = add_distribution_plot(
-            distr_lofar, ax, key, color="tab:orange", alpha=0.7,
+        c_lofar, e_lofar = distr_lofar[key]
+        add_distribution_plot(
+            c_lofar, e_lofar, ax, color="tab:orange", alpha=0.7,
             label=f"Real"
         )
 
@@ -243,51 +419,39 @@ def plot_distributions(distr_gen, distr_lofar, error,
     return fig
 
 
-def plot_W1_scores(scores_list, x_values=None, x_label='Trial',
-                   landscape_mode=False):
-    # Set x values if not passed
-    x_values = x_values or range(len(scores_list))
+def plot_W1_distances(W1_dict_list, x_values=None, x_label=''):
+    n_trials = len(W1_dict_list)
+    n_metrics = len(W1_dict_list[0].keys())
 
-    # Get keys from first dictionary in list
-    keys = scores_list[0].keys()
+    # Set x values if not passed
+    x_values = x_values or range(n_trials)
 
     # Set colors for each distribution
-    cmap = 'cividis_r'
-    colors = mpl.colormaps[cmap](np.linspace(0, 1, len(scores_list)))
-
-    # Set plot size and layout
-    if not landscape_mode:  # Default
-        rows = 3
-        cols = 1
-        figsize = (6, 9)
-    else:
-        rows = 1
-        cols = 3
-        figsize = (18, 3)
+    cmap = 'tab20'
+    colors = mpl.colormaps[cmap](np.linspace(0, 1, n_metrics))
 
     # Create figure and axes
-    fig, axs = plt.subplots(rows, cols, figsize=figsize, sharex=True, dpi=150,
-                            tight_layout=True)
+    fig, ax = plt.subplots(1, 1, figsize=(10, 6), dpi=150,
+                           tight_layout=True)
 
     # Loop through axes & keys to plot W1 values.
-    for ax, key in zip(axs, keys):
+    # Get keys from first dictionary in list
+    for i, key in enumerate(W1_dict_list[0].keys()):
         # Plot W1 values with error
-        # (Loop so every data point can have a different color)
-        for i, score in enumerate(scores_list):
-            ax.errorbar(
-                x_values[i], score[key][0], yerr=score[key][1],
-                color=colors[i], marker='.',
-                ls="none", elinewidth=0.5, capsize=2.5, capthick=0.5,
-            )
+        W1, W1_err = np.split(np.array([d[key] for d in W1_dict_list]).T, 2)
+        ax.errorbar(
+            x_values, W1.squeeze(), yerr=W1_err.squeeze(),
+            color=colors[i], marker='.', label=key.replace('_', ' '),
+            ls="--", elinewidth=0.5, capsize=2.5, capthick=0.5,
+        )
         # Set properties for W1 plot
-        ax.set_title(key)
         ax.grid(alpha=0.3)
 
     # Set labels depending on layout
-    [ax.set_ylabel('W1 score') for ax in axs[:(1 if landscape_mode else 3)]]
-    [ax.set_xlabel(x_label) for ax in axs[(0 if landscape_mode else 2):]]
-
-    return fig, axs
+    ax.set_ylabel('W1 Distance')
+    ax.set_xlabel(x_label)
+    ax.legend()
+    return fig, ax
 
 # -----------------------------#
 # Visualizing PBT results

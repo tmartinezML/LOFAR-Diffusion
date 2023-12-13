@@ -12,7 +12,7 @@ import torch
 from torch.cuda.amp import GradScaler
 from math import isnan
 
-from model.configs import InitModel_EDM_config, DummyConfig
+from model.configs import InitModel_EDM_config, DummyConfig, EDM_small_config
 from utils.device_utils import set_visible_devices
 from model.trainer import (
     LofarDiffusionTrainer, DummyDiffusionTrainer
@@ -27,6 +27,9 @@ def train_wrapper(parameter_space, pretrained=None):
     model_conf.validate_ema = True
     device = torch.device('cuda')
 
+    # Workaround cos of bug in ray:
+    model_conf.learning_rate = 0.1 * model_conf.learning_rate
+
     # Load trainer
     torch.manual_seed(42)
     trainer = GLOBAL_TRAINER_CLASS(config=model_conf,
@@ -40,7 +43,7 @@ def train_wrapper(parameter_space, pretrained=None):
     if pretrained:
         print('Loading pretrained model:\n', pretrained)
         trainer.load_state_dict(
-            torch.load(pretrained, map_location=device)
+            torch.load(pretrained, map_location=device)['model']
         )
 
     # Load checkpoint
@@ -108,6 +111,17 @@ def train_wrapper(parameter_space, pretrained=None):
 
 def run_tune_BOHB(parameter_space, name, n_samples, 
                   max_t=10_000, pretrained=None):
+    """
+    Run BOHB with Hyperband scheduler.
+
+    Args:
+        parameter_space (dict): Parameter space to search.
+        name (str): Name of the run.
+        n_samples (int): Number of samples to run.
+        max_t (int): Maximum number of iterations.
+        pretrained (str): Path to pretrained model.
+        
+    """
     algo = tune.search.ConcurrencyLimiter(
         TuneBOHB(), max_concurrent=4
     )
@@ -155,11 +169,9 @@ if __name__ == "__main__":
     fh.setFormatter(formatter)
 
     # Global setup
-    GLOBAL_CONF = InitModel_EDM_config()
-    GLOBAL_CONF.channel_mults = (1, 2, 2, 2)
+    GLOBAL_CONF = EDM_small_config()
     GLOBAL_TRAINER_CLASS = LofarDiffusionTrainer
     STORAGE_PARENT = "/home/bbd0953/diffusion/results/tune"
-    PRETRAINED_PARENT = "/home/bbd0953/diffusion/results/InitModel_EDM_lr=2e-5_bsize=256_(1,2,2,2)/snapshots"
 
     # Device setup
     N_CPU = 16
@@ -169,53 +181,23 @@ if __name__ == "__main__":
 
     # Parameter space
     parameter_space = {
-        "learning_rate": tune.qloguniform(1e-5, 1e-3, 1e-5),
+        "learning_rate": tune.qloguniform(1e-5, 1e-2, 1e-5),
         # "batch_size": tune.choice([128, 256]),
     }
 
-    # Optimization 1: From scratch
-    if False:
-        logger.info("Running: Optimization 1 (From scratch)")
-        GLOBAL_CONF.iterations = 1_000
-        REPORT_INTERVAL = 100
-        CHECKPOINT_INTERVAL = 200
-        run_tune_BOHB(
-            parameter_space,
-            name="lr_(1,2,2,2)_fromScratch",
-            n_samples=30,
-        )
-        logger.info("Finished: Optimization 1 (From scratch)")
-
-    # Optimization 2: From pretrained 5k
-    logger.info("Running: Optimization 2 (From pretrained 5k)")
+    # Optimization: From pretrained 10k
+    logger.info("Running: Optimization Small from pretrained 10k")
     pretrained_cp = (
-        PRETRAINED_PARENT + '/model_iter_00005000.pt'
-    )
-    GLOBAL_CONF.iterations = 6_000
-    REPORT_INTERVAL = 600
-    CHECKPOINT_INTERVAL = REPORT_INTERVAL
-    run_tune_BOHB(
-        parameter_space,
-        name="lr_(1,2,2,2)_pretrained-05k",
-        max_t = GLOBAL_CONF.iterations,
-        n_samples=27,
-        pretrained = pretrained_cp,
-    )
-    logger.info("Finished: Optimization 2 (From pretrained 5k)")
-
-    # Optimization 3: From pretrained 15k
-    logger.info("Running: Optimization 3 (From pretrained 15k)")
-    pretrained_cp = (
-        PRETRAINED_PARENT + '/model_iter_00015000.pt'
+        '/home/bbd0953/diffusion/results/EDM_small_splitFix/snapshots/snapshot_iter_00010000.pt'
     )
     GLOBAL_CONF.iterations = 15_000
     REPORT_INTERVAL = 1000
     CHECKPOINT_INTERVAL = REPORT_INTERVAL
     run_tune_BOHB(
         parameter_space,
-        name="lr_(1,2,2,2)_pretrained-15k",
+        name="lr_small_pretrained-10k",
         n_samples=27,
         max_t = GLOBAL_CONF.iterations,
         pretrained = pretrained_cp,
     )
-    logger.info("Finished: Optimization 3 (From pretrained 15k)")
+    logger.info("Finished: Optimization")

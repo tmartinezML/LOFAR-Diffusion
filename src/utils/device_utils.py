@@ -35,8 +35,8 @@ def visible_gpus_by_space(renumber=True):
     return list(gpu_df.index)
 
 
-def distribute_model(model, n_devices=1):
-    device_ids = visible_gpus_by_space()[:n_devices]
+def distribute_model(model, n_devices=1, device_ids=None):
+    device_ids = device_ids or visible_gpus_by_space()[:n_devices]
     if n_devices == 1:
         model.to(torch.device('cuda', device_ids[0]))
 
@@ -49,12 +49,34 @@ def distribute_model(model, n_devices=1):
     return model, device_ids
 
 
-def set_visible_devices(n_gpu):
+def set_visible_devices(gpu_spec):
+    """
+    """
+    # Set devices if gpu_spec is int
+    if isinstance(gpu_spec, int):
+        n_gpu = gpu_spec
+        dev_ids = None
+
+    # Set devices if gpu_spec is list
+    elif isinstance(gpu_spec, list):
+        n_gpu = len(gpu_spec)
+        dev_ids = gpu_spec
+
+    # Raise error if gpu_spec is neither int nor list
+    else:
+        raise TypeError("gpu_spec must be int or list of ints")
+    
+    # Check that n_gpu is valid
     max_dev = len(physical_gpu_df())
     assert 0 <= n_gpu <= max_dev, f"n_gpu must be between 0 and {max_dev}"
+
+    # Unset CUDA_VISIBLE_DEVICES
     if "CUDA_VISIBLE_DEVICES" in os.environ:
         del os.environ["CUDA_VISIBLE_DEVICES"]
+
     # Set visible devices
+    dev_ids = dev_ids or visible_gpus_by_space()[:n_gpu] 
     os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(
-        [str(i) for i in visible_gpus_by_space()[:n_gpu]]
+        [str(i) for i in dev_ids]
     )
+    return dev_ids

@@ -8,3 +8,4 @@ results
 .*
 *.log
 *.out
+wandb/

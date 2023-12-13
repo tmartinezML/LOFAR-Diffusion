@@ -6,12 +6,14 @@ from pathlib import Path
 
 import torch
 import torch.distributed as dist
+import wandb
 
 import model.configs as configs
 from model.trainer import (
     LofarDiffusionTrainer, LofarParallelDiffusionTrainer, DummyDiffusionTrainer,
-    FIRSTDiffusionTrainer
+    FIRSTDiffusionTrainer, DiffusionTrainer
 )
+from utils.data_utils import LofarZoomUnclipped80
 
 
 def find_free_port():
@@ -52,9 +54,18 @@ if __name__ == "__main__":
 
     # Hyperparameters
     conf = configs.EDM_small_config()
-    conf.iterations = 200_000
-    conf.log_interval = 250
-    conf.model_name = "EDM_small_splitFix"
+    conf.iterations = 50_000
+    conf.log_interval = 500
+    conf.model_name = "EDM_valFix_Pmean=-5"
+    # conf.channel_mults = (1, 2, 2, 2)
+    # conf.init_channels = 256
+    conf.learning_rate = 2e-5
+    conf.override_files = False
+    conf.dropout = 0.1
+    conf.snapshot_interval = 10000
+    conf.P_mean = -5
+    conf.pretrained_model = '/home/bbd0953/diffusion/results/EDM_valFix/parameters_ema_EDM_valFix.pt'
+    conf.optimizer_file = '/home/bbd0953/diffusion/results/EDM_valFix/optimizer_state_EDM_valFix.pt'
 
     # Class conditioning
     # conf.n_labels = 4
@@ -63,8 +74,29 @@ if __name__ == "__main__":
     # conf.optimizer_file = '/home/bbd0953/diffusion/results/EDM/optimizer_state_EDM.pt'
 
 
-    pickup_path = Path(f"/home/bbd0953/diffusion/results/") / conf.model_name
-    trainer = LofarDiffusionTrainer.from_pickup(pickup_path, iterations=305_000, config=conf)
+    pickup_path = result_parent / conf.model_name
+    # trainer = LofarDiffusionTrainer.from_pickup(pickup_path, config=conf)
     
-    # trainer = LofarDiffusionTrainer(config=conf)
+    
+    trainer = DiffusionTrainer(
+        config=conf,
+        dataset=LofarZoomUnclipped80(),
+    )
+    
+    
+
+    '''
+    trainer = DiffusionTrainer.from_pickup(
+        path=pickup_path,
+        config=conf,
+        dataset=LofarZoomUnclipped80(),
+    )
+    '''
+    
+
+
+    wandb.init(
+        project="Diffusion",
+        config=conf.param_dict,
+    )
     trainer.training_loop()

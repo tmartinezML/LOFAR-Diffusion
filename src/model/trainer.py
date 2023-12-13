@@ -14,6 +14,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.cuda.amp import autocast, GradScaler
 from torch.optim.lr_scheduler import StepLR, MultiStepLR, SequentialLR
 from torch_ema import ExponentialMovingAverage as EMA
+import wandb
 
 import model.unet as unet
 from model.diffusion import EDM_Diffusion
@@ -56,17 +57,17 @@ class outputManager():
         self.config_file = self.results_folder.joinpath(
             f"config_{self.model_name}.json"
         )
-        self.log_file = self.results_folder.joinpath(
-            f"training_log_{self.model_name}.log"
-        )
 
-        self.files = [
+        self.out_files = [
             self.train_loss_file, self.val_loss_file,
             self.pars_model_file, self.pars_ema_file,
             self.ema_state_file, self.optim_state_file,
-            self.config_file, self.log_file,
+            self.config_file,
         ]
 
+        self.log_file = self.results_folder.joinpath(
+            f"training_log_{self.model_name}.log"
+        )
         logging.basicConfig(
             format='%(levelname)s: %(message)s',
             level=logging.INFO,
@@ -93,7 +94,7 @@ class outputManager():
             self._writer(f).writerow(columns)
 
     def init_training_loop_create(self):
-        for f in self.files:
+        for f in self.out_files:
             if not self.override and f.exists():
                 raise FileExistsError(f"File {f} already exists.")
             if self.override and f.exists():
@@ -263,7 +264,7 @@ class DiffusionTrainer:
             )
             assert len(self.val_set) >= self.config.batch_size, \
                 f"Batch size {self.config.batch_size} larger than validation set."
-            self.val_loader = DataLoader(self.train_set,
+            self.val_loader = DataLoader(self.val_set,
                                          batch_size=self.config.batch_size,
                                          shuffle=False, num_workers=1,
                                          drop_last=True)
@@ -391,6 +392,7 @@ class DiffusionTrainer:
             # Perform training step
             loss = self.training_step(scaler)
             loss_buffer.append([i + 1, loss.item()])
+            wandb.log({"loss": loss.item()}, step=i + 1)
 
             # Log progress & write output
             if (i + 1) % self.config.log_interval == 0:
@@ -416,6 +418,10 @@ class DiffusionTrainer:
                 )
                 if write_output:
                     OM.write_val_losses([[i + 1, *val_loss]])
+                wandb.log(
+                    {"val_loss": val_loss[0], "val_loss_ema": val_loss[1]},
+                    step=i + 1
+                )
 
             # Save snapshot
             if self.config.snapshot_interval and \
@@ -455,7 +461,8 @@ class DiffusionTrainer:
         self.ema.update()
         return loss
 
-    def validation_loss(self, eval_ema=False):
+    def validation_loss(self, eval_ema=None):
+        eval_ema = eval_ema or self.validate_ema
         # Validate model
         self.model.eval()
         with torch.no_grad():

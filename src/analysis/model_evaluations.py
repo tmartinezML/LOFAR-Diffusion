@@ -3,23 +3,32 @@ import shutil
 from datetime import datetime
 import json
 import random
+from functools import partial
+import warnings
 
 from PIL import Image
 import torch
+from torch.utils.data import DataLoader
 from torchvision.transforms import ToTensor
 import numpy as np
 from tqdm import tqdm
 
+
 from model.sample import sample_set_from_folder
-from utils.plot_utils import plot_samples, plot_distributions
+from utils.plot_utils import (
+    plot_image_grid, plot_distributions,
+    pixel_metrics_plot, shape_metrics_plot, plot_collection
+)
 from utils.device_utils import visible_gpus_by_space
-from utils.data_utils import GeneratedDataset
+from utils.data_utils import EvaluationDataset
 from utils.stats_utils import norm, norm_err, cdf, cdf_err
 from model.sample import sample_set_from_folder
 from analysis.fid_score import calculate_fid_given_paths, save_fid_stats
+import analysis.image_metrics as imetrics
 
 # Folder with lofar images
-LOFAR_PATH = Path("/storage/tmartinez/image_data/lofar_subset")
+LOFAR_PATH = Path(
+    "/home/bbd0953/diffusion/image_data/lofar_zoom_unclipped_subset_80p")
 # Parent folder for generated image data
 GEN_DATA_PARENT = Path("/storage/tmartinez/image_data/generated")
 # Parent folder for analysis results
@@ -28,13 +37,139 @@ ANALYSIS_RESULTS_PARENT = Path("/storage/tmartinez/analysis_results")
 MODELS_PARENT = Path("/storage/tmartinez/results")
 
 
+def metrics_dict_from_img_dir(img_dir, active_threshold=0.):
+    metric_funcs = {
+        'Image_Mean': imetrics.image_mean,
+        'Image_Sigma': imetrics.image_sigma,
+        'Active_Pixels': partial(imetrics.active_pixels, thr=active_threshold),
+        'Active_Mean': partial(imetrics.active_mean, thr=active_threshold),
+        'Active_Sigma': partial(imetrics.active_sigma, thr=active_threshold),
+        'WPCA': imetrics.wpca_angle_and_ratio,
+        'COM': imetrics.center_of_mass,
+        'Scatter': imetrics.signal_scatter
+    }
+    metrics = list(metric_funcs.keys()) + [
+        'WPCA_Angle', 'WPCA_Ratio', 'COM_Radius', 'COM_Angle'
+    ]
+    metrics.remove('WPCA')
+    dataset = EvaluationDataset(img_dir)
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
+
+    pixel_dist = np.zeros(256)
+    stats_dict = {key: [] for key in metrics}
+
+    for batch in tqdm(dataloader, total=len(dataset)):
+        img = batch[0]
+        for key, fnc in metric_funcs.items():
+            val = fnc(img)
+            match key:
+                case 'WPCA':
+                    stats_dict[key + '_Angle'].append(val[0])
+                    stats_dict[key + '_Ratio'].append(val[1])
+                case 'COM':
+                    stats_dict[key].append(val[0])
+                    stats_dict['COM_Radius'].append(val[1])
+                    stats_dict['COM_Angle'].append(val[2])
+                case _:
+                    stats_dict[key].append(val)
+        pixel_dist += np.histogram(
+            img.squeeze().numpy(), bins=np.linspace(0, 1, 257)
+        )[0]
+
+    # Convert lists in dict to np arrays
+    for key in stats_dict.keys():
+        stats_dict[key] = np.array(stats_dict[key])
+
+    # Add pixel distribution
+    stats_dict['Pixel_Intensity'] = (pixel_dist, np.linspace(0, 1, 257))
+
+    return stats_dict
+
+
+def distributions_from_metrics(metrics_dict, bins: dict = {}):
+    # Define bins for distributions
+    bins_dict = {
+        'Image_Mean': np.linspace(0, 1, 257),
+        'Image_Sigma': np.linspace(0, 1, 257),
+        'Active_Pixels': np.linspace(0, 6400, 129),
+        'Active_Mean': np.linspace(0, 1, 257),
+        'Active_Sigma': np.linspace(0, 1, 257),
+        'WPCA_Angle': np.linspace(0, 180, 19),  # 10 deg bins
+        'WPCA_Ratio': np.linspace(0.5, 1, 11),
+        'COM_Radius': np.linspace(0, 60, 31),
+        'COM_Angle': np.linspace(0, 360, 37),
+        'Scatter': np.linspace(0, 80, 257)
+    }
+
+    # Copy metrics dict and remove unnecessary keys
+    metrics_dict = metrics_dict.copy()
+    COM = metrics_dict.pop('COM', None)
+    pixel_intensity = metrics_dict.pop('Pixel_Intensity', None)
+
+    # Update bins dict with user-specified bins
+    if len(bins):
+        # Assert keys are contained in bins dict
+        assert all([key in bins_dict.keys() for key in bins.keys()]), \
+            f"Unknown key in bins dict:"\
+            f" {set(bins.keys()) - set(bins_dict.keys())}"
+        bins_dict.update(bins)
+
+    # Assert keys of bins_dict and metrics_dict are the same
+    assert set(bins_dict.keys()) == set(metrics_dict.keys()), \
+        f"Keys of bins dict and metrics dict do not match:"\
+        f" {set(bins_dict.keys()) ^ set(metrics_dict.keys())}"
+
+    # Calculate distributions
+    distributions_dict = {}
+    for key in tqdm(metrics_dict.keys(), total=len(metrics_dict.keys())):
+        counts, edges = np.histogram(metrics_dict[key], bins=bins_dict[key])
+        distributions_dict[key] = counts, edges
+
+    # Add pixel distribution and COM
+    distributions_dict['Pixel_Intensity'] = pixel_intensity
+    distributions_dict['COM'] = COM
+
+    return distributions_dict
+
+
 def get_distributions(img_dir,
-                      intensity_bins=256,
-                      pixsum_bins=None,
-                      act_bins=None, force=False, save=True,
-                      act_threshold=0.,
+                      force=False,
+                      save=True,
+                      active_threshold=0.,
+                      bins: dict = {},
                       parent=ANALYSIS_RESULTS_PARENT):
-    
+    # Set output paths
+    out_dir = parent / img_dir.name
+    out_dir.mkdir(exist_ok=True)
+    out_file = out_dir / f"{img_dir.name}_distr.npy"
+
+    # Look for existing file, return content if found
+    if save and not force and out_file.exists():
+        print(f"Found existing distribution file for {img_dir.name}.")
+        return np.load(out_file, allow_pickle=True).item()
+
+    # Get metrics dict and pixel distribution
+    metrics_dict = metrics_dict_from_img_dir(
+        img_dir, active_threshold=active_threshold
+    )
+
+    # Calculate distributions
+    distributions_dict = distributions_from_metrics(metrics_dict, bins=bins)
+
+    # Optionally save
+    if save:
+        np.save(out_file, distributions_dict)
+
+    return distributions_dict
+
+
+def get_distributions_old(img_dir,
+                          intensity_bins=256,
+                          pixsum_bins=None,
+                          act_bins=None, force=False, save=True,
+                          act_threshold=0.,
+                          parent=ANALYSIS_RESULTS_PARENT):
+
     # Set output paths
     out_dir = parent / img_dir.name
     out_dir.mkdir(exist_ok=True)
@@ -46,7 +181,7 @@ def get_distributions(img_dir,
         return np.load(out_file, allow_pickle=True).item()
 
     # Load image data
-    dataset = GeneratedDataset(img_dir)
+    dataset = EvaluationDataset(img_dir)
     dataloader = torch.utils.data.DataLoader(
         dataset, batch_size=500, shuffle=False, num_workers=1, drop_last=False,
     )
@@ -186,6 +321,53 @@ def get_distribution_plot_with_lofar(img_dir, save=True,
     return fig
 
 
+def get_metrics_plots_with_lofar(img_dir, save=True, 
+                                 labels=None, cmap='cividis',
+                                 parent=ANALYSIS_RESULTS_PARENT,
+                                 **distribution_kwargs):
+    match img_dir:
+        case Path():
+            # Set output path
+            out_dir = parent / img_dir.name
+            if labels is None:
+                labels = [img_dir.name]
+            img_dir = [img_dir]
+            save_fig = save
+        
+        case list():
+            warnings.warn(
+                "Multiple image directories passed to metrics plot, " \
+                "therefore save_fig is set to False."
+            )
+            save_fig = False
+            if labels is None:
+                labels = [d.name for d in img_dir]
+
+    # Get metrics dict
+    gen_distr_dict_list = [
+        get_distributions(dir, save=save, parent=parent, **distribution_kwargs)
+        for dir in img_dir
+    ]
+    lofar_distr_dict = get_distributions_lofar(save=save, **distribution_kwargs)
+
+    out = []
+    for fnc in [pixel_metrics_plot, shape_metrics_plot]:
+        fig, axs = plot_collection(
+            [lofar_distr_dict, *gen_distr_dict_list],
+            fnc,
+            colors=['darkorange'],
+            labels=['LOFAR Uncl-80p', *labels],
+            cmap=cmap,
+        ) 
+        if save_fig:
+            fig.savefig(
+                out_dir / f"{out_dir.name}_{fnc.__name__}.pdf"
+            )
+        out.append((fig, axs))
+
+    return out
+
+
 def get_FID_stats(img_dir, force=False, parent=ANALYSIS_RESULTS_PARENT):
     # Set output paths
     out_dir = parent / img_dir.name
@@ -220,7 +402,7 @@ def calculate_FID_lofar(img_dir, force=False, parent=ANALYSIS_RESULTS_PARENT):
     except AssertionError as e:
         print(e)
         return None
-    
+
     # Get FID stats for lofar data
     lofar_stats = get_FID_stats(LOFAR_PATH)
 
@@ -244,13 +426,17 @@ def calculate_W1_distances(dict1, dict2):
 
     # Loop through keys, i.e. distributions
     for key in dict1.keys():
+        # Skip COM
+        if key == "COM":
+            continue
+
         # Extrtact Counts
         C1, _ = dict1[key]
         C2, _ = dict2[key]
 
         # Calculate W1 & error
         W1 = np.abs(cdf(C1) - cdf(C2)).sum()
-        W1_err_term = lambda c: np.sum(cdf(c)) / np.sum(c)  # helper func.
+        def W1_err_term(c): return np.sum(cdf(c)) / np.sum(c)  # helper func.
         W1_err = np.sqrt(W1_err_term(C1) + W1_err_term(C2))
 
         # Add to output dictionary
@@ -258,20 +444,20 @@ def calculate_W1_distances(dict1, dict2):
     return out
 
 
-def get_W1_lofar_score(img_dir, force=False, parent=ANALYSIS_RESULTS_PARENT):
+def get_W1_lofar_score(img_dir, force_W1=False, force_dist=False, parent=ANALYSIS_RESULTS_PARENT):
     # Set output paths
     out_dir = parent / img_dir.name
     out_file = out_dir / f"{img_dir.name}_W1_lofar_score.json"
 
     # Look for existing file
-    if out_file.exists() and not force:
+    if out_file.exists() and not force_W1:
         print(f"Found existing W1 score file for {img_dir.name}.")
         with open(out_file, 'r') as f:
             return json.load(f)
 
     # Get distributions
-    stats_gen = get_distributions(img_dir, parent=parent)
-    stats_lofar = get_distributions(LOFAR_PATH)
+    stats_gen = get_distributions(img_dir, parent=parent, force=force_dist)
+    stats_lofar = get_distributions(LOFAR_PATH, force=force_dist)
 
     # Calculate W1 distances
     W1_distances = calculate_W1_distances(stats_gen, stats_lofar)
@@ -337,8 +523,8 @@ def example_plot(img_dir, example_plot_file=None):
     )
 
     # Plot
-    fig, _ = plot_samples(torch.Tensor(example_imgs),
-                          title=img_dir.name, vmin=0)
+    fig, _ = plot_image_grid(torch.Tensor(example_imgs),
+                             suptitle=img_dir.name, vmin=0)
 
     # Optionally save
     if example_plot_file is not None:

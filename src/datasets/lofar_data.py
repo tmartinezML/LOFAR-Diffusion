@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 import os
 from torch.utils.data import Dataset
-from zipfile import ZipFile
+
 from tqdm import tqdm
 
 from PIL import Image
@@ -25,13 +25,11 @@ class LofarUnlabeled(Dataset):
     LofarUnlabeled class provides unlabeled images from LoTSS DR2
     """
 
-    base_folder = "images-lofar_unlabeled"
-    url = 'https://syncandshare.desy.de/index.php/s/aM9fdBaWsKinHF5/download'
+    def __init__(self, img_dir, catalog_file,
+                las_thr=0., flux_thr=0., peak_flux=False,
+                datapoints=None, transform=ToTensor(),
+                 apply_mask=False, array_format=False, RGB_format=False, _seed=None):
 
-    def __init__(self, root, las_thr=0., flux_thr=0., datapoints=None, transform=ToTensor(),
-                 apply_mask=False, array_format=False, RGB_format=False, download=False, _seed=None):
-
-        self.root = os.path.expanduser(root)
         self.las_thr = las_thr
         self.flux_thr = flux_thr
         self.datapoints = datapoints
@@ -41,43 +39,24 @@ class LofarUnlabeled(Dataset):
         self.RGB_format = RGB_format
         self._seed = _seed
 
-        if download:
-            self.download()
-
-        # Set paths & import annotation csv file
-        img_dir = os.path.join(self.root, self.base_folder, self.base_folder)
-        path_annotation = os.path.join(self.root, self.base_folder,
-                                       'annotation-lofar_unlabeled.csv')
-        annotation = pd.read_csv(path_annotation)
+        # Import catalog csv file
+        annotation = pd.read_csv(catalog_file)
 
         # Remove sources with problem or nan labels:
-        # This cut removes 92 sources
-        annotation = annotation[annotation['Problem'] == 0]
-        # This cut removes 1273 sources
-        annotation = annotation[annotation['NaN'] == 0]
+        annotation = self.remove_bad_imgs(annotation)
 
-        # Apply cuts
-        if self.las_thr != 0.:  # Size threshold
-            if isinstance(self.las_thr, list):
-                annotation = annotation[
-                    annotation['LAS'].between(self.las_thr[0], self.las_thr[1])
-                ]
-            else:
-                annotation = annotation[
-                    annotation['LAS'] > self.las_thr
-                ]
-
+        # Apply cuts:
+        # Size threshold
+        if self.las_thr != 0.:
+            annotation = self.annotation_threshold_cut(
+                annotation, self.las_thr, 'LAS'
+            )
+        # Flux threshold
         if self.flux_thr != 0.:  # Flux threshold
-            if isinstance(self.flux_thr, list):
-                annotation = annotation[
-                    annotation['Total_flux'].between(
-                        self.flux_thr[0], self.flux_thr[1]
-                    )
-                ]
-            else:
-                annotation = annotation[
-                    annotation['Total_flux'] > self.flux_thr
-                ]
+            annotation = self.annotation_threshold_cut(
+                annotation, self.flux_thr, 
+                ('Peak_flux' if peak_flux else 'Total_flux')
+            )
 
         if self.datapoints is not None:  # Limit amount of data
             if self.datapoints < len(annotation):
@@ -89,7 +68,10 @@ class LofarUnlabeled(Dataset):
 
         # Collect data:
         print("Loading images...")
-        load = lambda s: Image.open(os.path.join(img_dir, s))
+        def load(s): 
+            with Image.open(os.path.join(img_dir, s)+'.png') as img:
+                return img.copy()
+        
         self.data = list(map(load, tqdm(annotation["Source_Name"])))
         print("Collecting annotation data...")
         self.filenames = annotation["Source_Name"].to_list()
@@ -107,6 +89,25 @@ class LofarUnlabeled(Dataset):
                      (source['LGZ_Width'], 2*source['DC_Min']))
                 )
         print("Data set initialized.")
+
+    def annotation_threshold_cut(self, annotation, thr, label):
+        if isinstance(self.flux_thr, list):
+            mask = annotation[label].between(thr[0], thr[1])
+        else:
+            mask = annotation[label] > thr
+        return annotation[mask]
+    
+    def remove_bad_imgs(self, annotation):
+        """
+        Exclude images with problems in the data reduction process.
+        This excludes a total of 456 sources.
+        """
+        annotation = annotation[(annotation['Problem_norm'] == False) &
+                                (annotation['Problem_resize'] == False) &
+                                (annotation['Problem_clip'] == False) &
+                                (annotation['Problem_cutout'] == False) &
+                                (annotation['Nans_cutout'] == False)]
+        return annotation
 
 
 
@@ -172,17 +173,6 @@ class LofarUnlabeled(Dataset):
 
     def __len__(self):
         return len(self.data)
-
-
-    def download(self):
-        if not os.path.exists(os.path.join(self.root, self.base_folder)):
-            os.makedirs(self.root, exist_ok=True)
-            download_url(self.url, self.root, self.base_folder+'.zip')
-            with ZipFile(os.path.join(self.root, self.base_folder+'.zip'), "r") as zip_ref:
-                zip_ref.extractall(self.root)
-            os.remove(os.path.join(self.root, self.base_folder+'.zip'))
-            if os.path.exists(os.path.join(self.root, '__MACOSX')):
-                shutil.rmtree((os.path.join(self.root, '__MACOSX')))
 
 
     def convert_img_np(self, img_from_database):
