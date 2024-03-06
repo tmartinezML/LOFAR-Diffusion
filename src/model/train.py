@@ -13,7 +13,10 @@ from model.trainer import (
     LofarDiffusionTrainer, LofarParallelDiffusionTrainer, DummyDiffusionTrainer,
     FIRSTDiffusionTrainer, DiffusionTrainer
 )
-from utils.data_utils import LofarZoomUnclipped80
+from datasets.firstgalaxydata import FIRSTGalaxyData
+from utils.data_utils import LofarZoomUnclipped80, TrainDataset, train_transform
+from utils.device_utils import set_visible_devices
+import utils.paths as paths
 
 
 def find_free_port():
@@ -49,54 +52,45 @@ def ddp_training(rank, world_size, conf):
 
 
 if __name__ == "__main__":
-    # Paths
-    result_parent = Path("/home/bbd0953/diffusion/results")
+    # Limit visible GPUs
+    set_visible_devices(2)
 
     # Hyperparameters
     conf = configs.EDM_small_config()
-    conf.iterations = 50_000
-    conf.log_interval = 500
-    conf.model_name = "EDM_valFix_Pmean=-5"
-    # conf.channel_mults = (1, 2, 2, 2)
-    # conf.init_channels = 256
-    conf.learning_rate = 2e-5
-    conf.override_files = False
-    conf.dropout = 0.1
-    conf.snapshot_interval = 10000
-    conf.P_mean = -5
-    conf.pretrained_model = '/home/bbd0953/diffusion/results/EDM_valFix/parameters_ema_EDM_valFix.pt'
-    conf.optimizer_file = '/home/bbd0953/diffusion/results/EDM_valFix/optimizer_state_EDM_valFix.pt'
 
-    # Class conditioning
-    # conf.n_labels = 4
-    # conf.label_dropout = 0.1
-    # conf.pretrained_model = '/home/bbd0953/diffusion/results/EDM_small_SAFETY/snapshots/ema_iter_00020000.pt'
-    # conf.optimizer_file = '/home/bbd0953/diffusion/results/EDM/optimizer_state_EDM.pt'
+    # conf.pretrained_model = '/home/bbd0953/diffusion/results/EDM_valFix/parameters_ema_EDM_valFix.pt'
+    # conf.optimizer_file = '/home/bbd0953/diffusion/results/EDM_valFix/optimizer_state_EDM_valFix.pt'
+    conf.model_name = f"EDM_SNR5_50as"
 
+    dataset = TrainDataset(paths.LOFAR_SUBSETS['unclipped_SNR>=5_50asLimit'])
+    conf.training_data = str(dataset.path)
 
-    pickup_path = result_parent / conf.model_name
-    # trainer = LofarDiffusionTrainer.from_pickup(pickup_path, config=conf)
-    
-    
     trainer = DiffusionTrainer(
         config=conf,
-        dataset=LofarZoomUnclipped80(),
+        dataset=dataset,
+        pickup=False,
+        
     )
-    
-    
+
+    wandb.init(
+        project="Diffusion",
+        config=conf.param_dict,
+        # id='exscg7ib',
+        # resume='must',
+    )
+    trainer.training_loop()
 
     '''
+    pickup_path = result_parent / conf.model_name
     trainer = DiffusionTrainer.from_pickup(
         path=pickup_path,
         config=conf,
         dataset=LofarZoomUnclipped80(),
     )
     '''
-    
 
-
-    wandb.init(
-        project="Diffusion",
-        config=conf.param_dict,
-    )
-    trainer.training_loop()
+    # Class conditioning
+    # conf.n_labels = 4
+    # conf.label_dropout = 0.1
+    # conf.pretrained_model = '/home/bbd0953/diffusion/results/EDM_small_SAFETY/snapshots/ema_iter_00020000.pt'
+    # conf.optimizer_file = '/home/bbd0953/diffusion/results/EDM/optimizer_state_EDM.pt'

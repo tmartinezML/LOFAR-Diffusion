@@ -4,7 +4,7 @@ from pathlib import Path
 import torch
 
 import model.unet as unet
-from model.diffusion import EDM_Diffusion
+from model.diffusion import Diffusion
 from utils.config_utils import modelConfig
 
 
@@ -18,7 +18,7 @@ def load_config(config_file):
 
 def load_config_from_path(path):
     model_name = path.name
-    config_file = Path(path) / f"config_{model_name}.json"
+    config_file = path / f"config_{model_name}.json"
     return load_config(config_file)
 
 
@@ -52,6 +52,10 @@ def load_snapshot(path, iter, use_ema=True, model=None):
     if model is None:
         model = load_model_from_folder(path, use_ema=use_ema)
 
+    if iter == 0:
+        print("Snapshot iteration is 0 - returning final model.")
+        return model
+
     snapshot_file = path / f"snapshots/snapshot_iter_{iter:08d}.pt"
     if not snapshot_file.exists():
         raise FileNotFoundError(f"Snapshot file {snapshot_file} not found.")
@@ -65,7 +69,7 @@ def load_snapshot(path, iter, use_ema=True, model=None):
 
 def load_diffusion_from_config(config):
     if 'EDM' in config.model_type:
-        diffusion = EDM_Diffusion.from_config(config)
+        diffusion = Diffusion.from_config(config)
     else:
         raise NotImplementedError(f"Diffusion for {config.model_type} not "
                                   f"implemented.")
@@ -81,6 +85,13 @@ def load_diffusion_from_folder(path):
     model_name = path.name
     config_file = path / f"config_{model_name}.json"
     return load_diffusion_from_config_file(config_file)
+
+
+def load_model_and_diffusion_from_folder(path, use_ema=True):
+    model, config = load_model_from_folder(path, use_ema=use_ema,
+                                           return_config=True)
+    diffusion = load_diffusion_from_config(config)
+    return model, diffusion
 
 
 def model_name_from_file(path):

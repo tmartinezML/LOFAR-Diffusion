@@ -43,7 +43,7 @@ def construct_from_config(cls, config, *args, **kwargs):
     return cls(*args, **(kwargs | config_kwargs))
 
 
-class customModelClass(nn.Module):
+class configModuleBase(nn.Module):
     @classmethod
     def from_config(cls, config):
         return construct_from_config(cls, config)

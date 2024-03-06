@@ -3,12 +3,22 @@ from itertools import compress
 
 import torch
 import numpy as np
+from numpy.lib.npyio import NpzFile
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from matplotlib import gridspec, colormaps
 from matplotlib.animation import FuncAnimation, PillowWriter
+import matplotlib.lines as mlines
+
+import scipy.stats as stats
 
 from utils.stats_utils import norm, norm_err, cdf, cdf_err, centers
+
+
+# -----------------------------#
+# Training Losses
+# -----------------------------#
 
 
 def plot_losses(loss_files, logscale=True, stride=1, smooth=20,
@@ -85,17 +95,21 @@ def add_loss_plot(loss_file, ax, stride=1, smooth=20, color="black",
     if 'ema_loss' in df.columns:
         ax.plot(step, df['ema_loss'], color=color, ls='--', lw=1)
 
+# -----------------------------#
+# Images
+# -----------------------------#
+
 
 def plot_image_grid(imgs, suptitle=None, vmin=-1, vmax=1, savefig=None,
                     n_rows=None, n_cols=None, titles=None):
-    
+
     if isinstance(imgs, list):
         imgs = np.array(imgs)
 
     if n_rows is None and n_cols is None:
         n = int(np.sqrt(imgs.shape[0]))
         n_cols = n
-        n_rows = n + imgs.shape[0] % n + int(n == 1) 
+        n_rows = n + np.ceil((imgs.shape[0] - n**2) / n).astype(int)
     elif n_rows is None or n_cols is None:
         known = n_rows or n_cols
         n = int(imgs.shape[0] // known)
@@ -137,8 +151,24 @@ def plot_image_grid(imgs, suptitle=None, vmin=-1, vmax=1, savefig=None,
 
     return fig, axs
 
+
+def plot_image_grid_from_file(path, n_rows=5, n_cols=None, save=False,
+                              idx_titles=False, **kwargs):
+    imgs = torch.load(path, map_location='cpu')
+
+    if n_cols is None:
+        n_cols = n_rows
+
+    idxs = np.random.choice(len(imgs), n_rows * n_cols, replace=False)
+    imgs = imgs[idxs].numpy()[:, -1, :, :]
+    savefig = path.parent / f"{path.stem}_grid.png" if save else None
+    titles = idxs if idx_titles else None
+    return plot_image_grid(
+        imgs, suptitle=path.stem, savefig=savefig, titles=titles, **kwargs
+    )
+
 # -----------------------------#
-# Pixel Distributions
+# Image Metrics
 # -----------------------------#
 
 
@@ -164,21 +194,63 @@ def add_distribution_plot(counts, edges, ax,
 
     # Set x limits
     _, x_max = ax.get_xlim()
-    new_xmax = max(edges[1:][counts > 0]) * 1.02
+    fullbins = edges[1:][counts > 0]
+    new_xmax = (max(fullbins) if len(fullbins) else edges[-1]) * 1.02
     if data_present:
         new_xmax = max(new_xmax, x_max)
     ax.set_xlim(-0.02 * new_xmax, new_xmax)
     return counts, edges
 
 
+def ghost_axis(ax):
+    # Hide the right and top spines
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    # Hide all ticks and labels
+    ax.xaxis.set_ticks([])
+    ax.yaxis.set_ticks([])
+    ax.labelpad = 50
+
+
+def init_pixel_metrics_plot():
+    # Init figure
+    fig = plt.figure(figsize=(16, 16), dpi=150, tight_layout=True)
+
+    # Set gridspec
+    gs_outer = gridspec.GridSpec(3, 2, figure=fig)
+    for i in range(3):
+        fig.add_subplot(gs_outer[i, 0])
+        ghost_axis(fig.add_subplot(gs_outer[i, 1]))
+        gs_outer[i, 1].subgridspec(2, 2, hspace=0.01, wspace=0.01).subplots()
+
+        # Remove ticks that overlap
+        fig.axes[2 + 6 * i].tick_params(
+            axis='x', which='both', bottom=False, top=True,
+            labelbottom=False, labeltop=True,
+        )
+        fig.axes[3 + 6 * i].tick_params(
+            which='both', bottom=False, top=True, right=True, left=False,
+            labelbottom=False, labeltop=True, labelright=True, labelleft=False,
+        )
+        fig.axes[5 + 6 * i].tick_params(
+            axis='y', which='both', right=True, left=False,
+            labelright=True, labelleft=False
+        )
+
+    for i, ax in enumerate(fig.axes):
+        if i in [1, 7, 13]:
+            continue
+        ax.set_yscale('log')
+        ax.grid(alpha=0.2)
+
+    return fig, fig.axes
+
+
 def pixel_metrics_plot(distributions_dict, pixel_dist=None,
                        fig_ax=None, color=None, label=None):
     # Init figure and axes
     if fig_ax is None:
-        fig, axs = plt.subplots(
-            3, 2, figsize=(10, 10), dpi=150, tight_layout=True,
-            sharex=False
-        )
+        fig, axs = init_pixel_metrics_plot()
     else:
         fig, axs = fig_ax
 
@@ -190,8 +262,8 @@ def pixel_metrics_plot(distributions_dict, pixel_dist=None,
 
     # Keys to plot
     keys = [
-        'Active_Pixels', 'Image_Mean', 'Active_Mean',
-        'Image_Sigma', 'Active_Sigma'
+        'Bin_Pixels', 'Image_Mean', 'Bin_Mean',
+        'Image_Sigma', 'Bin_Sigma'
     ]
     color = color if color is not None else "black"
 
@@ -202,7 +274,7 @@ def pixel_metrics_plot(distributions_dict, pixel_dist=None,
     )
 
     # Plot pixel distribution first
-    ax = axs[0, 0]
+    ax = axs[0]
     add_distribution_plot(
         pixel_dist, np.linspace(0, 1, len(pixel_dist) + 1), ax,
         label=label, color=color
@@ -210,23 +282,36 @@ def pixel_metrics_plot(distributions_dict, pixel_dist=None,
     ax.set_xlabel('Pixel Value')
 
     # Plot data & set axes properties
-    for ax, key in zip(axs.flatten()[1:], keys):
-        counts, edges = distributions_dict[key]
-        add_distribution_plot(
-            counts, edges, ax,
-            label=label, color=color
-        )
-        ax.set_xlabel(key.replace('_', ' '))
+    i = 1
+    for key in keys:
+        if key.startswith('Bin_'):
+            # Plot binned metrics
+            sub_dict = distributions_dict[key]
+            # Ghost axis for label
+            axs[i].set_xlabel(key.replace('_', ' '), labelpad=20)
+            i += 1
+            for sub_key in sub_dict.keys():
+                counts, edges = sub_dict[sub_key]
+                add_distribution_plot(
+                    counts, edges, axs[i],
+                    label=str(sub_key), color=color
+                )
+                if 'Mean' in key:
+                    axs[i].set_xlim(sub_key)
+                i += 1
+        else:
+            counts, edges = distributions_dict[key]
+            add_distribution_plot(
+                counts, edges, axs[i],
+                label=label, color=color
+            )
+            axs[i].set_xlabel(key.replace('_', ' '))
+            i += 1
 
-    # Set axes properties
-    for ax in axs.flatten():
-        ax.grid(alpha=0.2)
-        if label is not None:
-            ax.legend(fontsize='small')
-        ax.set_yscale("log")
-    # Put ticks on rhs for plots on the right
-    for ax in axs[:, 1]:
-        ax.yaxis.tick_right()
+    for i, ax in enumerate(axs):
+        if i in [1, 7, 13]:
+            continue
+        ax.legend()
 
     return fig, axs
 
@@ -235,7 +320,7 @@ def shape_metrics_plot(distributions_dict, COM=None,
                        fig_ax=None, color=None, label=None):
     if fig_ax is None:
         fig, axs = plt.subplots(
-            3, 2, figsize=(10, 10), dpi=150, tight_layout=True
+            3, 2, figsize=(16, 16), dpi=150, tight_layout=True
         )
     else:
         fig, axs = fig_ax
@@ -244,11 +329,11 @@ def shape_metrics_plot(distributions_dict, COM=None,
     assert COM is not None or 'COM' in distributions_dict, (
         "COM should be passed or be present in distributions_dict."
     )
-    COM = COM or distributions_dict['COM']
+    COM = COM or distributions_dict['COM'][0]
 
     # Keys to plot
     keys = [
-        'WPCA_Angle', 'WPCA_Ratio', 'COM_Radius', 'COM_Angle', 'Scatter'
+        'WPCA_Angle', 'WPCA_Elongation', 'COM_Radius', 'COM_Angle', 'Scatter'
     ]
     color = color if color is not None else "black"
 
@@ -259,20 +344,26 @@ def shape_metrics_plot(distributions_dict, COM=None,
             label=label, color=color
         )
         ax.set_xlabel(key.replace('_', ' '))
-        if key == 'WPCA_Ratio':
-            ax.set_xlim(left=0.48)
 
     # COM Distribution
     ax = axs[-1][-1]
     ax.set_aspect('equal')
-    ax.set_xlim(0, 80)
-    ax.set_ylim(0, 80)
+    ax.set_xlim(-40, 40)
+    ax.set_ylim(-40, 40)
     ax.invert_yaxis()
     ax.set_xlabel('COM x')
     ax.set_ylabel('COM y')
-    ax.set_title("COM Scatter Plot")
-    # Plot
-    ax.scatter(*COM.T, s=0.2, color=color, alpha=0.2, label=label)
+    ax.set_title("COM Distribution Contours")
+    # ax.scatter(*COM.T - 40, s=0.2, color=color, alpha=0.2, label=label)
+
+    # New: Plot contours
+    X = np.arange(-40, 40) + 0.5  # Should be centered on pixels
+    counts_norm = norm(COM)
+    cs = ax.contour(
+        X, X, counts_norm, levels=[1e-4, 1e-3, 1e-2],
+        colors=color, linewidths=0.5,
+    )
+    ax.clabel(cs, inline=True, fontsize=6, fmt='%.e')
 
     for ax in axs.flatten()[:-1]:
         if label is not None:
@@ -306,6 +397,37 @@ def plot_collection(distr_dict_list, plot_fn, labels=None,
         )
 
     return fig_axs
+
+
+def metrics_plots(distr, labels=None, colors=None, cmap='cividis',
+                  **plot_kwargs):
+
+    out = []
+    for plot_fnc in [pixel_metrics_plot, shape_metrics_plot]:
+        match distr:
+            case list():
+                assert labels is None or type(labels) == list, (
+                    "If distr is a list, labels should be a list as well."
+                )
+                assert colors is None or type(colors) == list, (
+                    "If distr is a list, colors should be a list as well."
+                )
+                out.append(plot_collection(
+                    distr, plot_fnc, labels=labels, colors=colors, cmap=cmap,
+                    **plot_kwargs
+                ))
+            case dict():
+                assert labels is None or type(labels) == str, (
+                    "If distr is a dictionary, labels should be a string."
+                )
+                assert colors is None or type(colors) == str, (
+                    "If distr is a dictionary, colors should be a string."
+                )
+                out.append(plot_fnc(
+                    distr, fig_ax=None, color=colors, label=labels,
+                    **plot_kwargs
+                ))
+    return out
 
 
 def add_distribution_delta_plot(delta, ax2, key, color="tab:blue"):
@@ -453,6 +575,167 @@ def plot_W1_distances(W1_dict_list, x_values=None, x_label=''):
     ax.legend()
     return fig, ax
 
+# -----------------------------#
+# Loss vs Noise Level
+# -----------------------------#
+
+
+def noise_and_error_limits(file_dict, confidence=95):
+    noise_levels = file_dict['noise_levels']
+    mean_and_limits = {}
+    for key in file_dict.files:
+        if key == 'noise_levels':
+            continue
+        mean = file_dict[key].mean(axis=1)
+
+        error_limits = np.percentile(
+            file_dict[key], [d := (100 - confidence) / 2, 100 - d], axis=1)
+        mean_and_limits[key] = mean, error_limits
+    return noise_levels, mean_and_limits
+
+
+def sampling_noise_levels(T, sigma_min=2e-3, sigma_max=80, rho=7):
+    # Time steps
+    step_inds = np.arange(T)
+    rho_inv = 1 / rho
+    sigma_steps = (
+        (sigma_max**rho_inv + step_inds / (T - 1)
+            * (sigma_min**rho_inv - sigma_max**rho_inv))**rho
+    )
+    # sigma_steps = torch.cat([sigma_steps, torch.zeros_like(sigma_steps[:1])])  # t_N=0
+    return step_inds, sigma_steps
+
+
+def add_loss_plot_data(noise_levels, mean, limits, ax, label, **plot_kwargs):
+    p = ax.plot(noise_levels, mean, label=label, alpha=0.9, **plot_kwargs)
+    ax.fill_between(
+        noise_levels, limits[0], limits[1], alpha=0.25, color=p[0].get_color()
+    )
+
+
+def add_loss_plot_dict(file_dict, ax, label,
+                       best_only=False, **plot_kwargs):
+    noise_levels, mean_and_limits = noise_and_error_limits(file_dict)
+    # Optionally filter for model with most iterations
+    if best_only:
+        best_key = max(
+            mean_and_limits.keys(), key=lambda key: int(key.split('=')[1])
+        )
+        mean_and_limits = {best_key: mean_and_limits[best_key]}
+
+    # Plot mean and error L2 loss over noise level for each model
+    cmap = 'viridis'
+    colors = colormaps[cmap](np.linspace(0, 1, len(mean_and_limits)))
+
+    set_color = ~('color' in plot_kwargs)
+    for color, (key, (mean, limits)) in zip(colors, mean_and_limits.items()):
+        label_key = label
+        if not best_only:
+            label_key = label + f"_{key.split('_')[1]}"
+        if set_color:
+            plot_kwargs['color'] = color
+        add_loss_plot_data(
+            noise_levels, mean, limits, ax, label=label_key,
+            **plot_kwargs
+        )
+
+
+def load_init_mean_and_limits():
+    # Load initial distribution of pretrained model:
+    init_dict = np.load(
+        '/home/bbd0953/diffusion/analysis_results/EDM_valFix/noise_level_losses.npz'
+    )
+    init_noise_levels, init_mean_and_limits = noise_and_error_limits(
+        init_dict, confidence=90
+    )
+    return init_noise_levels, *init_mean_and_limits['losses_it=400000']
+
+
+def plot_training_distribution(ax, P_mean, P_std, color='green', label=None):
+    # Plot log-normal distribution used during training
+    x = np.logspace(-3, 2, 10_000)
+    pdf = stats.norm.pdf(np.log(x), scale=P_std, loc=P_mean)
+    ax.plot(x, pdf, color=color, label=label, alpha=0.9, ls=':')
+
+
+def plot_loss_over_noise_levels(file_dict, labels=[], best_only=False, plot_init=True,
+                                P_mean=-1.2, P_std=1.2,
+                                rho=7, T=25, sigma_min=2e-3, sigma_max=80,
+                                savefig=None):
+
+    # Create figure
+    fig, ax = plt.subplots(1, 1, figsize=(10, 5), dpi=150)
+
+    # Plot initial distribution of pretrained model
+    if plot_init:
+        init_noise_levels, init_mean, init_limits = load_init_mean_and_limits()
+        add_loss_plot_data(
+            init_noise_levels, init_mean, init_limits, ax,
+            label='Original', color='black'
+        )
+        plot_training_distribution(ax, -1.2, 1.2, color='black')
+
+    # Plot data for fine-tuned model(s)
+    match file_dict:
+        case NpzFile():
+            add_loss_plot_dict(file_dict, ax, labels, best_only=best_only)
+            plot_training_distribution(
+                ax, P_mean, P_std, label='Training Distr.')
+
+        case list():
+            n = len(file_dict)
+            assert n == len(labels), \
+                'Number of dicts does not match number of labels.'
+
+            def match_length(var, name):
+                if not isinstance(var, list):
+                    var = [var] * n
+                else:
+                    assert len(var) == n, \
+                        f'Number of dicts does not match number of {name}.'
+                return var
+
+            P_mean = match_length(P_mean, 'P_mean')
+            P_std = match_length(P_std, 'P_std')
+
+            cmap = 'tab10'
+            colors = colormaps[cmap](np.linspace(0, 1, n))
+
+            for d, l, P_m, P_s, c in zip(
+                file_dict, labels, P_mean, P_std, colors
+            ):
+                add_loss_plot_dict(
+                    d, ax, label=l, best_only=best_only, color=c)
+                plot_training_distribution(ax, P_m, P_s, color=c)
+
+    # Plot vertical lines at sigmas used during sampling
+    _, sigmas = sampling_noise_levels(T, sigma_min, sigma_max, rho)
+    for sigma in sigmas:
+        ax.axvline(sigma, linestyle="--", color="red",
+                   alpha=0.3, linewidth=0.5)
+
+    # Add one single patch to legend for sampling sigmas,
+    # thereby create legend
+    red_line = mlines.Line2D(
+        [], [], color='red', linestyle='--', alpha=0.5, linewidth=0.7,
+        label='Sampling Noise Levels'
+    )
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(
+        handles=[red_line, *handles], labels=['Sampling Noise Levels', *labels],
+        loc='upper center'
+    )
+
+    # Set plot properties
+    ax.set_xlabel("Noise Level")
+    ax.set_ylabel("L2 Loss")
+    ax.grid(alpha=0.1)
+    ax.set_xscale('log')
+
+    if savefig is not None:
+        fig.savefig(savefig)
+
+    return fig, ax
 # -----------------------------#
 # Visualizing PBT results
 # -----------------------------#

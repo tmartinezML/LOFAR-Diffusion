@@ -6,7 +6,7 @@ def norm(counts):
 
 
 def norm_err(counts):
-    return np.sqrt(counts / counts.sum()**2)
+    return np.sqrt(counts) / np.sum(counts)
 
 
 def cdf(counts):

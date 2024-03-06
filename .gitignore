@@ -2,9 +2,9 @@
 *.zip
 galaxy_data/
 jobs/
-analysis_results/
-images
-results
+analysis_results
+image_data
+model_results
 .*
 *.log
 *.out

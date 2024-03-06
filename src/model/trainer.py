@@ -17,23 +17,31 @@ from torch_ema import ExponentialMovingAverage as EMA
 import wandb
 
 import model.unet as unet
-from model.diffusion import EDM_Diffusion
-from utils.data_utils import LofarSubset, LofarDummySet, load_data
+from model.diffusion import Diffusion
+from utils.data_utils import LofarSubset, LofarDummySet
 from datasets.firstgalaxydata import FIRSTGalaxyData
 from utils.device_utils import visible_gpus_by_space
 from utils.init_utils import load_config_from_path
+from utils.paths import MODEL_PARENT, DEBUG_DIR
+from utils.data_utils import load_data
 
 
 class outputManager():
 
     def __init__(self, model_name,
-                 override=False, pickup=False, parent_dir=None):
+                 override=False, pickup=False, parent_dir=MODEL_PARENT):
         self.model_name = model_name
         self.override = override
         self.pickup = pickup
 
-        self.parent_dir = parent_dir or Path("/storage/tmartinez/results")
+        self.parent_dir = parent_dir
         self.results_folder = self.parent_dir.joinpath(self.model_name)
+
+        if not (self.override or self.pickup):
+            # Check if model name already exists, if so rename both model and
+            # results folder.
+            self._check_rename_model()
+
         self.results_folder.mkdir(parents=True, exist_ok=True)
 
         self.train_loss_file = self.results_folder.joinpath(
@@ -80,6 +88,22 @@ class outputManager():
             ],
             force=True,
         )
+
+    def _check_rename_model(self):
+        model_name = self.model_name
+        results_folder = self.parent_dir.joinpath(model_name)
+        if results_folder.exists():
+            i = 1
+            while results_folder.exists():
+                model_name = f"{model_name}_{i}"
+                results_folder = self.parent_dir.joinpath(self.model_name)
+                i += 1
+            logging.warning(
+                f"Model name {model_name} already exists."
+                f" Renaming to {self.model_name}."
+            )
+            self.model_name = model_name
+            self.results_folder = results_folder
 
     def _loss_files_exist(self):
         exist = [f.exists()
@@ -177,13 +201,21 @@ class outputManager():
         return config["iterations"]
 
 
-DEBUG_DIR = Path('/home/bbd0953/diffusion/results/debug')
-
-
 class DiffusionTrainer:
-    def __init__(self, *, config, dataset, device=None, parent_dir=None,
-                 pickup=False):
+    def __init__(self, *, config, dataset, device=None, parent_dir=MODEL_PARENT,
+                 pickup=False, model_name=None, iterations=None):
         # Initialize config & class attributes
+        if config is None:
+            assert pickup, "Config must be specified if not pickup."
+            assert iterations is not None, \
+                "Iterations must be specified if no config is passed, "\
+                "else no more training will happen."
+            assert model_name is not None, \
+                "Model name must be specified if no config is passed, "\
+                "else no files can be found."
+            config = load_config_from_path(parent_dir / model_name)
+        if iterations is not None:
+            config.iterations = iterations
         self.config = config
         self.validate_ema = self.config.validate_ema
 
@@ -229,7 +261,7 @@ class DiffusionTrainer:
         self.ema = EMA(self.model.parameters(), decay=self.config.ema_rate)
 
         # Initialize diffusion
-        self.diffusion = EDM_Diffusion.from_config(self.config)
+        self.diffusion = Diffusion.from_config(self.config)
 
         # Initialize data
         self.dataset = dataset
@@ -252,6 +284,14 @@ class DiffusionTrainer:
                 ],
                 milestones=[100_000]
             )
+
+        if pickup:
+            logging.info(
+                f"Picking up model, EMA and optimizer from {self.OM.model_name}."
+            )
+            self.load_model()
+            self.load_ema()
+            self.load_optimizer()
 
     def init_data_sets(self, split=True):
         self.train_set = self.dataset

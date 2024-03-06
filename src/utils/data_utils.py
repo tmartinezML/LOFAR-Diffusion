@@ -3,11 +3,15 @@ import os
 import random
 
 import torch
+import numpy as np
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, ToTensor, CenterCrop, Lambda
 from astropy.stats import sigma_clipped_stats
 from tqdm import tqdm
 from PIL import Image
+import h5py
+
+from utils import paths
 
 
 def load_data(dataset, batch_size, shuffle=True):
@@ -21,28 +25,51 @@ def load_data(dataset, batch_size, shuffle=True):
 
 
 def single_channel(img):
-    return img[:1, :, :]
+
+    if len(img.shape) == 3:
+        return img[:1, :, :]
+
+    elif len(img.shape) == 2:
+        return img.unsqueeze(0) if type(img) == torch.Tensor else img[None, :, :]
 
 
-def scale(img):
+def train_scale(img):
     return img * 2 - 1
+
+
+def minmax_scale(img):
+    if img.max() == img.min():
+        return torch.zeros_like(img)
+
+    return (img - img.min()) / (img.max() - img.min())
 
 
 def train_transform(image_size):
     transform = Compose([
-        ToTensor(),
+        # ToTensor(),
         CenterCrop(image_size),
         Lambda(single_channel),  # Only one channel
-        Lambda(scale),  # Scale to [-1, 1]
+        Lambda(minmax_scale),  # Scale to [0, 1]
+        Lambda(train_scale),  # Scale to [-1, 1]
     ])
     return transform
 
 
 def eval_transform(image_size):
     transform = Compose([
-        ToTensor(),
-        CenterCrop(image_size),
         Lambda(single_channel),  # Only one channel
+        Lambda(minmax_scale),  # Scale to [0, 1]
+        CenterCrop(image_size),
+    ])
+    return transform
+
+
+def eval_transform_FIRST(image_size):
+    transform = Compose([
+        ToTensor(),
+        Lambda(single_channel),  # Only one channel
+        Lambda(minmax_scale),  # Scale to [0, 1]
+        CenterCrop(image_size),
     ])
     return transform
 
@@ -69,26 +96,30 @@ def make_subset(dataset, out_dir):
 class ImagePathDataset(torch.utils.data.Dataset):
     # From:
     #  https://github.com/mseitzer/pytorch-fid/blob/master/src/pytorch_fid/fid_score.py
-    def __init__(self, path, transforms=ToTensor(), n_subset=None):
+    def __init__(
+            self, path,
+            transforms=ToTensor(),
+            n_subset=None,
+            labels=None,
+            key='images'):
+
         self.path = path
-        self.files = sorted(self.path.glob("*.png"))
         self.transforms = transforms
 
-        if n_subset is not None:
-            print(
-                f"Selecting {n_subset} random images"
-                f" from {len(self.files)} files."
-            )
-            self.files = random.choices(self.files, k=n_subset)
+        # Load images
+        if path.is_dir():
+            self.load_images_png(n_subset)
 
-        print("Loading images...")
-        def load(f): return Image.open(f).convert("RGB")
-        self.data = list(map(load, tqdm(self.files, ncols=80)))
+        elif path.suffix in [".hdf5", ".h5"]:
+            self.load_images_h5py(n_subset, key=key, labels=labels)
+
+        else:
+            raise ValueError(f"Unknown file type: {path.suffix}")
 
         print("Data set initialized.")
 
     def __len__(self):
-        return len(self.files)
+        return len(self.data)
 
     def __getitem__(self, i):
         img = self.data[i]
@@ -96,10 +127,65 @@ class ImagePathDataset(torch.utils.data.Dataset):
             img = self.transforms(img)
         return img
 
+    def load_images_png(self, n_subset=None):
+        # Load file names
+        files = sorted(self.path.glob("*.png"))
+
+        # Select random subset if desired
+        if n_subset is not None:
+            print(
+                f"Selecting {n_subset} random images"
+                f" from {len(files)} files."
+            )
+            self.files = random.sample(files, k=n_subset)
+
+        print("Loading images...")
+        def load(f): return ToTensor()(Image.open(f).convert("RGB"))
+        self.data = list(map(load, tqdm(files, ncols=80)))
+        self.names = [f.stem for f in files]
+
+    def load_images_h5py(self, n_subset=None, key='images', labels=None):
+
+        with h5py.File(self.path, 'r') as f:
+            images = f[key]
+
+            if labels is not None:
+                print(f"Selecting images with label(s) {labels}")
+                idxs = np.isin(f[f'{key}_labels'], labels)
+                images = images[idxs]
+
+            if n_subset is not None:
+                n_tot = len(images)
+                assert n_subset <= n_tot, (
+                    "Requested subset size is larger than total number of images."
+                )
+                print(
+                    f"Selecting {n_subset} random images"
+                    f" from {n_tot} images in hdf5 file."
+                )
+                idxs = sorted(
+                    random.sample(range(n_tot), k=n_subset)
+                )
+            else:
+                idxs = slice(None)
+            print("Loading images...")
+            self.data = torch.tensor(images[idxs])
+
+            # See if names are available
+            if 'names' in f:
+                self.names = np.array(f['names'].asstr()[idxs])
+            else:
+                print("No names loaded from hdf5 file.")
+
 
 class EvaluationDataset(ImagePathDataset):
     def __init__(self, path, img_size=80, **kwargs):
         super().__init__(path, transforms=eval_transform(img_size), **kwargs)
+
+
+class TrainDataset(ImagePathDataset):
+    def __init__(self, path, img_size=80, **kwargs):
+        super().__init__(path, transforms=train_transform(img_size), **kwargs)
 
 
 class LofarSubset(ImagePathDataset):
@@ -118,53 +204,8 @@ class LofarDummySet(ImagePathDataset):
 
 
 class LofarZoomUnclipped80(ImagePathDataset):
-    image_path = Path(
-        "/home/bbd0953/diffusion/image_data/lofar_zoom_unclipped_subset_80p"
-    )
+    image_path = paths.LOFAR_SUBSETS['unclipped_H5']
 
     def __init__(self, img_size=80, **kwargs):
         super().__init__(self.image_path, transforms=train_transform(img_size),
-                          **kwargs)
-
-# ----------------------------------
-# FIRST Dataset:
-
-
-global_definition_lit = "literature"
-global_definition_cdl1 = "CDL1"
-
-
-def get_class_dict(definition=global_definition_lit):
-    """
-    Returns the class definition for the galaxy images.
-    :param definition: str, optional
-        either literature or CDL1
-    :return: dict
-    """
-    if definition == global_definition_lit:
-        return {0: "FRI",
-                1: "FRII",
-                2: "Compact",
-                3: "Bent"}
-    elif definition == global_definition_cdl1:
-        return {0: "FRI-Sta",
-                1: "FRII",
-                2: "Compact",
-                3: "FRI-WAT",
-                4: "FRI-NAT"}
-    else:
-        raise Exception(
-            "Definition: {} is not implemented.".format(definition))
-
-
-def get_class_dict_rev(definition=global_definition_lit):
-    """
-    Returns the reverse class definition for the galaxy images.
-    :param definition: str, optional
-    :return: dict
-    """
-    class_dict = get_class_dict(definition)
-    class_dict_rev = {v: k for k, v in class_dict.items()}
-    return class_dict_rev
-
-# ----------------------------------
+                         **kwargs)

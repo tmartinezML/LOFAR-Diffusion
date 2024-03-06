@@ -15,7 +15,7 @@ def physical_gpu_df():
                          names=['memory.used', 'memory.free'],
                          skiprows=1)
     gpu_df['memory.free'] = gpu_df['memory.free'].map(
-        lambda x: x.rstrip(' [MiB]')
+        lambda x: int(x.rstrip(' [MiB]'))
     )
     return gpu_df
 
@@ -52,19 +52,15 @@ def distribute_model(model, n_devices=1, device_ids=None):
 def set_visible_devices(gpu_spec):
     """
     """
-    # Set devices if gpu_spec is int
-    if isinstance(gpu_spec, int):
-        n_gpu = gpu_spec
-        dev_ids = None
-
-    # Set devices if gpu_spec is list
-    elif isinstance(gpu_spec, list):
-        n_gpu = len(gpu_spec)
-        dev_ids = gpu_spec
-
-    # Raise error if gpu_spec is neither int nor list
-    else:
-        raise TypeError("gpu_spec must be int or list of ints")
+    match gpu_spec:
+        case int():
+            n_gpu = gpu_spec
+            dev_ids = None
+        case list():
+            n_gpu = len(gpu_spec)
+            dev_ids = gpu_spec
+        case _:
+            raise TypeError("gpu_spec must be int or list of ints")
     
     # Check that n_gpu is valid
     max_dev = len(physical_gpu_df())

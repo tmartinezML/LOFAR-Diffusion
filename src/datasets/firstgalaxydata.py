@@ -1,18 +1,56 @@
 from __future__ import print_function
 import os
+from pathlib import Path
 import numpy as np
 from PIL import Image
 import h5py
 import torch.utils.data as data
+from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from torchvision.datasets.utils import download_url
-from utils.data_utils import get_class_dict, get_class_dict_rev
 import zipfile
 import warnings
 import copy
+
+from utils.paths import FIRST_DATA_PARENT
+
+
+def label_to_class_dict(definition='literature'):
+    """
+    Returns the class definition for the galaxy images.
+    :param definition: str, optional
+        either literature or CDL1
+    :return: dict
+    """
+    match definition:
+
+        case 'literature':
+            return {
+                0: "FRI", 1: "FRII", 2: "Compact", 3: "Bent"
+            }
+
+        case 'CDL1':
+            return {
+                0: "FRI-Sta", 1: "FRII", 2: "Compact", 3: "FRI-WAT",
+                4: "FRI-NAT"
+            }
+
+        case _:
+            raise NotImplementedError(
+                f"Definition: {definition} is not implemented."
+            )
+
+
+def class_to_label_dict(definition='literature'):
+    """
+    Returns the reverse class definition for the galaxy images.
+    :param definition: str, optional
+    :return: dict
+    """
+    return {v: k for k, v in label_to_class_dict(definition).items()}
 
 
 class FIRSTGalaxyData(data.Dataset):
@@ -67,9 +105,12 @@ class FIRSTGalaxyData(data.Dataset):
         "galaxy_data_crossvalid_test_h5.zip": "https://zenodo.org/record/7689127/files/galaxy_data_crossvalid_test_h5.zip?download=1"
     }
 
-    def __init__(self, root, class_definition="literature", input_data_list=None,
-                 selected_split="train", selected_classes=None, selected_catalogues=None, is_balanced=False, is_PIL=False, is_RGB=False,
-                 use_LOAFR_masking=False, transform=None, target_transform=None, is_download=False):
+    def __init__(self, root=FIRST_DATA_PARENT,
+                 input_data_list=None, selected_split="train",
+                 selected_classes=None, class_definition="literature",
+                 selected_catalogues=None, is_balanced=False, is_PIL=False,
+                 is_RGB=False, use_LOAFR_masking=False, transform=None,
+                 target_transform=None, is_download=False):
         """
         Parameters
         ----------
@@ -102,35 +143,49 @@ class FIRSTGalaxyData(data.Dataset):
         :param is_download: bool, optional (default is False)
             flag, whether a download should be forced
         """
-        self.root = root  # os.path.expanduser(root)
-        self.input_data_list = [os.path.join(
-            "galaxy_data_h5.h5")] if input_data_list is None else input_data_list
+        # Set data paths
+        self.root = Path(root)
+        self.dl_path = self.root / "downloads"
+        self.input_data_list = ["galaxy_data_h5.h5"] or input_data_list
+
+        # Set dataset properties
         self.selected_split = selected_split
-        self.selected_splits = selected_split if hasattr(
-            selected_split, '__iter__') else [selected_split]
+        self.selected_splits = (
+            selected_split if hasattr(selected_split, '__iter__')
+            else [selected_split]
+        )
         self.is_balanced = is_balanced
+
+        # Set galaxy class properties
         self.class_definition = class_definition
-        self.class_dict = get_class_dict(class_definition)
-        self.class_dict_rev = get_class_dict_rev(class_definition)
+        self.class_dict = label_to_class_dict(class_definition)
+        self.class_dict_rev = class_to_label_dict(class_definition)
         self.selected_classes = selected_classes
         if selected_classes is None:
-            self.class_labels = self.class_dict.keys()
-            self.selected_classes = self.class_dict.values()
+            self.class_labels = list(self.class_dict.keys())
+            self.selected_classes = list(self.class_dict.values())
         else:
-            self.class_labels = [self.class_dict_rev[c]
-                                 for c in selected_classes]
-        self.supported_catalogues = ["Gendre", "MiraBest", "Capetti2017a",
-                                     "Capetti2017b", "Baldi2018", "Proctor_Tab1", "LOFAR_Mingo", "LOFAR"]
-        if selected_catalogues is None:
-            self.selected_catalogues = self.supported_catalogues
-        else:
-            self.selected_catalogues = selected_catalogues
+            self.class_labels = [
+                self.class_dict_rev[c] for c in selected_classes
+            ]
+
+        # Set catalogues
+        self.supported_catalogues = [
+            "Gendre", "MiraBest", "Capetti2017a", "Capetti2017b", "Baldi2018",
+            "Proctor_Tab1", "LOFAR_Mingo", "LOFAR"
+        ]
+        self.selected_catalogues = (
+            selected_catalogues or self.supported_catalogues
+        )
+
+        # Set image properties
         self.is_PIL = is_PIL
         self.is_RGB = is_RGB
         self.use_LOAFR_masking = use_LOAFR_masking
         self.transform = transform
         self.target_transform = target_transform
 
+        # Download dataset if desired or if not available
         if is_download:
             self.download()
 
@@ -139,73 +194,73 @@ class FIRSTGalaxyData(data.Dataset):
             self.download()
             if not self._check_files():
                 raise RuntimeError(
-                    "Dataset not found (maybe custom dataset) or Dataset corrupted or downloading failed. Check data paths...")
+                    "Dataset not found (maybe custom dataset) or Dataset "
+                    "corrupted or downloading failed. Check data paths..."
+                )
 
-        data_list = self.input_data_list
-
+        # Prepare lists for data that will be extracted from files
         self.data = []
         self.labels = []
         self.coordinates = []
         self.mask_params = []
 
-        for file_name in data_list:
-            file_path = os.path.join(self.root, file_name)
-            ext = os.path.splitext(file_name)[1]
-            if ext == ".h5":
-                with h5py.File(file_path, "r") as file:
-                    for key in file.keys():
-                        # filter for selected split
-                        if file[key + "/Split_" + self.class_definition].asstr()[()] == self.selected_splits:
-                            data_entry = file[key + "/Img"]
-                            label_entry = file[key +
-                                               "/Label_" + self.class_definition]
-                            d = np.array(data_entry)
-                            if data_entry.attrs["Source"] not in self.selected_catalogues:
-                                continue
-                            if data_entry.attrs.__contains__("RA") and data_entry.attrs.__contains__("DEC"):
-                                coord = SkyCoord(
-                                    data_entry.attrs["RA"], data_entry.attrs["DEC"], unit=(u.deg, u.deg))
-                            else:
-                                raise NotImplementedError(
-                                    "No coords in data_entry at key {}".format(key))
-                            if data_entry.attrs.__contains__("source_PA") and data_entry.attrs.__contains__(
-                                    "source_size") and data_entry.attrs.__contains__("source_width"):
-                                mask_param = {"source_PA": data_entry.attrs["source_PA"],
-                                              "source_size": data_entry.attrs["source_size"],
-                                              "source_width": data_entry.attrs["source_width"]}
-                            else:
-                                mask_param = None
-                                warnings.warn("Could not find masking parameters, only available for LOFAR data. "
-                                              "mask_param will be None.", category=UserWarning)
-                            self.data.append(d)
-                            self.labels.append(np.array(label_entry))
-                            self.coordinates.append(coord)
-                            self.mask_params.append(mask_param)
+        # Loop through input files
+        for file_path in [self.root / f for f in self.input_data_list]:
 
-            else:
+            # Check file extension
+            if (ext := file_path.suffix) != ".h5":
                 raise NotImplementedError(
-                    "Data with extension {} not support!".format(ext))
+                    f"Data with extension {ext} not supported!")
 
+            # Open file
+            with h5py.File(file_path, "r") as file:
+
+                # Loop through keys
+                for key in file.keys():
+
+                    # Get data from key
+                    key_data = self._get_key_data(file, key)
+
+                    if key_data is None:
+                        continue
+
+                    # Append data to lists
+                    data_entry, label_entry, coord, mask_param = key_data
+                    self.data.append(np.array(data_entry))
+                    self.labels.append(np.array(label_entry))
+                    self.coordinates.append(coord)
+                    self.mask_params.append(mask_param)
+
+        # Convert to numpy arrays
+        self.data = np.array(self.data)
+        self.labels = np.array(self.labels, dtype=np.uint8)
+        self.coordinates = np.array(self.coordinates)
+        self.mask_params = np.array(self.mask_params)
+
+        # Filter for selected classes
         if self.selected_classes is not None:
-            indices = [i for i, d in enumerate(
-                self.labels) if int(d) in self.class_labels]
-            self.data = [self.data[i] for i in indices]
-            self.labels = [self.labels[i] for i in indices]
-            self.coordinates = [self.coordinates[i] for i in indices]
-            self.mask_params = [self.mask_params[i] for i in indices]
+            self._mask_data(np.isin(self.labels, self.class_labels))
 
-        # simplest balancing strategy, take data occurrence with the least count and ignore more data of other classes
+        # Simplest balancing strategy:
+        # Take data occurrence with the least count
+        # and ignore more data of other classes.
         if self.is_balanced:
-            occ = [l for l in self.get_occurrences().values()]
-            occ_min = np.min(occ)
-            ind_list = []
-            for cl in self.class_labels:
-                ind = [i for i, d in enumerate(self.labels) if d == cl]
-                ind_list = ind_list + ind[0:occ_min]
-            self.data = [self.data[i] for i in ind_list]
-            self.labels = [self.labels[i] for i in ind_list]
-            self.coordinates = [self.coordinates[i] for i in ind_list]
-            self.mask_params = [self.mask_params[i] for i in ind_list]
+            occ_min = np.min(np.unique(self.labels, return_counts=True)[1])
+            mask = np.array([
+                self.labels == cl for cl in self.class_labels
+            ])
+            mask[mask.cumsum(axis=1) > occ_min] = False
+            self._mask_data(np.any(mask, axis=0))
+
+        # Remove all images that have only zeros after transform
+        if self.transform is not None:
+            print("Removing images where all pixels are zero after transform...")
+            mask = np.array([
+                img.sum()  # Here, self.transform was already applied to img
+                for img, _ in DataLoader(self, batch_size=None, num_workers=1, shuffle=False)
+            ]) != 0
+            print(f"\tRemoved {len(self.data) - np.sum(mask)} images.")
+            self._mask_data(mask)
 
     def __getitem__(self, index):
         img, labels = self.data[index], self.labels[index]
@@ -218,10 +273,10 @@ class FIRSTGalaxyData(data.Dataset):
             img = Image.fromarray(img, mode="L")
             if self.is_RGB:
                 img = img.convert("RGB")
-        # else...return numpy array directly
 
         if self.transform is not None:
             img = self.transform(img)
+
         if self.target_transform is not None:
             labels = self.target_transform(labels)
 
@@ -246,6 +301,74 @@ class FIRSTGalaxyData(data.Dataset):
     def __len__(self):
         return len(self.data)
 
+    def _get_key_data(self, file, key):
+        # filter for selected split
+        # TODO: What is the [()] for?
+        key_split = file[f"{key}/Split_{self.class_definition}"].asstr()[()]
+
+        if not key_split in self.selected_splits:
+            return None
+
+        # Read data from h5 file
+        data_entry = file[f"{key}/Img"]
+        label_entry = file[
+            f"{key}/Label_{self.class_definition}"
+        ]
+
+        # Filter for selected catalogues
+        if data_entry.attrs["Source"] not in self.selected_catalogues:
+            return None
+
+        # Read coordinates of source
+        if (
+            data_entry.attrs.__contains__("RA")
+            and data_entry.attrs.__contains__("DEC")
+        ):
+            coord = SkyCoord(
+                data_entry.attrs["RA"],
+                data_entry.attrs["DEC"],
+                unit=(u.deg, u.deg)
+            )
+        else:
+            raise NotImplementedError(
+                f"No coords in data_entry at key {key}"
+            )
+
+        # Read masking parameters
+        if (
+            data_entry.attrs.__contains__("source_PA")
+            and data_entry.attrs.__contains__("source_size")
+            and data_entry.attrs.__contains__("source_width")
+        ):
+            mask_param = {
+                "source_PA": data_entry.attrs["source_PA"],
+                "source_size": data_entry.attrs["source_size"],
+                "source_width": data_entry.attrs["source_width"]
+            }
+        else:
+            mask_param = None
+            warnings.warn(
+                f"Could not find masking parameters, only "
+                "available for LOFAR data. mask_param will "
+                "be None.",
+                category=UserWarning
+            )
+        return data_entry, label_entry, coord, mask_param
+
+    def _check_files(self):
+        # Loop through input data list, return False if any file is missing
+        for path in [self.root / f for f in self.input_data_list]:
+            if not path.exists():
+                return False
+
+        return True
+
+    def _mask_data(self, mask):
+        self.data = self.data[mask]
+        self.labels = self.labels[mask]
+        self.coordinates = self.coordinates[mask]
+        self.mask_params = self.mask_params[mask]
+
     def mask_image(self, img, mask_param):
         m = np.zeros(img.shape, dtype=np.uint8)
         CDL1_safety_factor = 2
@@ -268,23 +391,18 @@ class FIRSTGalaxyData(data.Dataset):
 
         return img_masked
 
-    def _check_files(self):
-        root = self.root
-        for data_file in self.input_data_list:
-            path = os.path.join(root, data_file)
-            if not os.path.exists(path):
-                return False
-        return True
-
     def download(self):
         # download and extract file
         for key in self.urls_zenodo.keys():
-            download_url(self.urls_zenodo[key], self.root, key)
-            with zipfile.ZipFile(os.path.join(self.root, key), "r") as zip_ref:
+            download_url(self.urls_zenodo[key], self.dl_path, key)
+            with zipfile.ZipFile(self.dl_path / key, "r") as zip_ref:
                 zip_ref.extractall(path=self.root)
 
     def get_occurrences(self):
-        occ = {l: self.labels.count(l) for l in self.class_labels}
+        occ = {
+            label: count for label, count
+            in zip(*np.unique(self.labels, return_counts=True))
+        }
         return occ
 
     def convert_img_np(self, img_from_database):
@@ -315,7 +433,7 @@ class FIRSTGalaxyData(data.Dataset):
             self.__len__())
         for c in self.selected_classes:
             fmt_str += '    Number of datapoint in class {}: {}\n'.format(
-                c, self.labels.count(self.class_dict_rev[c]))
+                c, (self.labels == self.class_dict_rev[c]).sum())
         tmp = self.selected_split
         fmt_str += '    Split: {}\n'.format(tmp)
         fmt_str += '    Root Location: {}\n'.format(self.root)
@@ -359,4 +477,3 @@ if __name__ == "__main__":
                            is_PIL=True, is_RGB=True, is_balanced=False, transform=transformRGB)
 
     print("Loading dataset finished.")
-

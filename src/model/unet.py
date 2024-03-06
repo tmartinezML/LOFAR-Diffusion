@@ -4,23 +4,20 @@ https://huggingface.co/blog/annotated-diffusion
 
 """
 import math
-from inspect import isfunction
 from functools import partial
 from abc import abstractmethod
 from pathlib import Path
 
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch import einsum
 from torch.cuda.amp import autocast
 
 from einops import rearrange, reduce
 from einops.layers.torch import Rearrange
 from utils.config_utils import construct_from_config
 
-from utils.config_utils import customModelClass
+from utils.config_utils import configModuleBase
 
 DEBUG_DIR = Path('/home/bbd0953/diffusion/results/debug')
 
@@ -125,12 +122,21 @@ class TimestepBlock(nn.Module):
 
 
 class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
+    """
+    Sequential module where forward() takes timestep embeddings as a second
+    argument.
+    """
+
     def forward(self, x, emb):
+
         for layer in self:
+
             if isinstance(layer, TimestepBlock):
                 x = layer(x, emb)
+
             else:
                 x = layer(x)
+
         return x
 
 
@@ -152,10 +158,12 @@ class SinusoidalPositionEmbeddings(nn.Module):
             half_dim = self.dim // 2
             embeddings = math.log(1e5) / (half_dim - 1)
             embeddings = torch.exp(
-                torch.arange(half_dim, device=device) * -embeddings)
+                torch.arange(half_dim, device=device) * -embeddings
+            )
             embeddings = time[:, None] * embeddings[None, :]
             embeddings = torch.cat(
-                (embeddings.sin(), embeddings.cos()), dim=-1)
+                (embeddings.sin(), embeddings.cos()), dim=-1
+            )
         return embeddings
 
 
@@ -174,8 +182,9 @@ class WeightStandardizedConv2d(nn.Conv2d):
         # Tensors with mean and variance, same shape as weight tensors
         # for subsequent operations.
         mean = reduce(weight, "o ... -> o 1 1 1", "mean")  # o = outp. channels
-        var = reduce(weight, "o ... -> o 1 1 1",
-                     partial(torch.var, unbiased=False))
+        var = reduce(
+            weight, "o ... -> o 1 1 1", partial(torch.var, unbiased=False)
+        )
         normalized_weight = (weight - mean) * (var + eps).rsqrt()
 
         out = F.conv2d(
@@ -187,9 +196,11 @@ class WeightStandardizedConv2d(nn.Conv2d):
             self.dilation,
             self.groups,
         )
+
         # Clamp inf values to avoid Infs/NaNs
         if torch.isinf(out).any():
             out = clamp_tensor(out)
+
         return out
 
 
@@ -215,50 +226,39 @@ class ResidualLinearAttention(nn.Module):
         self.pre_norm = nn.GroupNorm(32, dim)
         self.to_qkv = nn.Conv2d(dim, hidden_dim * 3, 1, bias=True)
 
-        self.to_out = nn.Sequential(nn.Conv2d(hidden_dim, dim, 1, bias=True),
-                                    nn.GroupNorm(1, dim))
+        self.to_out = nn.Sequential(
+            nn.Conv2d(hidden_dim, dim, 1, bias=True), nn.GroupNorm(1, dim)
+        )
 
     def forward(self, x):
-        def save_debug():
-            torch.save(self, DEBUG_DIR / 'LinAttn.pt')
-            torch.save(x, DEBUG_DIR / 'LinAttn_Input.pt')
-            torch.save(self.to_qkv, DEBUG_DIR / 'LinAttn_to_qkv.pt')
-            torch.save(qkv, DEBUG_DIR / 'LinAttn_qkv.pt')
         res = x
-        # x = x.to(torch.float32)
         _, _, h, w = x.shape
-        # Tuple of 3 tensors of shape [b, dim_head*heads, h, w]:
+
+        # qkv: Tuple of 3 tensors of shape [b, dim_head*heads, h, w]:
         x = self.pre_norm(x)
         qkv = self.to_qkv(x).chunk(3, dim=1)
-        # Three tensors of shape [b, heads, dim_head, h*w]:
+
+        # Reshape to three tensors of shape [b, heads, dim_head, h*w]:
         q, k, v = map(
-            lambda t: rearrange(
-                t, "b (h c) x y -> b h c (x y)", h=self.heads),
+            lambda t: rearrange(t, "b (h c) x y -> b h c (x y)", h=self.heads),
             qkv
         )
 
         q = q * self.scale
 
+        # Trick to prevent overflow in softmax
         q_shift = q - q.amax(dim=-2, keepdim=True).detach()
         k_shift = k - k.amax(dim=-1, keepdim=True).detach()
 
         q_norm = q_shift.softmax(dim=-2)
         k_norm = k_shift.softmax(dim=-1)
 
-        if torch.isnan(q_norm).any():
-            save_debug()
-            raise ValueError(f"q_norm has nan values.")
-
-        if torch.isnan(k_norm).any():
-            save_debug()
-            raise ValueError(f"k_norm has nan values.")
-
-        # q_norm = q_norm * self.scale
         context = torch.einsum("b h d n, b h e n -> b h d e", k_norm, v)
-
         out = torch.einsum("b h d e, b h d n -> b h e n", context, q_norm)
-        out = rearrange(out, "b h c (x y) -> b (h c) x y",
-                        h=self.heads, x=h, y=w)
+        out = rearrange(
+            out, "b h c (x y) -> b (h c) x y", h=self.heads, x=h, y=w
+        )
+
         return self.to_out(out) + res
 
 
@@ -279,25 +279,32 @@ class ResidualBlock(TimestepBlock):
                  use_conv=False,):
         super().__init__()
 
+        self.resize = up or down
+        self.do_res_conv = dim != dim_out
+
+        # Input layers
         self.in_layers = nn.Sequential(
             nn.GroupNorm(norm_groups, dim),
             nn.SiLU(),
             WeightStandardizedConv2d(dim, dim_out, 3, padding=1, bias=True),
         )
 
-        self.updown = up or down
+        # Resampling layers
         if up:
             self.h_upd = upsample(dim, use_conv=False)
             self.x_upd = upsample(dim, use_conv=False)
+
         elif down:
             self.h_upd = downsample(dim)
             self.x_upd = downsample(dim)
 
+        # Time embedding layers
         self.emb_layers = nn.Sequential(
             nn.SiLU(),
             nn.Linear(time_emb_dim, dim_out * 2),
         )
 
+        # Output layers
         self.out_layers = nn.Sequential(
             nn.GroupNorm(norm_groups, dim_out),
             nn.SiLU(),
@@ -307,23 +314,17 @@ class ResidualBlock(TimestepBlock):
             )),
         )
 
-        self.do_res_conv = dim != dim_out
+        # Residual layers
         if self.do_res_conv:
-            if use_conv:
-                self.res_conv = WeightStandardizedConv2d(dim, dim_out, 3)
-            else:
-                self.res_conv = nn.Conv2d(dim, dim_out, 1)
+            self.res_conv = (
+                WeightStandardizedConv2d(dim, dim_out, 3) if use_conv
+                else nn.Conv2d(dim, dim_out, 1)
+            )
 
     def forward(self, x, time_emb):
-        inp = x
-
-        def save_debug():
-            torch.save(self, DEBUG_DIR / 'ResBlock.pt')
-            torch.save(inp, DEBUG_DIR / 'ResBlock_Input.pt')
-            torch.save(time_emb, DEBUG_DIR / 'ResBlock_time_emb.pt')
 
         # Input Layers
-        if self.updown:
+        if self.resize:
             # Split input layers into Norm+SiLU and Conv
             # (up/downsample will happen in between)
             in_pre, in_conv = self.in_layers[:-1], self.in_layers[-1]
@@ -335,6 +336,7 @@ class ResidualBlock(TimestepBlock):
 
             # Residual update
             x = self.x_upd(x)  # Up/downsample residual
+
         else:
             h = self.in_layers(x)
 
@@ -378,6 +380,10 @@ class ResidualBlock(TimestepBlock):
 
 
 class ResidualBlockAttention(nn.Module):
+    """
+    Sequential module that applies a residual block and an attention block.
+    """
+
     def __init__(self, resBlock, attnBlock):
         super().__init__()
         self.resBlock = resBlock
@@ -389,7 +395,7 @@ class ResidualBlockAttention(nn.Module):
         return x
 
 
-class Downsample(ResidualBlock):
+class DownsampleBlock(ResidualBlock):
     def __init__(self,
                  channels,
                  time_emb_dim,
@@ -408,7 +414,7 @@ class Downsample(ResidualBlock):
         )
 
 
-class Upsample(ResidualBlock):
+class UpsampleBlock(ResidualBlock):
     def __init__(self,
                  channels,
                  time_emb_dim,
@@ -448,10 +454,7 @@ class TimeEmbedding(nn.Module):
         return x
 
 
-
-
-
-class ImprovedUnet(customModelClass):
+class Unet(configModuleBase):
     # See:
     # https://github.com/openai/guided-diffusion/blob/main/guided_diffusion/unet.py#L396
     def __init__(
@@ -484,6 +487,7 @@ class ImprovedUnet(customModelClass):
             nn.Linear(n_labels, time_dim, bias=False) if n_labels else None
         )
         self.label_dropout = label_dropout
+        self.n_labels = n_labels
 
         # Initial convolution layer
         self.init_conv = WeightStandardizedConv2d(
@@ -521,7 +525,7 @@ class ImprovedUnet(customModelClass):
 
             # Add downsample block if not last resolution level
             if res_level != n_levels - 1:
-                block = Downsample(
+                block = DownsampleBlock(
                     ch, time_dim, dropout=dropout, norm_groups=norm_groups
                 )
                 self.down_blocks.append(block)
@@ -568,7 +572,7 @@ class ImprovedUnet(customModelClass):
 
                 # Add upsample block if not last resolution level
                 if res_level and i == num_res_blocks:
-                    block = Upsample(
+                    block = UpsampleBlock(
                         ch, time_dim, dropout=dropout, norm_groups=norm_groups
                     )
                     self.up_blocks.append(block)
@@ -586,14 +590,18 @@ class ImprovedUnet(customModelClass):
 
         # Class label embedding
         if self.label_emb is not None and class_labels is not None:
-            labels_enc = F.one_hot(class_labels, num_classes=self.n_labels)
+            labels_enc = F.one_hot(
+                class_labels, num_classes=self.n_labels
+            ).to(x.dtype)
+
             # Apply label dropout
             if self.training and self.label_dropout:
                 mask = torch.rand([x.shape[0], 1], device=x.device)
                 mask = mask >= self.label_dropout
                 labels_enc = labels_enc * mask.to(labels_enc.dtype)
+
             # Add label embedding to time embedding & apply activation
-            t = nn.GELU(t + self.label_emb(labels_enc))
+            t = nn.GELU()(t + self.label_emb(labels_enc))
 
         # Initial convolution
         x = self.init_conv(x)
@@ -609,13 +617,17 @@ class ImprovedUnet(customModelClass):
 
         # Decoder
         for module in self.up_blocks:
-            if not isinstance(module, Upsample):
+            if not isinstance(module, UpsampleBlock):
                 x = torch.cat((x, h.pop()), dim=1)
             x = module(x, t)
         return self.out(x)
 
 
-class EDMPrecond(customModelClass):
+class EDMPrecond(configModuleBase):
+    """
+    Wrapper for Unet to apply preconditioning as introduced in EDM paper.
+    """
+
     def __init__(
         self,
         model,
@@ -631,18 +643,28 @@ class EDMPrecond(customModelClass):
 
     @classmethod
     def from_config(cls, config):
-        model = ImprovedUnet.from_config(config)
+        model = Unet.from_config(config)
         return construct_from_config(cls, config, model=model)
 
     def forward(self, x, sigma, class_labels=None):
+
+        # Expand sigma to shape [batch_size, 1, 1, 1]
         sigma = sigma.view([-1, 1, 1, 1])
+
+        # Weight coefficients for each term
         c_skip = self.sigma_data**2 / (sigma**2 + self.sigma_data**2)
-        c_out = sigma * self.sigma_data / \
-            (sigma**2 + self.sigma_data**2).sqrt()
+        c_out = (
+            sigma * self.sigma_data / (sigma**2 + self.sigma_data**2).sqrt()
+        )
         c_in = 1 / (self.sigma_data**2 + sigma**2).sqrt()
         c_noise = sigma.log() / 4
 
-        F_x = self.model((c_in * x), c_noise.flatten(), 
-                         class_labels=class_labels)
+        # Apply inner model
+        F_x = self.model(
+            c_in * x, c_noise.flatten(), class_labels=class_labels
+        )
+
+        # Generate denoiser output
         D_x = c_skip * x + c_out * F_x
+
         return D_x
