@@ -2,6 +2,12 @@ from utils.data_utils import EvaluationDataset
 import utils.paths as paths
 from utils.paths import LOFAR_SUBSETS
 import argparse
+import multiprocessing as mp
+import multiprocessing.pool
+from concurrent.futures import ProcessPoolExecutor as PPEx
+from functools import partial
+import time
+import signal
 
 import sys
 import os
@@ -16,6 +22,7 @@ from astropy.io import fits
 import bdsf
 import numpy as np
 from tqdm import tqdm
+from tqdm.contrib.concurrent import process_map
 import matplotlib.pyplot as plt
 import pandas as pd
 
@@ -101,6 +108,7 @@ def bdsf_on_image(img: np.ndarray):
     # Return bdsf image object
     return img
 
+
 @block_printing
 def catalogs_from_bdsf(img: bdsf.image.Image):
     cat_list = []
@@ -154,6 +162,69 @@ def append_to_pickle(obj, fpath):
         pickle.dump(data, f)
 
 
+def append_to_csv(df, fpath):
+    df.to_csv(fpath, index=False, mode='a', header=not fpath.exists())
+
+
+def writer(queue, fpaths, write_fns):
+    log_file = fpaths[0].parent / 'writer_log.txt'
+    i = 0
+    def signal_handler(sig, frame):
+        print('Keyboard interrupt ignored by writer.')
+    signal.signal(signal.SIGINT, signal_handler)
+    while True:
+        items = queue.get()
+        if items == -1:
+            print("Closing writer.")
+            break
+        for item, fpath, write_fn in zip(items, fpaths, write_fns):
+            if item is None:
+                continue
+            write_fn(item, fpath)
+
+        # Write log
+        img_id = items[0]['Image_id']
+        with open(log_file, 'a' if i else 'w') as f:
+            f.write(f'{i},{img_id}\n')
+        i += 1
+
+
+def bdsf_worker_func(img, image_id, q):
+    def signal_handler(sig, frame):
+        pid = os.getpid()
+        print(f'Keyboard interrupt handeled by worker process {pid}.')
+        return
+
+    signal.signal(signal.SIGINT, signal_handler)
+    # Run bdsf on the image
+    bdsf_img = bdsf_on_image(img)
+
+    # bdsf dict:
+    # Retrieve the desired attributes of the bdsf image object as dict
+    attr_dict = dict_from_bdsf(bdsf_img)
+    bdsf_dict = {
+        k: attr_dict[k] for k in [
+            'model_gaus_arr', 'total_flux_gaus',
+        ]
+    }
+    # Add image_id to the dict
+    bdsf_dict['Image_id'] = image_id
+
+    # Catalogs:
+    # Retrieve the catalogs of the bdsf image object
+    cats = catalogs_from_bdsf(bdsf_img)  # cat_g, cat_s
+    for cat in cats:
+        if cat is not None:
+            cat['Image_id'] = image_id
+
+    # Append to queue
+    q.put([bdsf_dict, *cats])
+
+
+def iterable_func_caller(func, args):
+    return func(*args)
+
+
 def bdsf_run(
         imgs: Iterable,
         out_folder: str | Path,
@@ -179,56 +250,71 @@ def bdsf_run(
             if fpath.exists():
                 fpath.unlink()
 
-    # Counter for skipped sources.
-    n_skip = 0
+    # Look for images already processed
+    else:
+        print('Looking for images already processed...')
+        # Open pickle file
+        if dicts_path.exists():
+            with open(dicts_path, 'rb') as f:
+                dicts = pickle.load(f)
+            ids = np.array([d['Image_id'] for d in dicts])
+            print(f'Removing {len(ids)} processed images from the list.')
+            mask = np.in1d(names, ids, invert=True)
+            imgs = imgs[mask]
+            names = names[mask]
+        else:
+            print('No images processed yet.')
+
+    # Set up multiprocessing
+    manager = mp.Manager()
+    q = manager.Queue()
+    writer_pool = mp.Pool(1)
+    w_res = writer_pool.apply_async(
+        writer,
+        (
+            q,
+            [dicts_path, gaul_path, srl_path],
+            [append_to_pickle, append_to_csv, append_to_csv]
+        )
+    )
+
+    image_ids = names if names is not None else range(len(imgs))
 
     # Run bdsf on all images
-    for i, img in enumerate(tqdm(imgs)):
+    with PPEx(max_workers=10) as worker_pool:
 
-        # Set the image_id
-        image_id = names[i] if names is not None else i
+        def signal_handler(sig, frame):
+            print('Keyboard interrupt. Closing pools.')
+            worker_pool.shutdown(cancel_futures=True)
+            q.put(-1)
+            writer_pool.close()
+            writer_pool.join()
+            sys.exit(0)
 
-        # If files exist, check if image has already been processed.
-        # Check only for gaussians, because they are necessary for the srl
-        # catalog anyway.
-        if gaul_path.exists():
-            if image_id in pd.read_csv(gaul_path).Image_id.values:
-                n_skip += 1
-                print(
-                    f"Skipping image {image_id}, already processed."
-                    f" ({n_skip} skipped so far.)"
-                )
-                continue
+        signal.signal(signal.SIGINT, signal_handler)
+        
+        res = list(tqdm(
+            worker_pool.map(
+                partial(iterable_func_caller, bdsf_worker_func),
+                zip(imgs, image_ids, [q] * len(imgs)),
+                chunksize=10,
+            ),
+            total=len(imgs),
+        ))
+        [print(r) for r in res if r is not None]
 
-        # Run bdsf on the image
-        bdsf_img = bdsf_on_image(img)
+            
 
-        # bdsf dict:
-        # Retrieve the desired attributes of the bdsf image object as dict
-        bdsf_dict = dict_from_bdsf(bdsf_img)
-        # Add image_id to the dict
-        bdsf_dict['Image_id'] = image_id
-        # Write to pickle file
-        append_to_pickle(bdsf_dict, dicts_path)
+    # Close the writer pool
+    q.put(-1)
+    writer_pool.close()
+    writer_pool.join()
+    s = w_res.successful()
+    print(f'Writer success: {s}')
+    if not s:
+        print(w_res.get())
 
-        # Catalogs:
-        # Retrieve the catalogs of the bdsf image object
-        cat_g, cat_s = catalogs_from_bdsf(bdsf_img)
-        # Append catalog data to csv files
-        for cat, fpath in zip([cat_g, cat_s], [gaul_path, srl_path]):
-            # None is returned if no sources are found
-            if cat is not None:
-                # Add image_id column
-                cat['Image_id'] = image_id
-                # Append to csv file
-                cat.to_csv(
-                    fpath,
-                    index=False,
-                    mode='a',
-                    header=not fpath.exists(),
-                )
-
-    return dicts_path, gaul_path, srl_path
+    print('Done.')
 
 
 def bdsf_plot(
@@ -246,6 +332,8 @@ def bdsf_plot(
     fig.show()
 
 
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -259,13 +347,13 @@ if __name__ == '__main__':
     dataset = EvaluationDataset(
         LOFAR_SUBSETS['unclipped_SNR>=5_50asLimit'])
 
-    # For testing: deterministic subset
-    # n = 3
+    # For testing: deterministic subset (use None for all images)
+    n = None
 
     # Run bdsf on the images
     bdsf_out = bdsf_run(
-        dataset.data[:],
+        dataset.data[:n],
         out_folder=dataset.path.stem,
-        names=dataset.names[:],
+        names=dataset.names[:n],
         override=arguments.override,
     )

@@ -19,7 +19,7 @@ LOFAR_SUBSETS = {k: LOFAR_DATA_PARENT / v for k, v in {
     'unclipped_abs_dset-norm': 'lofar_zoom_unclipped_subset_80p_abs_dset-norm.hdf5',
     'unclipped_abs_subset-norm': 'lofar_zoom_unclipped_subset_80p_abs_subset-norm.hdf5',
     'unclipped_SNR>=5': 'lofar_1p5las_unclipped_f-thr=0_SNR>=5_subset_80p.hdf5',
-    'unclipped_SNR>=5_50asLimit': 'lofar_50asLimit_unclipped_f-thr=0_SNR>=5_subset_80p.hdf5',
+    'unclipped_SNR>=5_50asLimit': 'lofar_50asLimit_80p_unclipped_subset_f-thr=0_SNR>=5.hdf5',
     '1sigma-clipped': 'lofar_1p5las_1sigma-clipped_subset_80p.hdf5'
 
 }.items()}
