@@ -3,16 +3,15 @@ import utils.paths as paths
 from utils.paths import LOFAR_SUBSETS
 import argparse
 import multiprocessing as mp
-import multiprocessing.pool
 from concurrent.futures import ProcessPoolExecutor as PPEx
 from functools import partial
-import time
 import signal
+import time
+import shutil
 
 import sys
 import os
 import pickle
-import dill
 import tempfile
 from collections.abc import Iterable
 from numbers import Number
@@ -161,14 +160,21 @@ def append_to_pickle(obj, fpath):
     with open(fpath, 'wb') as f:
         pickle.dump(data, f)
 
+def write_to_pickle(obj, fpath):
+    Image_id = obj['Image_id']
+    with open(fpath / f'{Image_id}.pkl', 'wb') as f:
+        pickle.dump(obj, f)
+
 
 def append_to_csv(df, fpath):
     df.to_csv(fpath, index=False, mode='a', header=not fpath.exists())
 
 
-def writer(queue, fpaths, write_fns):
+def writer(queue, q_pbar, fpaths, write_fns):
+    print('Writer started.')
     log_file = fpaths[0].parent / 'writer_log.txt'
     i = 0
+
     def signal_handler(sig, frame):
         print('Keyboard interrupt ignored by writer.')
     signal.signal(signal.SIGINT, signal_handler)
@@ -187,6 +193,7 @@ def writer(queue, fpaths, write_fns):
         with open(log_file, 'a' if i else 'w') as f:
             f.write(f'{i},{img_id}\n')
         i += 1
+        q_pbar.put(1)
 
 
 def bdsf_worker_func(img, image_id, q):
@@ -204,7 +211,7 @@ def bdsf_worker_func(img, image_id, q):
     attr_dict = dict_from_bdsf(bdsf_img)
     bdsf_dict = {
         k: attr_dict[k] for k in [
-            'model_gaus_arr', 'total_flux_gaus',
+            'model_gaus_arr', 'total_flux_gaus', 'ngaus', 'nsrc',
         ]
     }
     # Add image_id to the dict
@@ -225,6 +232,28 @@ def iterable_func_caller(func, args):
     return func(*args)
 
 
+def progress_bar_worker(q_pbar, n_tot):
+    print('Progress bar worker started.')
+
+    def signal_handler(sig, frame):
+        print('Keyboard interrupt ignored by progress bar worker.')
+        q_pbar.put(-1)
+    signal.signal(signal.SIGINT, signal_handler)
+    with tqdm(total=n_tot) as pbar:
+        while True:
+            sig = q_pbar.get()
+            match sig:
+                case 0:
+                    print('Test signal received.')
+                case -1:
+                    print('Closing progress bar.')
+                    break
+                case 1:
+                    pbar.update(1)
+                case _:
+                    print(f'Unknown signal: {sig}')
+
+
 def bdsf_run(
         imgs: Iterable,
         out_folder: str | Path,
@@ -240,7 +269,7 @@ def bdsf_run(
     out_path.mkdir(exist_ok=True)
 
     # Set up the output file paths
-    dicts_path = out_path / f'{out_folder}_bdsf_dicts.pkl'
+    dicts_path = out_path / f'{out_folder}_dicts'
     gaul_path = out_path / f'{out_folder}_bdsf_gaul.csv'
     srl_path = out_path / f'{out_folder}_bdsf_srl.csv'
 
@@ -248,16 +277,15 @@ def bdsf_run(
     if override:
         for fpath in [dicts_path, gaul_path, srl_path]:
             if fpath.exists():
-                fpath.unlink()
-
+                fpath.unlink() if fpath.is_file() else shutil.rmtree(fpath)
+    
     # Look for images already processed
     else:
         print('Looking for images already processed...')
         # Open pickle file
         if dicts_path.exists():
-            with open(dicts_path, 'rb') as f:
-                dicts = pickle.load(f)
-            ids = np.array([d['Image_id'] for d in dicts])
+            pkl_files = list(dicts_path.glob('*.pkl'))
+            ids = np.array([f.stem for f in pkl_files])
             print(f'Removing {len(ids)} processed images from the list.')
             mask = np.in1d(names, ids, invert=True)
             imgs = imgs[mask]
@@ -265,56 +293,71 @@ def bdsf_run(
         else:
             print('No images processed yet.')
 
+    dicts_path.mkdir(exist_ok=True)
+
     # Set up multiprocessing
     manager = mp.Manager()
     q = manager.Queue()
-    writer_pool = mp.Pool(1)
-    w_res = writer_pool.apply_async(
+    q_pbar = manager.Queue()
+    helper_pool = mp.Pool(2)
+    w_res = helper_pool.apply_async(
         writer,
         (
-            q,
+            q, q_pbar,
             [dicts_path, gaul_path, srl_path],
-            [append_to_pickle, append_to_csv, append_to_csv]
+            [write_to_pickle, append_to_csv, append_to_csv]
         )
     )
 
     image_ids = names if names is not None else range(len(imgs))
 
-    # Run bdsf on all images
-    with PPEx(max_workers=10) as worker_pool:
+    # Init progress bar worker
+    pbar_res = helper_pool.apply_async(
+        progress_bar_worker,
+        (q_pbar, len(imgs))
+    )
+    # q_pbar.put(1)
+
+    # Run bdsf on the images
+    with PPEx(max_workers=96) as worker_pool:
 
         def signal_handler(sig, frame):
             print('Keyboard interrupt. Closing pools.')
             worker_pool.shutdown(cancel_futures=True)
             q.put(-1)
-            writer_pool.close()
-            writer_pool.join()
+            q_pbar.put(-1)
+            helper_pool.close()
+            helper_pool.join()
             sys.exit(0)
 
         signal.signal(signal.SIGINT, signal_handler)
-        
-        res = list(tqdm(
-            worker_pool.map(
-                partial(iterable_func_caller, bdsf_worker_func),
-                zip(imgs, image_ids, [q] * len(imgs)),
-                chunksize=10,
-            ),
-            total=len(imgs),
-        ))
+
+        print(f'Running bdsf on images. Parent process: {os.getpid()}.')
+        res = worker_pool.map(
+            partial(iterable_func_caller, bdsf_worker_func),
+            zip(imgs, image_ids, [q] * len(imgs)),
+            chunksize=10,
+        )
         [print(r) for r in res if r is not None]
 
-            
-
     # Close the writer pool
+    print('Closing pools.')
     q.put(-1)
-    writer_pool.close()
-    writer_pool.join()
+    q_pbar.put(-1)
+    helper_pool.close()
+    helper_pool.join()
     s = w_res.successful()
     print(f'Writer success: {s}')
     if not s:
         print(w_res.get())
 
     print('Done.')
+
+    # Check if progress bar worker was successful
+    s = pbar_res.successful()
+    print(f'Progress bar worker success: {s}')
+    if not s:
+        print(pbar_res.get())
 
 
 def bdsf_plot(
@@ -330,8 +373,6 @@ def bdsf_plot(
         ax.set_title(key)
         ax.set_axis_off()
     fig.show()
-
-
 
 
 if __name__ == '__main__':
