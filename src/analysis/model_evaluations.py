@@ -200,7 +200,7 @@ def get_distributions(img_path,
 
 
 def get_distributions_lofar(**kwargs):
-    LOFAR_PATH = paths.LOFAR_SUBSETS['unclipped_H5']
+    LOFAR_PATH = paths.LOFAR_SUBSETS['unclipped_SNR>=5_50asLimit']
     return get_distributions(LOFAR_PATH, **kwargs)
 
 

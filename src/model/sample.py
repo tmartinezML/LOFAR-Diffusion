@@ -295,18 +295,19 @@ def sample_set_from_model(
 if __name__ == "__main__":
 
     # Setup
-    model_name = 'FIRST_Labeled_it=10k'
-    n_devices = 1
+    model_name = 'EDM_SNR5_50as'
+    n_devices = 2
     # n_samples = 100
-    labels = [0, 1, 2, 3]
+    # labels = [0, 1, 2, 3]
     batch_size = 1000
-    n_batches = len(labels)
+    n_batches = 10
+    # n_batches = len(labels)
 
     sample_set_from_model(
         model_name,
         batch_size=batch_size,
         n_batches=n_batches,
-        labels=labels,
+        # labels=labels,
         n_devices=n_devices,
         T=25,
         use_ema=True,
