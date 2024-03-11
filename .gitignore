@@ -9,3 +9,4 @@ model_results
 *.log
 *.out
 wandb/
+**/__pycache__/
