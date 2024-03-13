@@ -260,6 +260,7 @@ def bdsf_run(
         out_parent=paths.ANALYSIS_PARENT,
         names: Iterable[str] = None,
         override=False,
+        max_workers=96,
 ):
     '''
     Run bdsf on a set of images and save the resulting list as pickle file.
@@ -269,7 +270,7 @@ def bdsf_run(
     out_path.mkdir(exist_ok=True)
 
     # Set up the output file paths
-    dicts_path = out_path / f'{out_folder}_dicts'
+    dicts_path = out_path / f'{out_folder}_bdsf_dicts'
     gaul_path = out_path / f'{out_folder}_bdsf_gaul.csv'
     srl_path = out_path / f'{out_folder}_bdsf_srl.csv'
 
@@ -319,7 +320,7 @@ def bdsf_run(
     # q_pbar.put(1)
 
     # Run bdsf on the images
-    with PPEx(max_workers=96) as worker_pool:
+    with PPEx(max_workers=max_workers) as worker_pool:
 
         def signal_handler(sig, frame):
             print('Keyboard interrupt. Closing pools.')
@@ -386,7 +387,8 @@ if __name__ == '__main__':
 
     # Load the dataset
     dataset = EvaluationDataset(
-        LOFAR_SUBSETS['unclipped_SNR>=5_50asLimit'])
+        paths.ANALYSIS_PARENT / 'EDM_SNR5_50as/EDM_SNR5_50as_samples_10000Imgs_T=25.pt'
+    )
 
     # For testing: deterministic subset (use None for all images)
     n = None
@@ -397,4 +399,5 @@ if __name__ == '__main__':
         out_folder=dataset.path.stem,
         names=dataset.names[:n],
         override=arguments.override,
+        max_workers=80
     )

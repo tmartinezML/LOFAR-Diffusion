@@ -113,6 +113,9 @@ class ImagePathDataset(torch.utils.data.Dataset):
         elif path.suffix in [".hdf5", ".h5"]:
             self.load_images_h5py(n_subset, key=key, labels=labels)
 
+        elif path.suffix == ".pt":
+            self.load_images_pt(n_subset)
+
         else:
             raise ValueError(f"Unknown file type: {path.suffix}")
 
@@ -154,8 +157,8 @@ class ImagePathDataset(torch.utils.data.Dataset):
                 idxs = np.isin(f[f'{key}_labels'], labels)
                 images = images[idxs]
 
+            n_tot = len(images)
             if n_subset is not None:
-                n_tot = len(images)
                 assert n_subset <= n_tot, (
                     "Requested subset size is larger than total number of images."
                 )
@@ -176,6 +179,26 @@ class ImagePathDataset(torch.utils.data.Dataset):
                 self.names = np.array(f['names'].asstr()[idxs])
             else:
                 print("No names loaded from hdf5 file.")
+                self.names = np.arange(n_tot)[idxs]
+
+    def load_images_pt(self, n_subset=None):
+        batch_st = torch.load(self.path, map_location='cpu')
+        samples_itr = torch.clamp(batch_st[:, -1, :, :, :], 0, 1)
+        n_tot = len(samples_itr)
+
+        if n_subset is not None:
+            print(
+                f"Selecting {n_subset} random images"
+                f" from {len(samples_itr)} files."
+            )
+            idxs = sorted(
+                random.sample(range(n_tot), k=n_subset)
+            )
+        else:
+            idxs = slice(None)
+
+        self.data = samples_itr[idxs]
+        self.names = np.arange(n_tot)[idxs]
 
 
 class EvaluationDataset(ImagePathDataset):
@@ -186,26 +209,3 @@ class EvaluationDataset(ImagePathDataset):
 class TrainDataset(ImagePathDataset):
     def __init__(self, path, img_size=80, **kwargs):
         super().__init__(path, transforms=train_transform(img_size), **kwargs)
-
-
-class LofarSubset(ImagePathDataset):
-    image_path = Path("/storage/tmartinez/image_data/lofar_subset")
-
-    def __init__(self, img_size=80, **kwargs):
-        super().__init__(self.image_path, transforms=train_transform(img_size),
-                         **kwargs)
-
-
-class LofarDummySet(ImagePathDataset):
-    image_path = Path("/home/bbd0953/diffusion/image_data/dummy")
-
-    def __init__(self, img_size=80):
-        super().__init__(self.image_path, transforms=train_transform(img_size))
-
-
-class LofarZoomUnclipped80(ImagePathDataset):
-    image_path = paths.LOFAR_SUBSETS['unclipped_H5']
-
-    def __init__(self, img_size=80, **kwargs):
-        super().__init__(self.image_path, transforms=train_transform(img_size),
-                         **kwargs)

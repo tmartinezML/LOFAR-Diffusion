@@ -29,7 +29,7 @@ from analysis.fid_score import calculate_fid_given_paths, save_fid_stats
 import analysis.image_metrics as imet
 
 # Folder with lofar images
-LOFAR_PATH = paths.LOFAR_SUBSETS['unclipped_H5']
+LOFAR_PATH = paths.LOFAR_SUBSETS['50asLimit_SNR>=5']
 
 
 def metrics_dict_from_data(img_data: Path | Dataset | str, n_bins: int = 4,
@@ -65,7 +65,7 @@ def metrics_dict_from_data(img_data: Path | Dataset | str, n_bins: int = 4,
 
             # Unknown type:
             else:
-                raise ValueError(f"Unknown image data type: {img_data}")
+                raise ValueError(f"Unknown image data type: {img_data.suffix}")
 
     return imet.metrics_dict_from_iterable(samples_itr, n_bins=n_bins)
 
