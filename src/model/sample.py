@@ -8,12 +8,11 @@ from torchvision.utils import save_image
 from torchvision.transforms import Lambda
 from tqdm import tqdm
 
-from model.diffusion import Diffusion
+import model.diffusion as Diffusion
 from utils.device_utils import distribute_model, set_visible_devices
 from utils.plot_utils import plot_image_grid
 from utils.init_utils import (
-    load_model, load_model_from_folder, load_diffusion_from_config,
-    load_diffusion_from_config_file, load_snapshot
+    load_model, load_model_from_folder, load_snapshot
 )
 from utils.paths import GEN_DATA_PARENT, MODEL_PARENT
 

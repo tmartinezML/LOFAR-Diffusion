@@ -4,7 +4,6 @@ from pathlib import Path
 import torch
 
 import model.unet as unet
-from model.diffusion import Diffusion
 from utils.config_utils import modelConfig
 
 
@@ -22,30 +21,49 @@ def load_config_from_path(path):
     return load_config(config_file)
 
 
-def load_model(config_file, model_file=None):
+def load_parameters(model, path, use_ema=False):
+    # Load model weights
+    state_dict = torch.load(
+        path, map_location='cpu'
+    )['ema_model' if use_ema else 'model']
+    if use_ema:
+        # Remove 'module.' from keys
+        state_dict = {
+            k.replace('module.', ''): v
+            for k, v in state_dict.items()
+            if k.startswith('module.')
+        }
+    model.load_state_dict(state_dict)
+    return model
+
+
+def load_model(config_file, model_file=None, use_ema=False):
     # Load model config
     config = load_config(config_file)
     # Load model
-    model = getattr(unet, config.model_type).from_config(config)
+    model = unet.EDMPrecond.from_config(config)
     # Load model weights
     if model_file is not None:
-        model.load_state_dict(torch.load(model_file, map_location='cpu'))
+        load_parameters(model, model_file, use_ema=use_ema)
 
     return model
 
 
 def load_model_from_folder(path, use_ema=True, return_config=False):
     model_name = path.name
-    model_file = path / f"parameters_{'ema' if use_ema else 'model'}_"\
-                        f"{model_name}.pt"
+    model_file = path / f"parameters_{model_name}.pt"
     config_file = path / f"config_{model_name}.json"
 
     print(f"Loading model from {model_file} and {config_file}")
 
     if return_config:
-        return load_model(config_file, model_file), load_config(config_file)
+        out = (
+            load_model(config_file, model_file, use_ema=True),
+            load_config(config_file)
+        )
     else:
-        return load_model(config_file, model_file)
+        out = load_model(config_file, model_file)
+    return out
 
 
 def load_snapshot(path, iter, use_ema=True, model=None):
@@ -65,33 +83,6 @@ def load_snapshot(path, iter, use_ema=True, model=None):
         torch.load(snapshot_file, map_location='cpu')[key]
     )
     return model
-
-
-def load_diffusion_from_config(config):
-    if 'EDM' in config.model_type:
-        diffusion = Diffusion.from_config(config)
-    else:
-        raise NotImplementedError(f"Diffusion for {config.model_type} not "
-                                  f"implemented.")
-    return diffusion
-
-
-def load_diffusion_from_config_file(path):
-    config = load_config(path)
-    return load_diffusion_from_config(config)
-
-
-def load_diffusion_from_folder(path):
-    model_name = path.name
-    config_file = path / f"config_{model_name}.json"
-    return load_diffusion_from_config_file(config_file)
-
-
-def load_model_and_diffusion_from_folder(path, use_ema=True):
-    model, config = load_model_from_folder(path, use_ema=use_ema,
-                                           return_config=True)
-    diffusion = load_diffusion_from_config(config)
-    return model, diffusion
 
 
 def model_name_from_file(path):

@@ -116,7 +116,7 @@ def plot_image_grid(imgs, suptitle=None, vmin=-1, vmax=1, savefig=None,
         n_rows = n_rows or n
         n_cols = n_cols or n
 
-    fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, tight_layout=True,
+    fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, constrained_layout=True,
                             figsize=(3 * n_cols, 3 * n_rows))
     flat_axs = axs.flat if isinstance(axs, np.ndarray) else [axs]
 

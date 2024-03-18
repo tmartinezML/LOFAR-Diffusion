@@ -15,19 +15,20 @@ def DummyConfig():
         attention_levels=2,
         attention_heads=2,
         attention_head_channels=8,
-        dropout=0.0,
+        dropout=0.1,
         pretrained_model=None,
-        # Diffusion parameters
-        timesteps=1000,
-        learn_variance=False,
         # Training parameters
         batch_size=1,
-        iterations=10_000,
+        iterations=100,
         learning_rate=2e-5,
         ema_rate=0.9999,
-        log_interval=10,
-        snapshot_interval=20,
+        log_interval=5,
+        snapshot_interval=50,
         val_every=10,
+        sigma_data=0.5,
+        P_mean=-2.5,
+        P_std=1.8,
+        validate_ema=True,
         write_output=True,
         override_files=True,
         # Parallel training
@@ -51,13 +52,12 @@ def EDM_small_config():
         attention_head_channels=32,
         dropout=0.1,
         pretrained_model=None,
-        # Diffusion parameters
-        timesteps=1000,
         # Training hyperparameters
         batch_size=256,
         iterations=100_000,
         learning_rate=2e-5,
         ema_rate=0.9999,
+        sigma_data=0.5,
         P_mean=-2.5,
         P_std=1.8,
         # Training settings

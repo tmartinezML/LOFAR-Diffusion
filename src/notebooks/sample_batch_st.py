@@ -119,20 +119,6 @@ def sample_snapshot_loop(model_name, snapshot_its: list, n_samples=4000,
     n_batches = int(n_samples / batch_size)
     print(f"Sampling {n_batches } batches.")
 
-    # Output file for samples
-    outfile_specifier = (
-        f"{batch_size * n_batches}Imgs_T={diffusion.timesteps}"
-        + '_' * bool(len(sample_kwargs))  # Add '_' if kwargs are present
-        + '_'.join(f'{k}={fmt(v)}' for k, v in sample_kwargs.items())
-    )
-    outfile_specifier = f'it={snapshot_its}_' + outfile_specifier
-    if comment:
-        outfile_specifier = f'{comment}_{outfile_specifier}'
-    out_file = (
-        out_folder /
-        f"{model_dir.name}_samples_{outfile_specifier}.pt"
-    )
-
     for it in snapshot_its:
         print(f"Sampling from snapshot {it}...")
 
@@ -146,7 +132,7 @@ def sample_snapshot_loop(model_name, snapshot_its: list, n_samples=4000,
             + '_' * bool(len(sample_kwargs))  # Add '_' if kwargs are present
             + '_'.join(f'{k}={fmt(v)}' for k, v in sample_kwargs.items())
         )
-        outfile_specifier = f'it={snapshot_its}_' + outfile_specifier
+        outfile_specifier = f'it={it}_' + outfile_specifier
         if comment:
             outfile_specifier = f'{comment}_{outfile_specifier}'
         out_file = (
@@ -191,9 +177,10 @@ if __name__ == "__main__":
     dev_ids = set_visible_devices(n_gpu)
     print(f"Using GPU {dev_ids[:n_gpu]}")
 
-    model_name = 'EDM_SNR5_50as'
+    model_name = 'EDM_SNR5_120as'
     n_samples = 10_000
 
+    '''
     batch_st_sampling(
         model_name,
         n_samples=n_samples,
@@ -203,14 +190,12 @@ if __name__ == "__main__":
     print(f"Finished sampling {n_samples:_} samples from {model_name}.")
 
     '''
-    
 
-    model_name = f'Unclipped_H5'
-    n_samples = 10_000
-    snapshot_its = [25_000 * n for n in range(1, 7)]
+    snapshot_its = [20_000 * n for n in range(1, 5)]
+    n_samples = 4_000
 
     sample_snapshot_loop(
         model_name, snapshot_its, n_devices=n_gpu, n_samples=n_samples,
     )
     print(f"Finished sampling {n_samples:_} samples from {model_name}.")
-    '''
+

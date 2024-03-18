@@ -22,7 +22,7 @@ from utils.plot_utils import (
 )
 from utils.device_utils import visible_gpus_by_space
 from utils.data_utils import EvaluationDataset
-from utils.stats_utils import norm, norm_err, cdf, cdf_err
+import utils.stats_utils as stats
 import utils.paths as paths
 from model.sample import sample_set_from_model
 from analysis.fid_score import calculate_fid_given_paths, save_fid_stats
@@ -39,7 +39,14 @@ def metrics_dict_from_data(img_data: Path | Dataset | str, n_bins: int = 4,
         # Simple .pt file containing sampels as batch stack:
         case Path() if img_data.is_file() and img_data.suffix == ".pt":
             batch_st = torch.load(img_data, map_location='cpu')
-            samples_itr = torch.clamp(batch_st[:, -1, :, :, :], 0, 1)
+            if batch_st.dim() == 5:
+                samples_itr = torch.clamp(batch_st[:, -1, :, :, :], 0, 1)
+            elif batch_st.dim() == 4:
+                samples_itr = torch.clamp(batch_st, 0, 1)
+            else:
+                raise ValueError(
+                    f"Unknown tensor shape: {batch_st.shape}."
+                )
 
         # Dataset .h5 (or .hdf5) file, or image directory with .png files:
         case Path() if img_data.is_dir() or img_data.suffix in [".h5", ".hdf5"]:
@@ -291,13 +298,9 @@ def W1_distances(dict1, dict2):
         C1, _ = dict1[key]
         C2, _ = dict2[key]
 
-        # Calculate W1 & error
-        W1 = np.abs(cdf(C1) - cdf(C2)).sum()
-        def W1_err_term(c): return np.sum(cdf(c)) / np.sum(c)  # helper func.
-        W1_err = np.sqrt(W1_err_term(C1) + W1_err_term(C2))
+        # Calculate W1 distance and add to output dictionary
+        out[key] = stats.W1_distance(C1, C2)
 
-        # Add to output dictionary
-        out[key] = W1.item(), W1_err.item()
     return out
 
 
@@ -345,8 +348,8 @@ def per_bin_delta(dict1, dict2):
         C2, _ = dict2[key]
 
         # Normalize & Calculate error
-        c1, c2 = norm(C1), norm(C2)
-        e1, e2 = norm_err(C1), norm_err(C2)
+        c1, c2 = stats.norm(C1), stats.norm(C2)
+        e1, e2 = stats.norm_err(C1), stats.norm_err(C2)
 
         # Calculate delta & error
         delta = 2 * (c1 - c2) / (c1 + c2)
@@ -438,42 +441,3 @@ def calculate_FID_lofar(img_dir,
         dims=2048
     )
     return fid
-
-
-if __name__ == "__main__":
-
-    model_dir = Path(
-        "/home/bbd0953/diffusion/results/EDM"
-    )
-
-    # Comparison of sampling methods with different T
-    batch_size = 4000  # Equally distributed over GPUs
-    n_batches = 20
-    n_devices = 4
-
-    img_parent = paths.GEN_DATA_PARENT / "timesteps_comparison"
-    analysis_parent = paths.ANALYSIS_PARENT / "timesteps_comparison"
-
-    timesteps = [50, 25, 10, 5, 2]
-
-    t0 = datetime.now()
-    def dt(): return datetime.now() - t0
-
-    print(f"Starting at {t0.strftime('%H:%M:%S')}")
-    for T in timesteps:
-        print(f"Running {dt()} - Starting T={T}...")
-        suffix = f'T={T}'
-        img_dir = sample_set_from_model(
-            model_dir,
-            batch_size=batch_size,
-            n_batches=n_batches,
-            n_devices=n_devices,
-            T=T,
-            use_ema=True,
-            img_size=80,
-            sampling_method="edm_stochastic_sampling",
-            out_parent=img_parent,
-            dataset_suffix=suffix,
-        )
-        image_data_evaluation(img_dir, parent=analysis_parent)
-    print(f"Runtime {dt()} - Done.")
