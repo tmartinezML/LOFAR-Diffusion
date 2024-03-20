@@ -30,6 +30,7 @@ DEBUG_DIR = MODEL_PARENT / 'debug'
 
 # Train data subsets
 LOFAR_SUBSETS = {k: LOFAR_DATA_PARENT / v for k, v in {
+    'atan_test': 'atan_test_lofar_120asLimit_80p_unclipped_f-thr=0_SNR>=5_subset.h5',
     '120asLimit_SNR>=5': 'lofar_120asLimit_80p_unclipped_f-thr=0_SNR>=5_subset.hdf5',
     '50asLimit_SNR>=5': 'lofar_50asLimit_80p_unclipped_subset_f-thr=0_SNR>=5.hdf5',
     '1.5LAS_f-thr=0.75': 'lofar_1p5las_80p_unclipped_subset_f-thr=0p75.hdf5',
@@ -40,6 +41,7 @@ def cast_to_path(p):
     if isinstance(p, str):
         return Path(p)
     return p
+
 
 if __name__ == "__main__":
 
