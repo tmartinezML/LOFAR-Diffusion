@@ -8,6 +8,7 @@ from functools import partial
 from abc import abstractmethod
 from pathlib import Path
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -140,7 +141,7 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
         return x
 
 
-class SinusoidalPositionEmbeddings(nn.Module):
+class SinusoidalEmbedding(nn.Module):
     """
     Takes input t of shape (batch_size, 1) corresponding to the time values of
     the noised images, and returns embedding of shape (batch_size, dim).
@@ -156,15 +157,54 @@ class SinusoidalPositionEmbeddings(nn.Module):
         with autocast(enabled=False):  # Force fp32
             device = time.device
             half_dim = self.dim // 2
-            embeddings = math.log(1e5) / (half_dim - 1)
-            embeddings = torch.exp(
+            freqs = math.log(1e5) / (half_dim - 1)
+            freqs = torch.exp(
                 torch.arange(half_dim, device=device) * -embeddings
             )
-            embeddings = time[:, None] * embeddings[None, :]
+            embeddings = time[:, None] * freqs[None, :]
             embeddings = torch.cat(
                 (embeddings.sin(), embeddings.cos()), dim=-1
             )
         return embeddings
+
+
+class FourierEmbedding(nn.Module):
+    """
+    Takes input t of shape (batch_size, 1) corresponding to values of a 
+    continuous context feature, and returns
+    embedding of shape (batch_size, dim).
+    For a good explanation of the embedding formula, see:
+    https://bmild.github.io/fourfeat/
+    """
+
+    def __init__(self, dim, scale=16):
+        super().__init__()
+        self.dim = dim
+        self.register_buffer('freqs', torch.randn(dim // 2) * scale)
+
+    def forward(self, x):
+        x = x.outer((2 * np.pi * self.freqs).to(x.dtype))
+        embeddings = torch.cat([x.cos(), x.sin()], dim=-1)
+        return embeddings
+
+
+class ContextFourierEmbedding(nn.Module):
+    """
+    Takes input t of shape (batch_size, context_dim) corresponding to the 
+    values of the entire context, and returns embedding
+    of shape (batch_size, dim), which is the sum of fourier embeddings 
+    of all single features.
+    """
+
+    def __init__(self, context_dim, emb_dim, scale=16):
+        super().__init__()
+        self.emb_layers = [
+            FourierEmbedding(emb_dim, scale=scale)
+            for _ in range(context_dim)
+        ]
+
+    def forward(self, x):
+        return sum(layer(x[:, i]) for i, layer in enumerate(self.emb_layers))
 
 
 class WeightStandardizedConv2d(nn.Conv2d):
@@ -433,21 +473,19 @@ class UpsampleBlock(ResidualBlock):
         )
 
 
-class TimeEmbedding(nn.Module):
+class FeatureEmbedding(nn.Module):
     """
     Time embedding module, which is used to inject time information into the
     model.
     """
 
-    def __init__(self, channels, time_emb_dim):
+    def __init__(self, dim_in, dim_out):
         super().__init__()
-        self.pos_emb = SinusoidalPositionEmbeddings(channels)
-        self.lin1 = nn.Linear(channels, time_emb_dim)
+        self.lin1 = nn.Linear(dim_in, dim_out)
         self.act = nn.GELU()
-        self.lin2 = nn.Linear(time_emb_dim, time_emb_dim)
+        self.lin2 = nn.Linear(dim_out, dim_out)
 
     def forward(self, x):
-        x = self.pos_emb(x)
         x = self.lin1(x)
         x = self.act(x)
         x = self.lin2(x)
@@ -467,6 +505,7 @@ class Unet(configModuleBase):
         n_labels=0,
         context_dim=0,
         label_dropout=0,
+        context_dropout=0,
         norm_groups=32,
         dropout=0,
         num_res_blocks=2,
@@ -483,20 +522,24 @@ class Unet(configModuleBase):
         self.init_channels = init_channels
 
         # Time and label embeddings
-        time_dim = init_channels * 4
-        self.time_emb = TimeEmbedding(self.init_channels, time_dim)
+        emb_dim = init_channels * 4
+        self.time_emb = SinusoidalEmbedding(emb_dim)
         self.label_emb = (
-            nn.Linear(n_labels, time_dim, bias=False) if n_labels else None
+            nn.Linear(n_labels, emb_dim, bias=False) if n_labels else None
         )
         self.label_dropout = label_dropout
         self.n_labels = n_labels
 
         # Context embedding
         self.context_emb = (
-            nn.Linear(context_dim, time_dim, bias=False) if context_dim 
+            ContextFourierEmbedding(context_dim, emb_dim) if context_dim
             else None
         )
         self.context_dim = context_dim
+        self.contextt_dropout = context_dropout
+
+        # Feature embedding
+        self.feature_emb = FeatureEmbedding(emb_dim, emb_dim)
 
         # Initial convolution layer
         self.init_conv = WeightStandardizedConv2d(
@@ -515,7 +558,7 @@ class Unet(configModuleBase):
             for _ in range(num_res_blocks):
                 # Create residual block
                 block = ResidualBlock(
-                    ch, int(mult * init_channels), time_dim,
+                    ch, int(mult * init_channels), emb_dim,
                     dropout=dropout, norm_groups=norm_groups
                 )
                 ch = int(mult * init_channels)
@@ -535,7 +578,7 @@ class Unet(configModuleBase):
             # Add downsample block if not last resolution level
             if res_level != n_levels - 1:
                 block = DownsampleBlock(
-                    ch, time_dim, dropout=dropout, norm_groups=norm_groups
+                    ch, emb_dim, dropout=dropout, norm_groups=norm_groups
                 )
                 self.down_blocks.append(block)
                 input_block_chans.append(ch)
@@ -543,7 +586,7 @@ class Unet(configModuleBase):
         # Create middle block
         self.middle_block = TimestepEmbedSequential(
             ResidualBlock(
-                ch, ch, time_dim,
+                ch, ch, emb_dim,
                 dropout=dropout, norm_groups=norm_groups
             ),
             ResidualLinearAttention(
@@ -551,7 +594,7 @@ class Unet(configModuleBase):
                 dim_head=attention_head_channels
             ),
             ResidualBlock(
-                ch, ch, time_dim,
+                ch, ch, emb_dim,
                 dropout=dropout, norm_groups=norm_groups),
         )
 
@@ -563,7 +606,7 @@ class Unet(configModuleBase):
 
                 # Create residual block
                 block = ResidualBlock(
-                    ch + ich, int(mult * init_channels), time_dim,
+                    ch + ich, int(mult * init_channels), emb_dim,
                     dropout=dropout, norm_groups=norm_groups
                 )
                 ch = int(mult * init_channels)
@@ -582,7 +625,7 @@ class Unet(configModuleBase):
                 # Add upsample block if not last resolution level
                 if res_level and i == num_res_blocks:
                     block = UpsampleBlock(
-                        ch, time_dim, dropout=dropout, norm_groups=norm_groups
+                        ch, emb_dim, dropout=dropout, norm_groups=norm_groups
                     )
                     self.up_blocks.append(block)
 
@@ -595,7 +638,7 @@ class Unet(configModuleBase):
 
     def forward(self, x, time, context=None, class_labels=None):
         # Time embedding
-        t = self.time_emb(time)
+        emb = self.time_emb(time)
 
         # Class label embedding
         if self.label_emb is not None and class_labels is not None:
@@ -610,12 +653,21 @@ class Unet(configModuleBase):
                 labels_enc = labels_enc * mask.to(labels_enc.dtype)
 
             # Add label embedding to time embedding & apply activation
-            t = nn.GELU()(t + self.label_emb(labels_enc))
+            emb = emb + self.label_emb(labels_enc)
 
         # Context embedding
         if self.context_emb is not None and context is not None:
-            t = nn.GELU()(t + self.context_emb(context.to(x.dtype)))
+            context_emb = self.context_emb(context)
 
+            if self.training and self.context_dropout:
+                mask = torch.rand([x.shape[0], 1], device=x.device)
+                mask = mask >= self.context_dropout
+                context_emb = context_emb * mask.to(context_emb.dtype)
+
+            emb = emb + context_emb
+
+        # Feature embedding
+        emb = self.feature_emb(emb)
 
         # Initial convolution
         x = self.init_conv(x)
@@ -623,17 +675,17 @@ class Unet(configModuleBase):
 
         # Encoder
         for module in self.down_blocks:
-            x = module(x, t)
+            x = module(x, emb)
             h.append(x)
 
         # Middle block
-        x = self.middle_block(x, t)
+        x = self.middle_block(x, emb)
 
         # Decoder
         for module in self.up_blocks:
             if not isinstance(module, UpsampleBlock):
                 x = torch.cat((x, h.pop()), dim=1)
-            x = module(x, t)
+            x = module(x, emb)
         return self.out(x)
 
 
