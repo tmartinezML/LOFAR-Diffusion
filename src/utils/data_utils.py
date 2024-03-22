@@ -3,13 +3,14 @@ import os
 import random
 
 import torch
+import h5py
 import numpy as np
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, ToTensor, CenterCrop, Lambda
 from astropy.stats import sigma_clipped_stats
 from tqdm import tqdm
 from PIL import Image
-import h5py
+from sklearn.preprocessing import PowerTransformer
 
 from utils import paths
 
@@ -105,6 +106,7 @@ class ImagePathDataset(torch.utils.data.Dataset):
 
         self.path = path
         self.transforms = transforms
+        self._context = []
 
         # Load images
         if path.is_dir():
@@ -128,7 +130,24 @@ class ImagePathDataset(torch.utils.data.Dataset):
         img = self.data[i]
         if self.transforms is not None:
             img = self.transforms(img)
-        return img
+        context = [getattr(self, attr)[i] for attr in self._context]
+
+        if len(context):
+            return img, torch.tensor(context)
+        
+        else:
+            return img
+
+    def set_context(self, *args):
+        assert all(hasattr(self, attr) for attr in args), (
+            "Context attributes not found in dataset: "
+            f"{[attr for attr in args if not hasattr(self, attr)]}"
+        )
+        assert all(len(getattr(self, attr)) == len(self.data) for attr in args), (
+            f"Context attributes do not have the same length as data: ({len(self.data)})"
+            f"{[(attr, len(getattr(self, attr))) for attr in args if len(getattr(self, attr)) != len(self.data)]}"
+        )
+        self._context = args
 
     def load_images_png(self, n_subset=None):
         # Load file names
@@ -181,6 +200,11 @@ class ImagePathDataset(torch.utils.data.Dataset):
                 print("No names loaded from hdf5 file.")
                 self.names = np.arange(n_tot)[idxs]
 
+            # Add variable attributes depending on keys in file
+            for key in f.keys():
+                if key not in ['images', 'names']:
+                    setattr(self, key, torch.tensor(f[key][idxs]))
+
     def load_images_pt(self, n_subset=None):
         batch_st = torch.load(self.path, map_location='cpu')
         samples_itr = torch.clamp(batch_st[:, -1, :, :, :], 0, 1)
@@ -209,3 +233,16 @@ class EvaluationDataset(ImagePathDataset):
 class TrainDataset(ImagePathDataset):
     def __init__(self, path, img_size=80, **kwargs):
         super().__init__(path, transforms=train_transform(img_size), **kwargs)
+
+    def transform_max_vals(self):
+        assert hasattr(self, 'max_values'), (
+            "Dataset does not contain max values."
+        )
+        pt = PowerTransformer(method='box-cox')
+        pt.fit(self.max_values.view(-1, 1))
+        max_values_tr = pt.transform(self.max_values.view(-1, 1))
+
+        self.max_values_tr = max_values_tr.reshape(self.max_values.shape)
+        self.box_cox_lambda = pt.lambdas_
+        print(
+            f"Max values transformed with Box-Cox transformation ({pt.lambdas_}).")

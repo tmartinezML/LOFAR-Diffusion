@@ -21,20 +21,18 @@ if __name__ == "__main__":
     set_visible_devices(2)
 
     # Hyperparameters
-    conf = configs.DummyConfig()
+    conf = configs.EDM_small_config()
 
-    conf.pretrained_model = '/home/bbd0953/diffusion/model_results/Dummy/snapshots/snapshot_iter_00000100.pt'
+    # conf.pretrained_model = '/home/bbd0953/diffusion/model_results/Dummy/snapshots/snapshot_iter_00000100.pt'
     # conf.optimizer_file = '/home/bbd0953/diffusion/results/EDM_valFix/optimizer_state_EDM_valFix.pt'
-    conf.model_name = f"Dummy"
-    conf.ema_rate = 0.99999
+    conf.model_name = f"Fmax_Context"
 
     dataset = TrainDataset(
-        paths.LOFAR_SUBSETS['120asLimit_SNR>=5'],
-        n_subset=1000,
+        paths.LOFAR_SUBSETS['0-clip_unscaled'],
     )
     conf.training_data = str(dataset.path)
+    conf.context = ['max_values_tr']
 
-    conf.iterations = 250
     trainer = DiffusionTrainer(
         config=conf,
         dataset=dataset,
@@ -44,8 +42,8 @@ if __name__ == "__main__":
     wandb.init(
         project="Diffusion",
         config=conf.param_dict,
-        # id='exscg7ib',
-        # resume='must',
+        id='fdlc49ai',
+        resume='must',
         dir=paths.ANALYSIS_PARENT / 'wandb',
     )
     trainer.training_loop()

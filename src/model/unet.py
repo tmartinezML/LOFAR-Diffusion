@@ -451,6 +451,7 @@ class TimeEmbedding(nn.Module):
         x = self.lin1(x)
         x = self.act(x)
         x = self.lin2(x)
+        x = self.act(x)
         return x
 
 
@@ -464,6 +465,7 @@ class Unet(configModuleBase):
         channel_mults=(1, 2, 4, 8),
         image_channels=1,
         n_labels=0,
+        context_dim=0,
         label_dropout=0,
         norm_groups=32,
         dropout=0,
@@ -488,6 +490,13 @@ class Unet(configModuleBase):
         )
         self.label_dropout = label_dropout
         self.n_labels = n_labels
+
+        # Context embedding
+        self.context_emb = (
+            nn.Linear(context_dim, time_dim, bias=False) if context_dim 
+            else None
+        )
+        self.context_dim = context_dim
 
         # Initial convolution layer
         self.init_conv = WeightStandardizedConv2d(
@@ -584,7 +593,7 @@ class Unet(configModuleBase):
             zero_module(nn.Conv2d(ch, self.out_channels, 3, padding=1)),
         )
 
-    def forward(self, x, time, class_labels=None):
+    def forward(self, x, time, context=None, class_labels=None):
         # Time embedding
         t = self.time_emb(time)
 
@@ -602,6 +611,11 @@ class Unet(configModuleBase):
 
             # Add label embedding to time embedding & apply activation
             t = nn.GELU()(t + self.label_emb(labels_enc))
+
+        # Context embedding
+        if self.context_emb is not None and context is not None:
+            t = nn.GELU()(t + self.context_emb(context.to(x.dtype)))
+
 
         # Initial convolution
         x = self.init_conv(x)
@@ -646,7 +660,7 @@ class EDMPrecond(configModuleBase):
         model = Unet.from_config(config)
         return construct_from_config(cls, config, model=model)
 
-    def forward(self, x, sigma, class_labels=None):
+    def forward(self, x, sigma, context=None, class_labels=None):
 
         # Expand sigma to shape [batch_size, 1, 1, 1]
         sigma = sigma.view([-1, 1, 1, 1])
@@ -661,7 +675,10 @@ class EDMPrecond(configModuleBase):
 
         # Apply inner model
         F_x = self.model(
-            c_in * x, c_noise.flatten(), class_labels=class_labels
+            c_in * x,
+            c_noise.flatten(),
+            context=context,
+            class_labels=class_labels
         )
 
         # Generate denoiser output

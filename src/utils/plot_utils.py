@@ -101,7 +101,7 @@ def add_loss_plot(loss_file, ax, stride=1, smooth=20, color="black",
 
 
 def plot_image_grid(imgs, suptitle=None, vmin=-1, vmax=1, savefig=None,
-                    n_rows=None, n_cols=None, titles=None):
+                    n_rows=None, n_cols=None, titles=None, **imshow_kwargs):
 
     if isinstance(imgs, list):
         imgs = np.array(imgs)
@@ -127,7 +127,7 @@ def plot_image_grid(imgs, suptitle=None, vmin=-1, vmax=1, savefig=None,
         )
     for i, (ax, img) in enumerate(zip(flat_axs, imgs)):
         ax.axis('off')
-        ax.imshow(img.squeeze(), vmin=vmin, vmax=vmax)
+        ax.imshow(img.squeeze(), vmin=vmin, vmax=vmax, **imshow_kwargs)
 
         # Set axis title if titles are passed
         if titles is not None:

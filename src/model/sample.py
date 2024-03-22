@@ -19,19 +19,20 @@ from utils.paths import GEN_DATA_PARENT, MODEL_PARENT
 
 def sample_batch(
     model,
-    diffusion,
     bsize,
     img_size=80,
     return_steps=False,
+    context_batch=None,
     label_batch=None,
     **sample_kwargs,
 ):
 
     model = model.eval()
-    imgs = diffusion.edm_sampling(
+    imgs = Diffusion.edm_sampling(
         model,
         img_size,
         batch_size=bsize,
+        context_batch=None,
         label_batch=label_batch,
         **sample_kwargs,
     )

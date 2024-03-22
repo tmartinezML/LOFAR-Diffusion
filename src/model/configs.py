@@ -18,7 +18,7 @@ def DummyConfig():
         dropout=0.1,
         pretrained_model=None,
         # Training parameters
-        batch_size=1,
+        batch_size=128,
         iterations=100,
         learning_rate=2e-5,
         ema_rate=0.9999,

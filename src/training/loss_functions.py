@@ -23,6 +23,7 @@ def edm_loss(
     P_std=1.2,
     sigmas=None,
     noise=None,
+    context=None,
     class_labels=None,
     return_output=False,
     mean=True,
@@ -45,7 +46,11 @@ def edm_loss(
     )
 
     # Compute denoised image with forward model pass
-    D_yn = model(img_batch + n, sigmas, class_labels=class_labels)
+    D_yn = model(
+        img_batch + n, sigmas,
+        context=context,
+        class_labels=class_labels
+    )
 
     # Compute loss
     loss = weight * (D_yn - img_batch)**2

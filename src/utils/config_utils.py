@@ -45,8 +45,18 @@ def construct_from_config(cls, config, *args, **kwargs):
 
 class configModuleBase(nn.Module):
     @classmethod
-    def from_config(cls, config):
-        return construct_from_config(cls, config)
+    def from_config(cls, config, *args, **kwargs):
+
+        # Special case for Unet
+        if (
+            hasattr(config, 'context')
+            and 'context_dim' in signature(cls).parameters.keys()
+        ):
+            config.context_dim = len(config.context)
+
+        return construct_from_config(
+            cls, config, *args, **kwargs
+        )
 
 
 def isModel(model, modelClass):

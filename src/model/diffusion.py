@@ -35,6 +35,7 @@ def denoised_guided(
     model,
     img,
     sigma,
+    context=None,
     class_labels=None,
     guidance_strength=0.2
 ):
@@ -43,7 +44,7 @@ def denoised_guided(
     sigma = sigma.expand(batch_size)
 
     # Calculate denoised image with forward model pass
-    denoised = model(img, sigma)
+    denoised = model(img, sigma, context=context)
 
     # Apply class conditioning if labels are provided
     if class_labels is not None:
@@ -64,6 +65,7 @@ def denoised_guided(
 def edm_sampling(
     model,
     image_size,
+    context_batch=None,
     label_batch=None,
     *,
     batch_size=16,
@@ -115,11 +117,18 @@ def edm_sampling(
     step_inds = step_inds.to(device)
     sigma_steps = sigma_steps.to(device)
 
+    if context_batch is not None:
+        assert context_batch.shape[0] == batch_size, (
+            "Batch size must match label batch size."
+        )
+        context_batch = context_batch.to(device)
+
     if label_batch is not None:
         assert label_batch.shape[0] == batch_size, (
             "Batch size must match label batch size."
         )
         label_batch = label_batch.to(device)
+
 
     # Prepare sampling loop.
     imgs = []
@@ -142,7 +151,9 @@ def edm_sampling(
 
         # Calculate denoised image with forward model pass
         denoised = denoised_guided(
-            model, x_cur, sigma_cur, class_labels=label_batch,
+            model, x_cur, sigma_cur, 
+            context=context_batch,
+            class_labels=label_batch,
             guidance_strength=guidance_strength
         )
 

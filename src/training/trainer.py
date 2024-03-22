@@ -32,7 +32,7 @@ class use_ema:
         self.ema_model = ema_model
 
     def __enter__(self):
-        self.model_state = self.model.state_dict()
+        self.model_state = deepcopy(self.model.state_dict())
         self.model.load_state_dict(self.ema_model.module.state_dict())
 
     def __exit__(self, *args):
@@ -119,6 +119,13 @@ class DiffusionTrainer:
 
         # Initialize data
         self.dataset = dataset
+        if hasattr(self.config, "context"):
+            logging.info(
+                f"Working with context: {self.config.context}."
+            )
+            if 'max_values_tr' in self.config.context:
+                self.dataset.transform_max_vals()
+            self.dataset.set_context(*self.config.context)
         self.config.batch_size = int(self.config.batch_size)
         self.val_every = (
             self.config.val_every if hasattr(self.config, "val_every")
@@ -312,18 +319,36 @@ class DiffusionTrainer:
 
         logging.info(f"Training time {dt()} - Done!")
 
+    def handle_batch(self, batch):
+        context, labels = None, None
+        if isinstance(batch, list):
+            match len(batch):
+                case 2 if self.inner_model.model.context_dim:
+                    batch, context = batch
+
+                case 2 if not self.inner_model.model.context_dim:
+                    batch, labels = batch
+
+                case 3:
+                    batch, context, labels = batch
+
+                case _:
+                    raise ValueError(
+                        "Batch must be a list of length 2 or 3, "
+                        f"not {len(batch)}."
+                    )
+        return batch, context, labels
+
     def training_step(self, scaler):
         # Zero gradients
         self.optimizer.zero_grad()
 
-        # Get batch & labels
-        batch, labels = next(self.train_data), None
-        if isinstance(batch, list):
-            batch, labels = batch
+        # Get batch
+        batch, context, labels = self.handle_batch(next(self.train_data))
 
         # Calculate loss
         with autocast():
-            loss = self.batch_loss(batch, labels=labels)
+            loss = self.batch_loss(batch, context=context, labels=labels)
 
         # Backward pass & optimizer step
         scaler.scale(loss).backward()
@@ -341,6 +366,7 @@ class DiffusionTrainer:
         eval_ema = eval_ema or self.validate_ema
         # Validate model
         self.model.eval()
+        self.ema_model.eval()
         with torch.no_grad():
             losses = []
             ema_losses = []
@@ -349,36 +375,45 @@ class DiffusionTrainer:
             for batch in self.val_loader:
 
                 # Set class labels if present
-                labels = None
-                if isinstance(batch, list):
-                    batch, labels = batch
+                batch, context, labels = self.handle_batch(batch)
 
                 # Calculate loss
                 losses.append(
-                    self.batch_loss(batch, labels=labels).item()
+                    self.batch_loss(batch, context=context,
+                                    labels=labels).item()
                 )
 
                 # Calculate EMA loss
                 if eval_ema:
                     with use_ema(self.inner_model, self.ema_model):
                         ema_losses.append(
-                            self.batch_loss(batch, labels=labels).item()
+                            self.batch_loss(
+                                batch, context=context, labels=labels
+                            ).item()
                         )
 
         # Return mean loss
         output = [torch.Tensor(l).mean().item() for l in [losses, ema_losses]]
         self.model.train()
+        self.ema_model.train()
 
         return output
 
-    def batch_loss(self, batch, labels=None):
+    def batch_loss(self, batch, context=None, labels=None):
+
+        # Move input to gpu
         batch = batch.to(self.device)
+        if context is not None:
+            context = context.to(self.device)
         if labels is not None:
             labels = labels.to(self.device)
+
+        # Calculate loss
         with autocast():
             loss = loss_functions.edm_loss(
                 self.model,
                 batch,
+                context=context,
                 class_labels=labels,
                 sigma_data=self.config.sigma_data,
                 P_mean=self.config.P_mean,
