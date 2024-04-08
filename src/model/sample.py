@@ -32,7 +32,7 @@ def sample_batch(
         model,
         img_size,
         batch_size=bsize,
-        context_batch=None,
+        context_batch=context_batch,
         label_batch=label_batch,
         **sample_kwargs,
     )

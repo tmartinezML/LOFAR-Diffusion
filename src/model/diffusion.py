@@ -21,7 +21,7 @@ def sampling_noise_levels(
     rho_inv = 1 / rho
     sigma_steps = (
         (sigma_max**rho_inv + step_inds / (timesteps - 1)
-        * (sigma_min**rho_inv - sigma_max**rho_inv))**rho
+         * (sigma_min**rho_inv - sigma_max**rho_inv))**rho
     )
 
     # Add t_N=0 at the end
@@ -37,20 +37,22 @@ def denoised_guided(
     sigma,
     context=None,
     class_labels=None,
-    guidance_strength=0.2
+    guidance_strength=0.1,
 ):
     # Set batch size
     batch_size = img.shape[0]
     sigma = sigma.expand(batch_size)
 
     # Calculate denoised image with forward model pass
-    denoised = model(img, sigma, context=context)
+    denoised = model(img, sigma, context=None)
 
     # Apply class conditioning if labels are provided
-    if class_labels is not None:
+    if (class_labels or context) is not None and guidance_strength:
 
         # Denoised image with class conditioning
-        denoised_cond = model(img, sigma, class_labels=class_labels)
+        denoised_cond = model(
+            img, sigma, class_labels=class_labels, context=context
+        )
 
         # Apply guidance
         denoised = (
@@ -77,13 +79,10 @@ def edm_sampling(
     S_min=0,
     S_max=torch.inf,
     S_noise=1,
-    guidance_strength=0.2,
+    guidance_strength=0.1,
 ):
 
     # S_churn = 0 is deterministic sampling
-    assert isModel(model, EDMPrecond), (
-        "Model must be an EDMPrecond instance for stochastic EDM sampling."
-    )
 
     # Set device
     device = next(model.parameters()).device
@@ -119,16 +118,17 @@ def edm_sampling(
 
     if context_batch is not None:
         assert context_batch.shape[0] == batch_size, (
-            "Batch size must match label batch size."
+            f"Context batch size ({context_batch.shape[0]})"
+            f"must match batch size ({batch_size})."
         )
         context_batch = context_batch.to(device)
 
     if label_batch is not None:
         assert label_batch.shape[0] == batch_size, (
-            "Batch size must match label batch size."
+            f"Label batch size ({label_batch.shape[0]})"
+            f"must match batch size ({batch_size})."
         )
         label_batch = label_batch.to(device)
-
 
     # Prepare sampling loop.
     imgs = []
@@ -151,7 +151,7 @@ def edm_sampling(
 
         # Calculate denoised image with forward model pass
         denoised = denoised_guided(
-            model, x_cur, sigma_cur, 
+            model, x_cur, sigma_cur,
             context=context_batch,
             class_labels=label_batch,
             guidance_strength=guidance_strength
@@ -168,7 +168,8 @@ def edm_sampling(
 
             # Denoised image for next step
             denoised = denoised_guided(
-                model, x_next, sigma_next, class_labels=label_batch,
+                model, x_next, sigma_next, context=context_batch,
+                class_labels=label_batch,
                 guidance_strength=guidance_strength
             )
 

@@ -6,7 +6,7 @@ import numpy as np
 
 from model.sample import sample_batch
 from utils.init_utils import (
-    load_model_from_folder, load_snapshot
+    load_model_from_folder, load_snapshot, load_old_model_from_folder
 )
 from utils.device_utils import distribute_model, set_visible_devices
 from utils.paths import MODEL_PARENT, ANALYSIS_PARENT
@@ -83,7 +83,7 @@ def batch_st_sampling(
         batch = sample_batch(
             model,
             bsize=batch_size,
-            context_batch=context_batch,
+            context_batch=torch.tensor(context_batch).reshape(batch_size, -1),
             return_steps=True,
             **sample_kwargs
         )
@@ -194,7 +194,7 @@ if __name__ == "__main__":
     from scipy.stats import norm, rv_histogram
     from sklearn import preprocessing as pr
 
-    # Load dataset to get max-val distribution
+    # Load dataset to get max-val histogram
     dset = ImagePathDataset(paths.LOFAR_SUBSETS['0-clip_unscaled'])
     max_vals = dset.max_values.numpy()
     max_hist = np.histogram(max_vals, bins=100)
@@ -204,7 +204,7 @@ if __name__ == "__main__":
     max_tr = boxcox(max_vals, boxcox_lambda)
     max_tr_sc = pr.scale(max_tr)
 
-    # Make model distribution to sample from
+    # Make model distribution from histogram for sampling
     hist_tr_sc = np.histogram(max_tr_sc, bins=100)
     model_dist = rv_histogram(hist_tr_sc, density=False)
     def context_fn(bsize): return model_dist.rvs(size=bsize)
@@ -215,7 +215,7 @@ if __name__ == "__main__":
     print(f"Using GPU {dev_ids[:n_gpu]}")
 
     # Sampling parameters
-    model_name = 'Fmax_Context'
+    model_name = 'Fmax_Context_Dropout'
     n_samples = 10_000
 
     batch_st_sampling(
@@ -223,6 +223,7 @@ if __name__ == "__main__":
         n_samples=n_samples,
         n_devices=n_gpu,
         context_fn=context_fn,
+        sample_kwargs={'guidance_strength': 0.1,}
     )
 
     print(f"Finished sampling {n_samples:_} samples from {model_name}.")

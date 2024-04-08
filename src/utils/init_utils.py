@@ -1,10 +1,13 @@
 import json
 from pathlib import Path
+import warnings
 
 import torch
 
 import model.unet as unet
+import model.unet_prev as unet_prev
 from utils.config_utils import modelConfig
+import utils.paths as paths
 
 
 def load_config(config_file):
@@ -58,12 +61,32 @@ def load_model_from_folder(path, use_ema=True, return_config=False):
 
     if return_config:
         out = (
-            load_model(config_file, model_file, use_ema=True),
+            load_model(config_file, model_file, use_ema=use_ema),
             load_config(config_file)
         )
     else:
-        out = load_model(config_file, model_file)
+        out = load_model(config_file, model_file, use_ema=use_ema)
     return out
+
+
+def load_model_by_name(name, use_ema=True):
+    path = paths.MODEL_PARENT / name
+    return load_model_from_folder(path, use_ema=use_ema)
+
+
+def load_old_model_from_folder(path, use_ema=True, return_config=False):
+    warnings.warn('Using previous UNet model.')
+    model_name = path.name
+    model_file = path / f"parameters_{model_name}.pt"
+    config_file = path / f"config_{model_name}.json"
+
+    print(f"Loading model from {model_file} and {config_file}")
+    config = load_config(config_file)
+    # Load model
+    model = unet_prev.EDMPrecond.from_config(config)
+    # Load model weights
+    load_parameters(model, model_file, use_ema=use_ema)
+    return model
 
 
 def load_snapshot(path, iter, use_ema=True, model=None):

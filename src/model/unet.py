@@ -154,17 +154,16 @@ class SinusoidalEmbedding(nn.Module):
         self.dim = dim
 
     def forward(self, time):
-        with autocast(enabled=False):  # Force fp32
-            device = time.device
-            half_dim = self.dim // 2
-            freqs = math.log(1e5) / (half_dim - 1)
-            freqs = torch.exp(
-                torch.arange(half_dim, device=device) * -embeddings
-            )
-            embeddings = time[:, None] * freqs[None, :]
-            embeddings = torch.cat(
-                (embeddings.sin(), embeddings.cos()), dim=-1
-            )
+        device = time.device
+        half_dim = self.dim // 2
+        freqs = math.log(1e5) / (half_dim - 1)
+        freqs = torch.exp(
+            torch.arange(half_dim, device=device) * -freqs
+        )
+        embeddings = time[:, None] * freqs[None, :]
+        embeddings = torch.cat(
+            (embeddings.sin(), embeddings.cos()), dim=-1
+        )
         return embeddings
 
 
@@ -183,7 +182,7 @@ class FourierEmbedding(nn.Module):
         self.register_buffer('freqs', torch.randn(dim // 2) * scale)
 
     def forward(self, x):
-        x = x.outer((2 * np.pi * self.freqs).to(x.dtype))
+        x = x.outer((2 * np.pi * self.freqs.to(x.device)).to(x.dtype))
         embeddings = torch.cat([x.cos(), x.sin()], dim=-1)
         return embeddings
 
@@ -202,6 +201,8 @@ class ContextFourierEmbedding(nn.Module):
             FourierEmbedding(emb_dim, scale=scale)
             for _ in range(context_dim)
         ]
+        for i, layer in enumerate(self.emb_layers):
+            self.add_module(f"emb_{i}", layer)
 
     def forward(self, x):
         return sum(layer(x[:, i]) for i, layer in enumerate(self.emb_layers))
@@ -536,7 +537,7 @@ class Unet(configModuleBase):
             else None
         )
         self.context_dim = context_dim
-        self.contextt_dropout = context_dropout
+        self.context_dropout = context_dropout
 
         # Feature embedding
         self.feature_emb = FeatureEmbedding(emb_dim, emb_dim)
@@ -657,7 +658,7 @@ class Unet(configModuleBase):
 
         # Context embedding
         if self.context_emb is not None and context is not None:
-            context_emb = self.context_emb(context)
+            context_emb = self.context_emb(context.to(x.dtype))
 
             if self.training and self.context_dropout:
                 mask = torch.rand([x.shape[0], 1], device=x.device)
