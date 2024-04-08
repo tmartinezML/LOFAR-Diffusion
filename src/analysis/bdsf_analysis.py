@@ -8,6 +8,8 @@ from functools import partial
 import signal
 import time
 import shutil
+import psutil
+import os
 
 import sys
 import os
@@ -45,7 +47,11 @@ def block_printing(func):
         # block all printing to the console
         sys.stdout = open(os.devnull, 'w')
         # call the method in question
-        value = func(*args, **kwargs)
+        try:
+            value = func(*args, **kwargs)
+        except RuntimeError as e:
+            sys.stdout = sys.__stdout__
+            raise e
         # enable all printing to the console
         sys.stdout = sys.__stdout__
         # pass the return value of the method back
@@ -56,17 +62,23 @@ def block_printing(func):
 
 @disable_logging
 @block_printing
-def bdsf_on_image(img: np.ndarray):
+def bdsf_on_image(img: np.ndarray, ang_size=50, px_size=80):
     '''
     Run bdsf on a single image.
     '''
     img = img.squeeze()
 
+    # Add small amount of noise, otherwise sigma-clipping algorithm called 
+    # within bdsf.process_image (functions.bstat) might not converge
+    z = np.random.normal(0, scale=min(img.max(), 1)*1e-5, size=img.shape)
+    img += z
+
     # Set up the header, which contains information required for bdsf
-    beam_size = 0.001666  # 6 arcsec
-    # Angular size of the images is 50 arcsec, pixel size is 80x80.
+    beam_size = 0.001667  # 6 arcsec
+
     # Pixel size in deg:
-    px_size_deg = 50 / 3600 / 80
+    px_size_deg = ang_size / 3600 / px_size
+
     header_dict = {
         "CDELT1": -px_size_deg,  # Pixel size in deg (1,5 arcsec)
         "CUNIT1": "deg",
@@ -160,6 +172,7 @@ def append_to_pickle(obj, fpath):
     with open(fpath, 'wb') as f:
         pickle.dump(data, f)
 
+
 def write_to_pickle(obj, fpath):
     Image_id = obj['Image_id']
     with open(fpath / f'{Image_id}.pkl', 'wb') as f:
@@ -194,6 +207,15 @@ def writer(queue, q_pbar, fpaths, write_fns):
             f.write(f'{i},{img_id}\n')
         i += 1
         q_pbar.put(1)
+
+def kill_child_processes(parent_pid, sig=signal.SIGTERM):
+    try:
+        parent = psutil.Process(parent_pid)
+    except psutil.NoSuchProcess:
+        return
+    children = parent.children(recursive=True)
+    for process in children:
+        process.send_signal(sig)
 
 
 def bdsf_worker_func(img, image_id, q):
@@ -279,7 +301,7 @@ def bdsf_run(
         for fpath in [dicts_path, gaul_path, srl_path]:
             if fpath.exists():
                 fpath.unlink() if fpath.is_file() else shutil.rmtree(fpath)
-    
+
     # Look for images already processed
     else:
         print('Looking for images already processed...')
@@ -324,11 +346,12 @@ def bdsf_run(
 
         def signal_handler(sig, frame):
             print('Keyboard interrupt. Closing pools.')
-            worker_pool.shutdown(cancel_futures=True)
+            worker_pool.shutdown(cancel_futures=True, wait=False)
             q.put(-1)
             q_pbar.put(-1)
             helper_pool.close()
             helper_pool.join()
+            kill_child_processes(os.getpid())
             sys.exit(0)
 
         signal.signal(signal.SIGINT, signal_handler)
@@ -387,16 +410,16 @@ if __name__ == '__main__':
 
     # Load the dataset
     dataset = EvaluationDataset(
-        paths.ANALYSIS_PARENT / 'EDM_SNR5_50as/EDM_SNR5_50as_samples_10000Imgs_T=25.pt'
+        paths.LOFAR_SUBSETS['0-clip_unscaled'],
     )
 
     # For testing: deterministic subset (use None for all images)
-    n = None
+    n = 20
 
     # Run bdsf on the images
     bdsf_out = bdsf_run(
         dataset.data[:n],
-        out_folder=dataset.path.stem,
+        out_folder=paths.PLAYGORUND_DIR / 'bdsf_test',
         names=dataset.names[:n],
         override=arguments.override,
         max_workers=80
