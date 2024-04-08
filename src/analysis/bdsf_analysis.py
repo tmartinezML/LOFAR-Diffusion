@@ -8,6 +8,8 @@ from functools import partial
 import signal
 import time
 import shutil
+import psutil
+import os
 
 import sys
 import os
@@ -206,6 +208,15 @@ def writer(queue, q_pbar, fpaths, write_fns):
         i += 1
         q_pbar.put(1)
 
+def kill_child_processes(parent_pid, sig=signal.SIGTERM):
+    try:
+        parent = psutil.Process(parent_pid)
+    except psutil.NoSuchProcess:
+        return
+    children = parent.children(recursive=True)
+    for process in children:
+        process.send_signal(sig)
+
 
 def bdsf_worker_func(img, image_id, q):
     def signal_handler(sig, frame):
@@ -335,11 +346,12 @@ def bdsf_run(
 
         def signal_handler(sig, frame):
             print('Keyboard interrupt. Closing pools.')
-            worker_pool.shutdown(cancel_futures=True)
+            worker_pool.shutdown(cancel_futures=True, wait=False)
             q.put(-1)
             q_pbar.put(-1)
             helper_pool.close()
             helper_pool.join()
+            kill_child_processes(os.getpid())
             sys.exit(0)
 
         signal.signal(signal.SIGINT, signal_handler)
