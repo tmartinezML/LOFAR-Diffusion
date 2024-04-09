@@ -408,18 +408,22 @@ if __name__ == '__main__':
     )
     arguments = parser.parse_args()
 
-    # Load the dataset
-    dataset = EvaluationDataset(
-        paths.LOFAR_SUBSETS['0-clip_unscaled'],
+    out_path = paths.ANALYSIS_PARENT /'Fmax_Context_Dropout'
+    data_path = (
+        out_path /
+        'Fmax_Context_Dropout_samples_10000_guidance_strength=1.00e-01.pt'
     )
 
+    # Load the dataset
+    dataset = EvaluationDataset(data_path)
+
     # For testing: deterministic subset (use None for all images)
-    n = 20
+    n = None
 
     # Run bdsf on the images
     bdsf_out = bdsf_run(
         dataset.data[:n],
-        out_folder=paths.PLAYGORUND_DIR / 'bdsf_test',
+        out_folder=out_path,
         names=dataset.names[:n],
         override=arguments.override,
         max_workers=80

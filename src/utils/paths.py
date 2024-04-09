@@ -25,7 +25,7 @@ LOFAR_DATA_PARENT = IMG_DATA_PARENT / 'LOFAR'
 FIRST_DATA_PARENT = IMG_DATA_PARENT / 'FIRST'
 
 # Other useful folders
-PLAYGORUND_DIR = ANALYSIS_PARENT / 'playground'
+PLAYGROUND_DIR = ANALYSIS_PARENT / 'playground'
 DEBUG_DIR = MODEL_PARENT / 'debug'
 
 # Train data subsets
