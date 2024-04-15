@@ -127,6 +127,12 @@ class ImagePathDataset(torch.utils.data.Dataset):
         return len(self.data)
 
     def __getitem__(self, i):
+        if isinstance(i, slice):
+            return [self[j] for j in range(*i.indices(len(self)))]
+
+        if isinstance(i, str):
+            i = self.names.index(i)
+
         img = self.data[i]
         if self.transforms is not None:
             img = self.transforms(img)
@@ -134,7 +140,7 @@ class ImagePathDataset(torch.utils.data.Dataset):
 
         if len(context):
             return img, torch.tensor(context)
-        
+
         else:
             return img
 

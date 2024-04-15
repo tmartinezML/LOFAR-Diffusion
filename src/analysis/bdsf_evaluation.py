@@ -171,7 +171,7 @@ def load_bdsf_metric_dict(bdsf_pkl_dir):
         map(
             load_single_pickle,
             tqdm(
-                sorted(bdsf_pkl_dir.glob('*.pkl')),
+                sorted(bdsf_pkl_dir.glob('*.pkl'), key=lambda x: int(x.stem)),
                 desc="Loading .pkl files..."
             )
         )

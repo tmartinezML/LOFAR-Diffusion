@@ -335,8 +335,8 @@ def bdsf_run(
     dicts_path = out_path / f'dicts'
     logs_path = out_path / f'logs'
     err_path = out_path / f'errors'
-    gaul_path = out_path / f'{out_folder}_bdsf_gaul.csv'
-    srl_path = out_path / f'{out_folder}_bdsf_srl.csv'
+    gaul_path = out_path / f'bdsf_gaul.csv'
+    srl_path = out_path / f'bdsf_srl.csv'
 
     # If override is True, delete the files if they exist
     if override:
@@ -498,14 +498,11 @@ if __name__ == '__main__':
     )
     arguments = parser.parse_args()
 
-    '''
-    out_folder = paths.ANALYSIS_PARENT / 'Fmax_Context_Dropout'
+    out_folder = paths.ANALYSIS_PARENT / 'Fmax_Context_Dropout/unconditioned'
     data_path = (
         out_folder
-        / 'Fmax_Context_Dropout_samples_10000_guidance_strength=1.00e-01.pt'
+        / 'Fmax_Context_Dropout_samples_10000.pt'
     )
-    '''
-    data_path = paths.LOFAR_SUBSETS['0-clip_unscaled']
 
     # Load the dataset
     dataset = EvaluationDataset(data_path)
@@ -519,7 +516,7 @@ if __name__ == '__main__':
     bdsf_out = bdsf_run(
         # Call dataset for Transform
         np.array([dataset[i] for i in range(n or len(dataset))]),
-        out_folder=data_path.stem,
+        out_folder=out_folder,
         names=dataset.names[:n],
         override=arguments.override,
         max_workers=96,
