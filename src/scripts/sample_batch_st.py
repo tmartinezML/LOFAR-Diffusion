@@ -84,7 +84,10 @@ def batch_st_sampling(
         batch = sample_batch(
             model,
             bsize=batch_size,
-            context_batch=torch.tensor(context_batch).reshape(batch_size, -1),
+            context_batch=(
+                torch.tensor(context_batch).reshape(batch_size, -1)
+                if context_fn else None
+            ),
             return_steps=True,
             **sample_kwargs
         )
@@ -225,7 +228,7 @@ if __name__ == "__main__":
         n_devices=n_gpu,
         # context_fn=context_fn,
         # sample_kwargs={'guidance_strength': 0.1,}
-        out_folder_name="model_name/unconditioned"
+        out_folder_name=f"{model_name}/unconditioned"
     )
 
     print(f"Finished sampling {n_samples:_} samples from {model_name}.")
