@@ -35,11 +35,12 @@ def batch_st_sampling(
     comment=None,
     snapshot_it=0,
     use_ema=True,
-    sample_kwargs={}
+    sample_kwargs={},
+    out_folder_name=None,
 ):
 
     # Set paths
-    out_folder = ANALYSIS_PARENT / model_name
+    out_folder = ANALYSIS_PARENT / (out_folder_name or model_name)
     out_folder.mkdir(exist_ok=True)
     model_dir = MODEL_PARENT / model_name
 
@@ -222,8 +223,9 @@ if __name__ == "__main__":
         model_name,
         n_samples=n_samples,
         n_devices=n_gpu,
-        context_fn=context_fn,
-        sample_kwargs={'guidance_strength': 0.1,}
+        # context_fn=context_fn,
+        # sample_kwargs={'guidance_strength': 0.1,}
+        out_folder_name="model_name/unconditioned"
     )
 
     print(f"Finished sampling {n_samples:_} samples from {model_name}.")

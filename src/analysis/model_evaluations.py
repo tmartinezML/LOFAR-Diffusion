@@ -16,9 +16,10 @@ from tqdm import tqdm
 
 
 from model.sample import sample_set_from_model
-from utils.plot_utils import (
-    plot_image_grid, plot_distributions,
-    pixel_metrics_plot, shape_metrics_plot, plot_collection
+from plotting.plot_images import plot_image_grid
+from plotting.plot_metrics import pixel_metrics_plot, plot_distributions, shape_metrics_plot
+from plotting.plot_utils import (
+    plot_collection
 )
 from utils.device_utils import visible_gpus_by_space
 from utils.data_utils import EvaluationDataset
