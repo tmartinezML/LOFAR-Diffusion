@@ -86,7 +86,7 @@ def metric_peek(metric, edges, images,
         else:
             suptitle = (
                 f'Bin {i_bin} - '
-                f'{edges[i_bin-1]:.2f} <= {metric_name} < {edges[i_bin]:.2f}'
+                f'{metric_name} in [{edges[i_bin-1]:.2f}, {edges[i_bin]:.2f})'
             )
 
         # Get the indices of the images in the bin
@@ -103,8 +103,10 @@ def metric_peek(metric, edges, images,
         # Plot the images
         n_col = min(len(img_idxs), 5)
         n_row = int(np.ceil(len(img_idxs) / n_col))
+
         fig, axes = plt.subplots(
-            n_row, n_col, dpi=150, figsize=(3 * n_col, 3 * n_row + 0.75)
+            n_row, n_col, dpi=150, figsize=(3 * n_col, 3 * n_row + 0.75),
+            constrained_layout=True,
         )
         if len(img_idxs) == 1:
             axes = np.array([axes])
@@ -120,5 +122,5 @@ def metric_peek(metric, edges, images,
                 f'{metric_name} = {value:.2f}'
             )
             ax.axis('off')
-        fig.suptitle(suptitle)
+        fig.suptitle(suptitle, fontsize='xx-large')
         fig.show()

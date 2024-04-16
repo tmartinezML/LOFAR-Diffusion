@@ -131,7 +131,7 @@ class ImagePathDataset(torch.utils.data.Dataset):
             return [self[j] for j in range(*i.indices(len(self)))]
 
         if isinstance(i, str):
-            i = self.names.index(i)
+            i = np.where(self.names == i)[0][0]
 
         img = self.data[i]
         if self.transforms is not None:

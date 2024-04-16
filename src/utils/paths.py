@@ -36,11 +36,21 @@ LOFAR_SUBSETS = {k: LOFAR_DATA_PARENT / v for k, v in {
     '1.5LAS_f-thr=0.75': 'lofar_1p5las_80p_unclipped_subset_f-thr=0p75.hdf5',
 }.items()}
 
+# Paths for training data processing
+MOSAIC_DIR = '/hs/fs05/data/AG_Brueggen/nicolasbp/RadioGalaxyImage/data/mosaics_public'
+CUTOUTS_DIR = LOFAR_DATA_PARENT / 'cutouts'
 
-def cast_to_path(p):
-    if isinstance(p, str):
-        return Path(p)
-    return p
+def cast_to_Path(path):
+    """
+    Create a Path object from a string.
+    """
+    match path:
+        case Path():
+            return path
+        case str():
+            return Path(path)
+        case _:
+            raise TypeError(f'Expected Path or str, got {type(path)}')
 
 
 if __name__ == "__main__":
