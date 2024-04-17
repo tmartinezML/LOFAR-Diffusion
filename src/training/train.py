@@ -25,7 +25,7 @@ if __name__ == "__main__":
 
     # conf.pretrained_model = '/home/bbd0953/diffusion/model_results/Dummy/snapshots/snapshot_iter_00000100.pt'
     # conf.optimizer_file = '/home/bbd0953/diffusion/results/EDM_valFix/optimizer_state_EDM_valFix.pt'
-    conf.model_name = f"Fmax_Context_Dropout"
+    conf.model_name = f"Fmax_Context_MLP"
 
     dataset = TrainDataset(
         paths.LOFAR_SUBSETS['0-clip_unscaled'],

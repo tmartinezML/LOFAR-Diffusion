@@ -3,6 +3,7 @@ Created following the tutorial on
 https://huggingface.co/blog/annotated-diffusion
 
 """
+
 import math
 from functools import partial
 from abc import abstractmethod
@@ -20,13 +21,13 @@ from utils.config_utils import construct_from_config
 
 from utils.config_utils import configModuleBase
 
-DEBUG_DIR = Path('/home/bbd0953/diffusion/results/debug')
+DEBUG_DIR = Path("/home/bbd0953/diffusion/results/debug")
 
 
 def clamp_tensor(x):
-    '''
+    """
     https://discuss.huggingface.co/t/t5-fp16-issue-is-fixed/3139
-    '''
+    """
     dtype = torch.half if torch.is_autocast_enabled() else x.dtype
     clamp_value = torch.finfo(dtype).max - 1000
     x = torch.clamp(x, min=-clamp_value, max=clamp_value)
@@ -35,7 +36,7 @@ def clamp_tensor(x):
 
 def zero_module(module):
     """
-    Sets all parameters of a module to zero. Used for initializing the 
+    Sets all parameters of a module to zero. Used for initializing the
     optimizers.
 
     Parameters
@@ -55,7 +56,7 @@ def zero_module(module):
 
 def upsample(dim, dim_out=None, use_conv=True):
     """
-    Upsampling layer, NxN --> 2Nx2N, using nearest neighbor algorithm. 
+    Upsampling layer, NxN --> 2Nx2N, using nearest neighbor algorithm.
     Basically, every pixel is quadrupled, and the new pixels are filled with
     the value of the original pixel.
 
@@ -75,10 +76,7 @@ def upsample(dim, dim_out=None, use_conv=True):
         # Upsampling quadruples each pixel.
         nn.Upsample(scale_factor=2, mode="nearest"),
         # Convolution leaves image size unchanged.
-        (
-            nn.Conv2d(dim, (dim_out or dim), 3, padding=1) if use_conv
-            else nn.Identity()
-        ),
+        (nn.Conv2d(dim, (dim_out or dim), 3, padding=1) if use_conv else nn.Identity()),
     )
 
 
@@ -157,19 +155,15 @@ class SinusoidalEmbedding(nn.Module):
         device = time.device
         half_dim = self.dim // 2
         freqs = math.log(1e5) / (half_dim - 1)
-        freqs = torch.exp(
-            torch.arange(half_dim, device=device) * -freqs
-        )
+        freqs = torch.exp(torch.arange(half_dim, device=device) * -freqs)
         embeddings = time[:, None] * freqs[None, :]
-        embeddings = torch.cat(
-            (embeddings.sin(), embeddings.cos()), dim=-1
-        )
+        embeddings = torch.cat((embeddings.sin(), embeddings.cos()), dim=-1)
         return embeddings
 
 
 class FourierEmbedding(nn.Module):
     """
-    Takes input t of shape (batch_size, 1) corresponding to values of a 
+    Takes input t of shape (batch_size, 1) corresponding to values of a
     continuous context feature, and returns
     embedding of shape (batch_size, dim).
     For a good explanation of the embedding formula, see:
@@ -179,7 +173,7 @@ class FourierEmbedding(nn.Module):
     def __init__(self, dim, scale=16):
         super().__init__()
         self.dim = dim
-        self.register_buffer('freqs', torch.randn(dim // 2) * scale)
+        self.register_buffer("freqs", torch.randn(dim // 2) * scale)
 
     def forward(self, x):
         x = x.outer((2 * np.pi * self.freqs.to(x.device)).to(x.dtype))
@@ -187,30 +181,30 @@ class FourierEmbedding(nn.Module):
         return embeddings
 
 
-class ContextFourierEmbedding(nn.Module):
+class ContextEmbedding(nn.Module):
     """
-    Takes input t of shape (batch_size, context_dim) corresponding to the 
+    Takes input t of shape (batch_size, context_dim) corresponding to the
     values of the entire context, and returns embedding
-    of shape (batch_size, dim), which is the sum of fourier embeddings 
+    of shape (batch_size, dim), which is the sum of fourier embeddings
     of all single features.
     """
 
-    def __init__(self, context_dim, emb_dim, scale=16):
+    def __init__(self, context_dim, emb_cls, **cls_kwargs):
         super().__init__()
-        self.emb_layers = [
-            FourierEmbedding(emb_dim, scale=scale)
-            for _ in range(context_dim)
-        ]
+        self.emb_layers = [emb_cls(**cls_kwargs) for _ in range(context_dim)]
         for i, layer in enumerate(self.emb_layers):
             self.add_module(f"emb_{i}", layer)
 
     def forward(self, x):
-        return sum(layer(x[:, i]) for i, layer in enumerate(self.emb_layers))
+        print(f"Context on {x.device}")
+        return sum(
+            layer(x[:, i].view(-1, 1)) for i, layer in enumerate(self.emb_layers)
+        )
 
 
 class WeightStandardizedConv2d(nn.Conv2d):
     """
-    Weight-standardized 2d convolutional layer, built from a standard 
+    Weight-standardized 2d convolutional layer, built from a standard
     conv2d layer. Works better with group normalization.
     https://arxiv.org/abs/1903.10520
     https://kushaj.medium.com/weight-standardization-a-new-normalization-in-town-54b2088ce355 #noqa
@@ -223,9 +217,7 @@ class WeightStandardizedConv2d(nn.Conv2d):
         # Tensors with mean and variance, same shape as weight tensors
         # for subsequent operations.
         mean = reduce(weight, "o ... -> o 1 1 1", "mean")  # o = outp. channels
-        var = reduce(
-            weight, "o ... -> o 1 1 1", partial(torch.var, unbiased=False)
-        )
+        var = reduce(weight, "o ... -> o 1 1 1", partial(torch.var, unbiased=False))
         normalized_weight = (weight - mean) * (var + eps).rsqrt()
 
         out = F.conv2d(
@@ -281,8 +273,7 @@ class ResidualLinearAttention(nn.Module):
 
         # Reshape to three tensors of shape [b, heads, dim_head, h*w]:
         q, k, v = map(
-            lambda t: rearrange(t, "b (h c) x y -> b h c (x y)", h=self.heads),
-            qkv
+            lambda t: rearrange(t, "b (h c) x y -> b h c (x y)", h=self.heads), qkv
         )
 
         q = q * self.scale
@@ -296,9 +287,7 @@ class ResidualLinearAttention(nn.Module):
 
         context = torch.einsum("b h d n, b h e n -> b h d e", k_norm, v)
         out = torch.einsum("b h d e, b h d n -> b h e n", context, q_norm)
-        out = rearrange(
-            out, "b h c (x y) -> b (h c) x y", h=self.heads, x=h, y=w
-        )
+        out = rearrange(out, "b h c (x y) -> b (h c) x y", h=self.heads, x=h, y=w)
 
         return self.to_out(out) + res
 
@@ -308,16 +297,18 @@ class ResidualBlock(TimestepBlock):
     BigGAN Block implementation
     """
 
-    def __init__(self,
-                 dim,
-                 dim_out,
-                 time_emb_dim,
-                 *,
-                 dropout=0.,
-                 norm_groups=32,
-                 up=False,
-                 down=False,
-                 use_conv=False,):
+    def __init__(
+        self,
+        dim,
+        dim_out,
+        time_emb_dim,
+        *,
+        dropout=0.0,
+        norm_groups=32,
+        up=False,
+        down=False,
+        use_conv=False,
+    ):
         super().__init__()
 
         self.resize = up or down
@@ -350,15 +341,16 @@ class ResidualBlock(TimestepBlock):
             nn.GroupNorm(norm_groups, dim_out),
             nn.SiLU(),
             nn.Dropout(p=dropout),
-            zero_module(WeightStandardizedConv2d(
-                dim_out, dim_out, 3, padding=1, bias=True
-            )),
+            zero_module(
+                WeightStandardizedConv2d(dim_out, dim_out, 3, padding=1, bias=True)
+            ),
         )
 
         # Residual layers
         if self.do_res_conv:
             self.res_conv = (
-                WeightStandardizedConv2d(dim, dim_out, 3) if use_conv
+                WeightStandardizedConv2d(dim, dim_out, 3)
+                if use_conv
                 else nn.Conv2d(dim, dim_out, 1)
             )
 
@@ -437,12 +429,14 @@ class ResidualBlockAttention(nn.Module):
 
 
 class DownsampleBlock(ResidualBlock):
-    def __init__(self,
-                 channels,
-                 time_emb_dim,
-                 *,
-                 dropout=0.,
-                 norm_groups=32,):
+    def __init__(
+        self,
+        channels,
+        time_emb_dim,
+        *,
+        dropout=0.0,
+        norm_groups=32,
+    ):
         super().__init__(
             channels,
             channels,
@@ -456,12 +450,14 @@ class DownsampleBlock(ResidualBlock):
 
 
 class UpsampleBlock(ResidualBlock):
-    def __init__(self,
-                 channels,
-                 time_emb_dim,
-                 *,
-                 dropout=0.,
-                 norm_groups=32,):
+    def __init__(
+        self,
+        channels,
+        time_emb_dim,
+        *,
+        dropout=0.0,
+        norm_groups=32,
+    ):
         super().__init__(
             channels,
             channels,
@@ -513,7 +509,6 @@ class Unet(configModuleBase):
         attention_levels=3,
         attention_heads=4,
         attention_head_channels=32,
-
     ):
         super().__init__()
 
@@ -525,16 +520,13 @@ class Unet(configModuleBase):
         # Time and label embeddings
         emb_dim = init_channels * 4
         self.time_emb = SinusoidalEmbedding(emb_dim)
-        self.label_emb = (
-            nn.Linear(n_labels, emb_dim, bias=False) if n_labels else None
-        )
+        self.label_emb = nn.Linear(n_labels, emb_dim, bias=False) if n_labels else None
         self.label_dropout = label_dropout
         self.n_labels = n_labels
 
         # Context embedding
         self.context_emb = (
-            ContextFourierEmbedding(context_dim, emb_dim) if context_dim
-            else None
+            FeatureEmbedding(context_dim, emb_dim) if context_dim else None
         )
         self.context_dim = context_dim
         self.context_dropout = context_dropout
@@ -559,16 +551,18 @@ class Unet(configModuleBase):
             for _ in range(num_res_blocks):
                 # Create residual block
                 block = ResidualBlock(
-                    ch, int(mult * init_channels), emb_dim,
-                    dropout=dropout, norm_groups=norm_groups
+                    ch,
+                    int(mult * init_channels),
+                    emb_dim,
+                    dropout=dropout,
+                    norm_groups=norm_groups,
                 )
                 ch = int(mult * init_channels)
 
                 # Add attention layer to block if necessary
                 if n_levels - res_level <= attention_levels:
                     attn = ResidualLinearAttention(
-                        ch, heads=attention_heads,
-                        dim_head=attention_head_channels
+                        ch, heads=attention_heads, dim_head=attention_head_channels
                     )
                     block = ResidualBlockAttention(block, attn)
 
@@ -586,17 +580,11 @@ class Unet(configModuleBase):
 
         # Create middle block
         self.middle_block = TimestepEmbedSequential(
-            ResidualBlock(
-                ch, ch, emb_dim,
-                dropout=dropout, norm_groups=norm_groups
-            ),
+            ResidualBlock(ch, ch, emb_dim, dropout=dropout, norm_groups=norm_groups),
             ResidualLinearAttention(
-                ch, heads=attention_heads,
-                dim_head=attention_head_channels
+                ch, heads=attention_heads, dim_head=attention_head_channels
             ),
-            ResidualBlock(
-                ch, ch, emb_dim,
-                dropout=dropout, norm_groups=norm_groups),
+            ResidualBlock(ch, ch, emb_dim, dropout=dropout, norm_groups=norm_groups),
         )
 
         # Fill up-blocks (loop in reverse, hence [::-1])
@@ -607,16 +595,18 @@ class Unet(configModuleBase):
 
                 # Create residual block
                 block = ResidualBlock(
-                    ch + ich, int(mult * init_channels), emb_dim,
-                    dropout=dropout, norm_groups=norm_groups
+                    ch + ich,
+                    int(mult * init_channels),
+                    emb_dim,
+                    dropout=dropout,
+                    norm_groups=norm_groups,
                 )
                 ch = int(mult * init_channels)
 
                 # Add attention layer to block if necessary
                 if n_levels - res_level <= attention_levels:
                     attn = ResidualLinearAttention(
-                        ch, heads=attention_heads,
-                        dim_head=attention_head_channels
+                        ch, heads=attention_heads, dim_head=attention_head_channels
                     )
                     block = ResidualBlockAttention(block, attn)
 
@@ -643,9 +633,7 @@ class Unet(configModuleBase):
 
         # Class label embedding
         if self.label_emb is not None and class_labels is not None:
-            labels_enc = F.one_hot(
-                class_labels, num_classes=self.n_labels
-            ).to(x.dtype)
+            labels_enc = F.one_hot(class_labels, num_classes=self.n_labels).to(x.dtype)
 
             # Apply label dropout
             if self.training and self.label_dropout:
@@ -720,18 +708,13 @@ class EDMPrecond(configModuleBase):
 
         # Weight coefficients for each term
         c_skip = self.sigma_data**2 / (sigma**2 + self.sigma_data**2)
-        c_out = (
-            sigma * self.sigma_data / (sigma**2 + self.sigma_data**2).sqrt()
-        )
+        c_out = sigma * self.sigma_data / (sigma**2 + self.sigma_data**2).sqrt()
         c_in = 1 / (self.sigma_data**2 + sigma**2).sqrt()
         c_noise = sigma.log() / 4
 
         # Apply inner model
         F_x = self.model(
-            c_in * x,
-            c_noise.flatten(),
-            context=context,
-            class_labels=class_labels
+            c_in * x, c_noise.flatten(), context=context, class_labels=class_labels
         )
 
         # Generate denoiser output
