@@ -54,12 +54,14 @@ class DiffusionTrainer:
         # Initialize config & class attributes
         if config is None:
             assert pickup, "Config must be specified if not pickup."
-            assert iterations is not None, \
-                "Iterations must be specified if no config is passed, "\
+            assert iterations is not None, (
+                "Iterations must be specified if no config is passed, "
                 "else no more training will happen."
-            assert model_name is not None, \
-                "Model name must be specified if no config is passed, "\
+            )
+            assert model_name is not None, (
+                "Model name must be specified if no config is passed, "
                 "else no files can be found."
+            )
             config = load_config_from_path(parent_dir / model_name)
         if iterations is not None:
             config.iterations = iterations
@@ -71,7 +73,7 @@ class DiffusionTrainer:
             self.config.model_name,
             override=self.config.override_files,
             parent_dir=parent_dir,
-            pickup=pickup
+            pickup=pickup,
         )
         self.iter_start = 0
         if pickup:
@@ -101,11 +103,9 @@ class DiffusionTrainer:
 
         # Initialize parallel training
         if self.config.n_devices > 1:
-            dev_ids = device_ids_by_space[:self.config.n_devices]
-            logging.info(
-                f"Parallel training on multiple GPUs: {dev_ids}."
-            )
-            self.model.to(f'cuda:{dev_ids[0]}')  # Necessary for DataParallel
+            dev_ids = device_ids_by_space[: self.config.n_devices]
+            logging.info(f"Parallel training on multiple GPUs: {dev_ids}.")
+            self.model.to(f"cuda:{dev_ids[0]}")  # Necessary for DataParallel
             self.model = DataParallel(self.model, device_ids=dev_ids)
             self.inner_model = self.model.module
 
@@ -114,21 +114,20 @@ class DiffusionTrainer:
             self.inner_model,
             multi_avg_fn=torch.optim.swa_utils.get_ema_multi_avg_fn(
                 self.config.ema_rate
-            )
+            ),
         )
 
         # Initialize data
         self.dataset = dataset
         if hasattr(self.config, "context"):
-            logging.info(
-                f"Working with context: {self.config.context}."
-            )
-            if 'max_values_tr' in self.config.context:
+            logging.info(f"Working with context: {self.config.context}.")
+            if "max_values_tr" in self.config.context:
                 self.dataset.transform_max_vals()
             self.dataset.set_context(*self.config.context)
         self.config.batch_size = int(self.config.batch_size)
         self.val_every = (
-            self.config.val_every if hasattr(self.config, "val_every")
+            self.config.val_every
+            if hasattr(self.config, "val_every")
             else self.config.log_interval
         )
         self.init_data_sets(split=bool(self.val_every))
@@ -143,7 +142,7 @@ class DiffusionTrainer:
                     StepLR(self.optimizer, step_size=100_000, gamma=1),
                     StepLR(self.optimizer, step_size=5_000, gamma=0.8),
                 ],
-                milestones=[100_000]
+                milestones=[100_000],
             )
 
         if pickup:
@@ -161,8 +160,9 @@ class DiffusionTrainer:
             self.train_set, self.val_set = random_split(
                 self.dataset, [0.9, 0.1], generator=generator
             )
-            assert len(self.val_set) >= self.config.batch_size, \
-                f"Batch size {self.config.batch_size} larger than validation set."
+            assert (
+                len(self.val_set) >= self.config.batch_size
+            ), f"Batch size {self.config.batch_size} larger than validation set."
             self.val_loader = DataLoader(
                 self.val_set,
                 batch_size=self.config.batch_size,
@@ -171,8 +171,9 @@ class DiffusionTrainer:
                 drop_last=True,
             )
 
-        assert len(self.train_set) >= self.config.batch_size, \
-            f"Batch size {self.config.batch_size} larger than training set."
+        assert (
+            len(self.train_set) >= self.config.batch_size
+        ), f"Batch size {self.config.batch_size} larger than training set."
         self.train_data = load_data(self.train_set, self.config.batch_size)
 
     def init_optimizer(self):
@@ -190,15 +191,15 @@ class DiffusionTrainer:
             and self.config.optimizer_file is not None
         ):
             logging.info(
-                "Loading optimizer state from:"
-                f"\n\t{self.config.optimizer_file}"
+                "Loading optimizer state from:" f"\n\t{self.config.optimizer_file}"
             )
             self.load_optimizer(self.config.optimizer_file)
 
     @classmethod
     def from_pickup(self, path, config=None, iterations=None, **kwargs):
-        assert config is not None or iterations is not None, \
-            "Either config or iterations must be specified for pickup."
+        assert (
+            config is not None or iterations is not None
+        ), "Either config or iterations must be specified for pickup."
 
         if config is None:
             config = load_config_from_path(path)
@@ -211,7 +212,7 @@ class DiffusionTrainer:
         return trainer
 
     def read_parameters(self, key):
-        return torch.load(self.OM.parameters_file, map_location='cpu')[key]
+        return torch.load(self.OM.parameters_file, map_location="cpu")[key]
 
     def load_model(self):
         self.inner_model.load_state_dict(self.read_parameters("model"))
@@ -233,7 +234,7 @@ class DiffusionTrainer:
         write_output=None,
         OM=None,
         save_model=True,
-        train_logging=True
+        train_logging=True,
     ):
         # Prepare output handling
         write_output = write_output or self.config.write_output
@@ -242,7 +243,7 @@ class DiffusionTrainer:
             OM.init_training_loop()
         else:
             logging.basicConfig(
-                format='%(levelname)s: %(message)s',
+                format="%(levelname)s: %(message)s",
                 level=logging.INFO if train_logging else logging.CRITICAL,
                 force=True,
             )
@@ -253,7 +254,9 @@ class DiffusionTrainer:
         scaler = GradScaler()
         loss_buffer = []
         t0 = datetime.now()
-        def dt(): return datetime.now() - t0
+
+        def dt():
+            return datetime.now() - t0
 
         # Print start info
         logging.info(
@@ -277,9 +280,7 @@ class DiffusionTrainer:
 
                 # Log progress
                 t_per_it = dt() / (i + 1 - self.iter_start)
-                self.OM.log_training_progress(
-                    dt(), t_per_it, i, iterations, loss
-                )
+                self.OM.log_training_progress(dt(), t_per_it, i, iterations, loss)
 
                 # Write output
                 if write_output:
@@ -298,8 +299,7 @@ class DiffusionTrainer:
 
                 # Log val loss to wandb
                 wandb.log(
-                    {"val_loss": val_loss[0], "val_loss_ema": val_loss[1]},
-                    step=i + 1
+                    {"val_loss": val_loss[0], "val_loss_ema": val_loss[1]}, step=i + 1
                 )
 
             # Save snapshot
@@ -311,10 +311,7 @@ class DiffusionTrainer:
             ):
                 logging.info(f"Saving snapshot at iteration {i+1}...")
                 OM.save_snapshot(
-                    f"iter_{i+1:08d}",
-                    self.inner_model,
-                    self.ema_model,
-                    self.optimizer
+                    f"iter_{i+1:08d}", self.inner_model, self.ema_model, self.optimizer
                 )
 
         logging.info(f"Training time {dt()} - Done!")
@@ -334,8 +331,7 @@ class DiffusionTrainer:
 
                 case _:
                     raise ValueError(
-                        "Batch must be a list of length 2 or 3, "
-                        f"not {len(batch)}."
+                        "Batch must be a list of length 2 or 3, " f"not {len(batch)}."
                     )
         return batch, context, labels
 
@@ -379,8 +375,7 @@ class DiffusionTrainer:
 
                 # Calculate loss
                 losses.append(
-                    self.batch_loss(batch, context=context,
-                                    labels=labels).item()
+                    self.batch_loss(batch, context=context, labels=labels).item()
                 )
 
                 # Calculate EMA loss
@@ -440,28 +435,33 @@ class ParallelDiffusionTrainer(DiffusionTrainer):
         config = deepcopy(config)
         config.n_devices = 1
         self.rank = rank
-        super().__init__(config=config, dataset=dataset, device=rank,
-                         parent_dir=parent_dir)
+        super().__init__(
+            config=config, dataset=dataset, device=rank, parent_dir=parent_dir
+        )
         self.model = DDP(self.model, device_ids=[rank])
         self.ema = EMA(self.model.parameters(), decay=self.config.ema_rate)
         self.init_optimizer()
 
-    def training_loop(self,):
+    def training_loop(
+        self,
+    ):
         rankzero = self.rank == 0
         kwargs = {
-            'write_output': rankzero,
-            'save_model': rankzero,
-            'train_logging': rankzero,
+            "write_output": rankzero,
+            "save_model": rankzero,
+            "train_logging": rankzero,
         }
         return super().training_loop(**kwargs)
 
 
 class FIRSTDiffusionTrainer(DiffusionTrainer):
     def __init__(self, *, config, **kwargs):
-        assert config.n_labels == 4, \
-            f"FIRSTDiffusionTrainer supports exactly 4 labels, \
+        assert (
+            config.n_labels == 4
+        ), f"FIRSTDiffusionTrainer supports exactly 4 labels, \
               {config.n_labels} given."
         super().__init__(
             config=config,
             dataset=FIRSTGalaxyData(root="/home/bbd0953/diffusion/image_data"),
-            **kwargs)
+            **kwargs,
+        )
