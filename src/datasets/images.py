@@ -8,7 +8,21 @@ from astropy.io import fits
 from skimage.transform import resize
 from astropy.stats import sigma_clipped_stats
 
+from datasets.cutouts import save_images_hpy5
 from utils.paths import cast_to_Path
+
+
+
+from pathlib import Path
+from collections.abc import Sequence
+import h5py
+import pandas as pd
+import numpy as np
+import numpy.ma as ma
+from tqdm import tqdm
+from utils import normalize_image
+
+from astropy.stats import sigma_clip, sigma_clipped_stats
 
 
 def clip_image(image, f_clip=1.5):
@@ -17,6 +31,9 @@ def clip_image(image, f_clip=1.5):
     """
     if f_clip is None:
         return np.array(image)
+
+    elif f_clip is 0:
+        return np.clip(image, 0, np.inf)
 
     _, _, stddev = sigma_clipped_stats(data=image, sigma=3.0, maxiters=10)
     image = np.clip(image, f_clip * stddev, np.inf)
@@ -33,18 +50,66 @@ def resize_image(image, size=128):
     return image
 
 
-def minmax_scaling(image):
-    """
-    Normalize the image to 0-1.
-    """
-    image = (image - np.min(image)) / (np.max(image) - np.min(image))
-    # image = 255 * image
-    # image = image.astype('uint8')
-    # image = Image.fromarray(image, 'L')
-    return image
+def clip_cutouts(
+    cutout_file: str | Path,
+    f_clip: float | list | tuple = (0, 1.5),
+):
+    # Load cutouts and catalog from file
+    cutout_file = cast_to_Path(cutout_file)
+    with h5py.File(cutout_file, "r") as f:
+        images = np.array(f["cutouts"])
+    catalog = pd.read_hdf(cutout_file, key="catalog")
 
+    # Clip images
+    if isinstance(f_clip, float):
+        f_clip = [f_clip]
 
+    for clip in f_clip:
+        images_clipped = []
 
+        # Loop through images for clipping and sigma-snr calculation
+        for image, name in zip(
+            tqdm(images, desc=f"Clipping {clip}sigma..."), catalog["Source_Name"]
+        ):
+            # Clipping
+            try:
+                image = clip_image(image, f_clip=clip)
+                catalog.loc[catalog["Source_Name"] == name, f"Clipped_{clip}sigma"] = (
+                    True
+                )
+                images_clipped.append(image)
+            except Exception:
+                catalog.loc[catalog["Source_Name"] == name, f"Clipped_{clip}sigma"] = (
+                    False
+                )
+
+            # Sigma SNR:
+            try:
+                snr = sigma_snr(image, threshold=5)
+                catalog.loc[
+                    catalog["Source_Name"] == name, f"Sigma_SNR_{clip}sigma"
+                ] = snr
+            except Exception:
+                catalog.loc[
+                    catalog["Source_Name"] == name, f"Sigma_SNR_{clip}sigma"
+                ] = -1
+
+        # Save clipped images to same file as new dataset
+        print("Saving images...")
+        save_images_hpy5(
+            images_clipped,
+            cutout_file,
+            dset_name=f"cutouts_{clip}sigma",
+        )
+
+    # Replace catalog in file
+    print("Saving catalog...")
+    catalog.to_hdf(
+        cutout_file,
+        key="catalog",
+        mode="w",
+    )
+    print("Done.")
 
 
 def process_cutouts(
@@ -206,3 +271,204 @@ def remove_problematic_sources(catalog):
     ]
 
     return catalog
+
+
+
+def sigma_mask(img, threshold=5):
+    _, med, std = sigma_clipped_stats(img)
+    return img > med + threshold * std
+
+
+def sigma_snr(img, threshold=5):
+    mask = sigma_mask(img, threshold)
+
+    if mask.sum() == 0:
+        return sigma_snr(img, threshold - 0.5)
+
+    if img[~mask].sum() == 0:
+        print("No pixels below threshold.")
+        return -1
+
+    return img[mask].sum() / img[~mask].sum() * (~mask).sum() / mask.sum()
+
+
+def sigma_snr_set(images, threshold=5):
+    return np.array([sigma_snr(img, threshold) for img in tqdm(images, desc="\t")])
+
+
+def check_nans(images, names):
+    print("Checking for nans...")
+    for i, img in tqdm(enumerate(images), desc="\t", total=len(images)):
+        if np.isnan(img).any():
+            print(f"\t{names[i]} has nans.")
+
+
+def edge_pixels(img):
+    return np.concatenate([img[0], img[-1], img[1:-1, 0], img[1:-1, -1]])
+
+
+def edge_threshold_mask(images, threshold=0.8):
+    edge_pixel_arr = np.array([edge_pixels(img) for img in tqdm(images, desc="\t")])
+    edge_mask = edge_pixel_arr.max(axis=1) > threshold
+    return edge_mask
+
+
+def broken_image_mask(images):
+    # This will NOT work on clipped images!!
+    images_collapsed = images.reshape(images.shape[0], -1)
+    minvals = images_collapsed.min(axis=1)
+    return (images_collapsed == np.expand_dims(minvals, 1)).sum(axis=1) > 1
+
+
+def threshold_mask(
+    catalog: pd.DataFrame,
+    label: str,
+    threshold: int | float | Sequence,
+):
+    """
+    Create a mask for a catalog based on a threshold value. Returns a mask
+    where True indicates that the source should be removed.
+
+    Parameters
+    ----------
+    catalog : pd.DataFrame
+        The catalog to use.
+    label : str
+        The column label to use.
+    threshold : int | float | Sequence
+        The threshold value(s) to use. If a sequence is provided, the mask will
+        be created using the values in the sequence as thresholds. If a single
+        value is provided, the mask will be created using that value as the
+        threshold.
+
+    Returns
+    -------
+    mask : pd.Series
+        The mask for the catalog.
+    """
+    match threshold:
+        case Sequence():
+            mask = catalog[label].between(threshold[0], threshold[1])
+
+        case int() | float() if (threshold > 0):
+            mask = catalog[label] > threshold
+
+        case int() | float() if (threshold == 0.0):
+            print(f"\tZero {label} threshold, no cuts applied.")
+            return pd.Series(False, index=catalog.index)
+
+        case _:
+            raise ValueError(f"Invalid {label} threshold value: {threshold}")
+
+    print(f"\t{(~mask).sum():_} sources below {label} threshold.\n")
+    return ~mask
+
+
+def create_subset(
+    cutouts_file,
+    clip_sigma=None,
+    las_thr=0.0,
+    flux_thr=0.0,
+    peak_flux=False,
+    SNR_thr=None,
+    edge_thr=0.8,
+    tag="norm",
+    norm_dset=False,
+):
+
+    # Get the images
+    tag = f"cutouts_{clip_sigma}sigma" if clip_sigma is not None else "cutouts"
+    print(f"Reading images: {tag}...")
+    with h5py.File(cutouts_file, "r") as f:
+        images = np.array(
+            f[tag]
+        )
+    print(f"\t{len(images):_} images in catalog.\n")
+
+    # Get the catalog
+    print(f"Reading catalog...")
+    catalog = pd.from_hdf(cutouts_file, key="catalog")
+    if clip_sigma is not None:
+        catalog = catalog[catalog[f"Clipped_{clip_sigma}sigma"]]
+    print(f"\t{len(catalog):_} sources in catalog.\n")
+    n0 = len(catalog)
+
+    print("Creating catalog masks...")
+
+    # Problematic sources
+    print("\tProblematic sources:")
+    p_cols = [c for c in catalog.columns if "Problem" in c or "Nans" in c]
+    p_cat = catalog[p_cols]
+    print(*[f"\t{el}\n" for el in p_cat.sum().items()])
+    problem_mask = p_cat.sum(axis=1).astype(bool)
+    print(f"\t{problem_mask.sum():_} sources with problems.\n")
+
+    # LAS Threshold
+    print("\tLAS threshold:")
+    las_mask = threshold_mask(catalog, "LAS", las_thr)
+    print(f"\t{las_mask.sum():_} sources below threshold.\n")
+
+    # Flux threshold
+    print("\tFlux threshold:")
+    flux_mask = threshold_mask(
+        catalog, "Peak_flux" if peak_flux else "Total_flux", flux_thr
+    )
+    print(f"\t{flux_mask.sum():_} sources below threshold.\n")
+
+    # SNR threshold
+    SNR_mask = np.zeros(len(images), dtype=bool)
+    if SNR_thr is not None:
+        print("\tSNR threshold:")
+        SNR_mask = catalog[f"Sigma_SNR_{clip_sigma}sigma"] < SNR_thr
+        print(f"\t{SNR_mask.sum():_} sources below threshold.\n")
+
+    # Edge threshold
+    print("\tEdge pixel threshold:")
+    edge_mask = edge_threshold_mask(images, threshold=edge_thr)
+    print(f"\t{edge_mask.sum():_} sources with edge pixels above threshold.\n")
+
+    # Broken images
+    print("\tBroken images:")
+    broken_mask = broken_image_mask(images)
+    print(f"\t{broken_mask.sum():_} sources with broken image.\n")
+
+    # Combine the masks to create the 'cleaned' catalog mask
+    print("\tCombining masks...")
+    subcat_mask = ~(
+        problem_mask | las_mask | flux_mask | SNR_mask | edge_mask | broken_mask
+    )
+    n_bad = (~subcat_mask).sum()
+    print(f"\t{n_bad:_} sources will be removed. {n0 - n_bad:_} sources in subset.\n")
+
+    # Filter dataset
+    print("Applying mask...")
+    images_subset = images[subcat_mask]
+    names_subset = names[subcat_mask]
+
+    if norm_dset:
+        print("Normalizing dataset...")
+        norm_attrs = {"norm_min": images_subset.min(), "norm_max": images_subset.max()}
+        images_subset = normalize_image(images_subset)
+
+    # Create the subset in new file
+    print(f"Creating subset file...")
+    subset_file = Path(cutouts_file).parent.parent / f"{subset_name}.hdf5"
+    with h5py.File(subset_file, "w") as f:
+        img_dataset = f.create_dataset("images", data=images_subset)
+        img_dataset.attrs["las_threshold"] = las_thr
+        img_dataset.attrs["flux_threshold"] = flux_thr
+        img_dataset.attrs["peak_flux"] = peak_flux
+        img_dataset.attrs["catalog_file"] = str(catalog_file)
+        img_dataset.attrs["processed_file"] = str(cutouts_file)
+        processed_attrs = {
+            key: value
+            for dset in img_container.values()
+            for (key, value) in dset.attrs.items()
+        }
+        img_dataset.attrs.update(processed_attrs)
+        img_dataset.attrs["norm_subset"] = norm_dset
+        if norm_dset:
+            img_dataset.attrs.update(norm_attrs)
+        f.create_dataset("names", data=names_subset)
+
+    print(f"Subset file created:\n\t{subset_file}\n")
