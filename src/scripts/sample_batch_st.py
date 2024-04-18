@@ -6,7 +6,9 @@ import numpy as np
 
 from model.sample import sample_batch
 from utils.init_utils import (
-    load_model_from_folder, load_snapshot, load_old_model_from_folder
+    load_model_from_folder,
+    load_snapshot,
+    load_old_model_from_folder,
 )
 from utils.device_utils import distribute_model, set_visible_devices
 from utils.paths import MODEL_PARENT, ANALYSIS_PARENT
@@ -17,13 +19,13 @@ from utils.paths import MODEL_PARENT, ANALYSIS_PARENT
 def fmt(v):
     match v:
         case int() if not v % 1000:
-            return f'{v / 1000:.0f}k'
+            return f"{v / 1000:.0f}k"
         case int():
             return str(v)
         case float() if v >= 1:
-            return f'{v:.2f}'
+            return f"{v:.2f}"
         case float():
-            return f'{v:.2e}'
+            return f"{v:.2e}"
 
 
 def batch_st_sampling(
@@ -59,17 +61,14 @@ def batch_st_sampling(
     # Output file for samples
     outfile_specifier = (
         f"{batch_size * n_batches}"
-        + '_' * bool(len(sample_kwargs))
-        + '_'.join(f'{k}={fmt(v)}' for k, v in sample_kwargs.items())
+        + "_" * bool(len(sample_kwargs))
+        + "_".join(f"{k}={fmt(v)}" for k, v in sample_kwargs.items())
     )
     if snapshot_it:
-        outfile_specifier = f'it={snapshot_it}_' + outfile_specifier
+        outfile_specifier = f"it={snapshot_it}_" + outfile_specifier
     if comment:
-        outfile_specifier = f'{comment}_{outfile_specifier}'
-    out_file = (
-        out_folder /
-        f"{model_dir.name}_samples_{outfile_specifier}.pt"
-    )
+        outfile_specifier = f"{comment}_{outfile_specifier}"
+    out_file = out_folder / f"{model_dir.name}_samples_{outfile_specifier}.pt"
 
     # Sample from model
     batch_list = []
@@ -86,16 +85,18 @@ def batch_st_sampling(
             bsize=batch_size,
             context_batch=(
                 torch.tensor(context_batch).reshape(batch_size, -1)
-                if context_fn else None
+                if context_fn
+                else None
             ),
             return_steps=True,
-            **sample_kwargs
+            **sample_kwargs,
         )
         batch_list.append(batch)
 
     model = (
-        model.module.to('cpu') if isinstance(model, torch.nn.DataParallel)
-        else model.to('cpu')
+        model.module.to("cpu")
+        if isinstance(model, torch.nn.DataParallel)
+        else model.to("cpu")
     )
 
     # Output of sample_batch is list with T+1 entries of shape
@@ -104,9 +105,7 @@ def batch_st_sampling(
     # i.e. n_batches x (T+1) x (bsize, 1, 80, 80).
     # We want it as a single tensor of shape
     # (n_batches * bsize, T+1, 1, 80, 80).
-    batch_st = torch.concat([
-        torch.stack(b, dim=1) for b in batch_list
-    ]).cpu()
+    batch_st = torch.concat([torch.stack(b, dim=1) for b in batch_list]).cpu()
 
     # Scale images from [-1, 1] to [0, 1]
     batch_st = (batch_st + 1) / 2
@@ -116,7 +115,7 @@ def batch_st_sampling(
     if context_fn is not None:
         np.save(
             out_folder / f"{out_file.stem.replace('samples', 'context')}",
-            np.concatenate(context_list)
+            np.concatenate(context_list),
         )
 
     # Release GPU memory
@@ -124,11 +123,17 @@ def batch_st_sampling(
     torch.cuda.empty_cache()
 
 
-def sample_snapshot_loop(model_name, snapshot_its: list, n_samples=4000,
-                         n_devices=1, timesteps=25,
-                         comment=None, sample_kwargs={}, ):
+def sample_snapshot_loop(
+    model_name,
+    snapshot_its: list,
+    n_samples=4000,
+    n_devices=1,
+    timesteps=25,
+    comment=None,
+    sample_kwargs={},
+):
     # Set paths
-    out_folder = ANALYSIS_PARENT / model_name / 'snapshot_samples'
+    out_folder = ANALYSIS_PARENT / model_name / "snapshot_samples"
     out_folder.mkdir(exist_ok=True)
     model_dir = MODEL_PARENT / model_name
 
@@ -148,24 +153,21 @@ def sample_snapshot_loop(model_name, snapshot_its: list, n_samples=4000,
         # Output file for samples
         outfile_specifier = (
             f"{batch_size * n_batches}"
-            + '_' * bool(len(sample_kwargs))  # Add '_' if kwargs are present
-            + '_'.join(f'{k}={fmt(v)}' for k, v in sample_kwargs.items())
+            + "_" * bool(len(sample_kwargs))  # Add '_' if kwargs are present
+            + "_".join(f"{k}={fmt(v)}" for k, v in sample_kwargs.items())
         )
-        outfile_specifier = f'it={it}_' + outfile_specifier
+        outfile_specifier = f"it={it}_" + outfile_specifier
         if comment:
-            outfile_specifier = f'{comment}_{outfile_specifier}'
-        out_file = (
-            out_folder /
-            f"{model_dir.name}_samples_{outfile_specifier}.pt"
-        )
+            outfile_specifier = f"{comment}_{outfile_specifier}"
+        out_file = out_folder / f"{model_dir.name}_samples_{outfile_specifier}.pt"
 
         # Sample from model
         batch_list = []
         for i in range(n_batches):
             print(f"Sampling batch {i+1}/{n_batches}...")
-            batch = sample_batch(model,
-                                 bsize=batch_size,
-                                 return_steps=False, **sample_kwargs)
+            batch = sample_batch(
+                model, bsize=batch_size, return_steps=False, **sample_kwargs
+            )
             batch_list.append(batch)
 
         # Here, output of sample_batch is a tensor of shape (bsize, 1, 80, 80).
@@ -182,8 +184,9 @@ def sample_snapshot_loop(model_name, snapshot_its: list, n_samples=4000,
 
         # Release GPU memory
         model = (
-            model.module.to('cpu') if isinstance(model, torch.nn.DataParallel)
-            else model.to('cpu')
+            model.module.to("cpu")
+            if isinstance(model, torch.nn.DataParallel)
+            else model.to("cpu")
         )
 
     # Release GPU memory
@@ -199,7 +202,7 @@ if __name__ == "__main__":
     from sklearn import preprocessing as pr
 
     # Load dataset to get max-val histogram
-    dset = ImagePathDataset(paths.LOFAR_SUBSETS['0-clip_unscaled'])
+    dset = ImagePathDataset(paths.LOFAR_SUBSETS["0-clip_unscaled"])
     max_vals = dset.max_values.numpy()
     max_hist = np.histogram(max_vals, bins=100)
 
@@ -211,7 +214,9 @@ if __name__ == "__main__":
     # Make model distribution from histogram for sampling
     hist_tr_sc = np.histogram(max_tr_sc, bins=100)
     model_dist = rv_histogram(hist_tr_sc, density=False)
-    def context_fn(bsize): return model_dist.rvs(size=bsize)
+
+    def context_fn(bsize):
+        return model_dist.rvs(size=bsize)
 
     # Set up devices
     n_gpu = 2
@@ -219,21 +224,23 @@ if __name__ == "__main__":
     print(f"Using GPU {dev_ids[:n_gpu]}")
 
     # Sampling parameters
-    model_name = 'Fmax_Context_Dropout'
+    model_name = "Fmax_Context_MLP"
     n_samples = 10_000
 
     batch_st_sampling(
         model_name,
         n_samples=n_samples,
         n_devices=n_gpu,
-        # context_fn=context_fn,
-        # sample_kwargs={'guidance_strength': 0.1,}
-        out_folder_name=f"{model_name}/unconditioned"
+        context_fn=context_fn,
+        sample_kwargs={
+            "guidance_strength": 0.1,
+        },
+        # out_folder_name=f"{model_name}/unconditioned"
     )
 
     print(f"Finished sampling {n_samples:_} samples from {model_name}.")
 
-    '''
+    """
 
     snapshot_its = [20_000 * n for n in range(1, 5)]
     n_samples = 4_000
@@ -242,4 +249,4 @@ if __name__ == "__main__":
         model_name, snapshot_its, n_devices=n_gpu, n_samples=n_samples,
     )
     print(f"Finished sampling {n_samples:_} samples from {model_name}.")
-    '''
+    """
