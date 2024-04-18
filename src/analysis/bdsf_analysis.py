@@ -498,10 +498,10 @@ if __name__ == '__main__':
     )
     arguments = parser.parse_args()
 
-    out_folder = paths.ANALYSIS_PARENT / 'Fmax_Context_Dropout/unconditioned'
+    out_folder = paths.ANALYSIS_PARENT / 'Fmax_Context_MLP'
     data_path = (
         out_folder
-        / 'Fmax_Context_Dropout_samples_10000.pt'
+        / 'Fmax_Context_MLP_samples_10000_guidance_strength=1.00e-01.pt'
     )
 
     # Load the dataset

@@ -17,26 +17,15 @@ from torch_ema import ExponentialMovingAverage as EMA
 import wandb
 
 import model.unet as unet
-from training.output_manager import OutputManager
+import utils.train_utils
 import training.loss_functions as loss_functions
+from training.output_manager import OutputManager
 from datasets.firstgalaxydata import FIRSTGalaxyData
 from utils.device_utils import visible_gpus_by_space
 from utils.init_utils import load_config_from_path, load_parameters
 from utils.paths import MODEL_PARENT, DEBUG_DIR
 from utils.data_utils import load_data
-
-
-class use_ema:
-    def __init__(self, model, ema_model):
-        self.model = model
-        self.ema_model = ema_model
-
-    def __enter__(self):
-        self.model_state = deepcopy(self.model.state_dict())
-        self.model.load_state_dict(self.ema_model.module.state_dict())
-
-    def __exit__(self, *args):
-        self.model.load_state_dict(self.model_state)
+from utils.train_utils import use_ema
 
 
 class DiffusionTrainer:
@@ -116,6 +105,16 @@ class DiffusionTrainer:
                 self.config.ema_rate
             ),
         )
+
+        # Initialize power-ema models
+        self.power_ema_gammas = [16.97, 6.94]
+        self.power_ema_models = [
+            torch.optim.swa_utils.AveragedModel(
+                self.inner_model,
+                multi_avg_fn=utils.train_utils.get_power_ema_avg_fn(gamma),
+            )
+            for gamma in self.power_ema_gammas
+        ]
 
         # Initialize data
         self.dataset = dataset
@@ -254,6 +253,7 @@ class DiffusionTrainer:
         scaler = GradScaler()
         loss_buffer = []
         t0 = datetime.now()
+        power_ema_interval = iterations // self.config.power_ema_snapshots
 
         def dt():
             return datetime.now() - t0
@@ -314,6 +314,11 @@ class DiffusionTrainer:
                     f"iter_{i+1:08d}", self.inner_model, self.ema_model, self.optimizer
                 )
 
+            # Save power ema models
+            if (i + 1) % power_ema_interval == 0:
+                logging.info(f"Saving power ema models at iteration {i+1}...")
+                OM.save_power_ema(self.power_ema_models, i + 1, self.power_ema_gammas)
+
         logging.info(f"Training time {dt()} - Done!")
 
     def handle_batch(self, batch):
@@ -355,6 +360,10 @@ class DiffusionTrainer:
 
         # Update EMA model
         self.ema_model.update_parameters(self.inner_model)
+
+        # Update power ema models
+        for power_ema_model in self.power_ema_models:
+            power_ema_model.update_parameters(self.inner_model)
 
         return loss
 

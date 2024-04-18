@@ -9,14 +9,10 @@ import torch
 from utils.paths import MODEL_PARENT
 
 
-class OutputManager():
+class OutputManager:
 
     def __init__(
-        self,
-        model_name,
-        override=False,
-        pickup=False,
-        parent_dir=MODEL_PARENT
+        self, model_name, override=False, pickup=False, parent_dir=MODEL_PARENT
     ):
         self.model_name = model_name
         self.override = override
@@ -44,19 +40,23 @@ class OutputManager():
         self.config_file = self.results_folder.joinpath(
             f"config_{self.model_name}.json"
         )
+        self.power_ema_file = self.results_folder.joinpath(
+            f"power_ema_{self.model_name}.pt"
+        )
 
         self.out_files = [
             self.train_loss_file,
             self.val_loss_file,
             self.parameters_file,
             self.config_file,
+            self.power_ema_file,
         ]
 
         self.log_file = self.results_folder.joinpath(
             f"training_log_{self.model_name}.log"
         )
         logging.basicConfig(
-            format='%(levelname)s: %(message)s',
+            format="%(levelname)s: %(message)s",
             level=logging.INFO,
             handlers=[
                 logging.FileHandler(
@@ -85,10 +85,7 @@ class OutputManager():
             self.results_folder = results_folder
 
     def _loss_files_exist(self):
-        exist = [
-            f.exists()
-            for f in [self.train_loss_file, self.val_loss_file]
-        ]
+        exist = [f.exists() for f in [self.train_loss_file, self.val_loss_file]]
         return all(exist)
 
     def _writer(self, f):
@@ -103,22 +100,22 @@ class OutputManager():
             if not self.override and f.exists():
                 raise FileExistsError(f"File {f} already exists.")
             if self.override and f.exists():
-                logging.warning(
-                    f"Overriding files for model {self.model_name}.\n")
+                logging.warning(f"Overriding files for model {self.model_name}.\n")
                 try:
-                    inputimeout(
-                        prompt="Press enter to continue...", timeout=10)
+                    inputimeout(prompt="Press enter to continue...", timeout=10)
                 except TimeoutOccurred:
                     logging.info("No key was pressed - training aborted.\n")
                     raise SystemExit
                 break
         self._init_loss_file(self.train_loss_file)
-        self._init_loss_file(self.val_loss_file,
-                             columns=["iteration", "loss", "ema_loss"])
+        self._init_loss_file(
+            self.val_loss_file, columns=["iteration", "loss", "ema_loss"]
+        )
 
     def init_training_loop_pickup(self):
-        assert self._loss_files_exist(), \
-            f"Loss files for model {self.model_name} do not exist."
+        assert (
+            self._loss_files_exist()
+        ), f"Loss files for model {self.model_name} do not exist."
 
     def init_training_loop(self):
         if self.pickup:
@@ -140,13 +137,7 @@ class OutputManager():
     def write_val_losses(self, losses):
         self._write_losses(self.val_loss_file, losses)
 
-    def save_params(
-        self,
-        model,
-        ema_model,
-        optimizer,
-        path=None
-    ):
+    def save_params(self, model, ema_model, optimizer, path=None):
         path = path or self.parameters_file
 
         # Helper function
@@ -168,10 +159,22 @@ class OutputManager():
         snap_dir.mkdir(parents=True, exist_ok=True)
 
         self.save_params(
-            model,
-            ema_model,
-            optimizer,
-            snap_dir.joinpath(f"snapshot_{snap_name}.pt")
+            model, ema_model, optimizer, snap_dir.joinpath(f"snapshot_{snap_name}.pt")
+        )
+
+    def save_power_ema(self, models, t, gammas):
+        power_ema_dir = self.results_folder.joinpath("power_ema")
+        power_ema_dir.mkdir(parents=True, exist_ok=True)
+
+        torch.save(
+            {
+                "time": t,
+                **{
+                    f"model_{gamma}": model.state_dict()
+                    for model, gamma in zip(models, gammas)
+                },
+            },
+            power_ema_dir.joinpath(f"power_ema_{t}.pt"),
         )
 
     def save_config(self, param_dict, iterations=None):

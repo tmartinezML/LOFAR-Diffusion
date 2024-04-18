@@ -1,4 +1,5 @@
 import tempfile
+import numbers
 
 import h5py
 import numpy as np
@@ -12,7 +13,6 @@ from datasets.cutouts import save_images_hpy5
 from utils.paths import cast_to_Path
 
 
-
 from pathlib import Path
 from collections.abc import Sequence
 import h5py
@@ -20,7 +20,6 @@ import pandas as pd
 import numpy as np
 import numpy.ma as ma
 from tqdm import tqdm
-from utils import normalize_image
 
 from astropy.stats import sigma_clip, sigma_clipped_stats
 
@@ -32,7 +31,7 @@ def clip_image(image, f_clip=1.5):
     if f_clip is None:
         return np.array(image)
 
-    elif f_clip is 0:
+    elif f_clip == 0:
         return np.clip(image, 0, np.inf)
 
     _, _, stddev = sigma_clipped_stats(data=image, sigma=3.0, maxiters=10)
@@ -52,47 +51,52 @@ def resize_image(image, size=128):
 
 def clip_cutouts(
     cutout_file: str | Path,
-    f_clip: float | list | tuple = (0, 1.5),
+    f_clip: numbers.Number | list | tuple = 0,
 ):
     # Load cutouts and catalog from file
+    print(f"Reading file {cutout_file.name}...")
     cutout_file = cast_to_Path(cutout_file)
     with h5py.File(cutout_file, "r") as f:
         images = np.array(f["cutouts"])
     catalog = pd.read_hdf(cutout_file, key="catalog")
+    catalog_flag = ~catalog["Problem_cutout"]
 
+    assert len(images) == sum(
+        catalog_flag
+    ), f"Number of images {len(images)} and catalog entries {sum(catalog_flag)} do not match."
+    
     # Clip images
-    if isinstance(f_clip, float):
+    if isinstance(f_clip, numbers.Number):
         f_clip = [f_clip]
 
     for clip in f_clip:
         images_clipped = []
+        clip_flag = np.zeros(len(catalog[catalog_flag]), dtype=bool)
+        sigma_snr_vals = -1 * np.ones(len(catalog[catalog_flag]), dtype=bool)
 
         # Loop through images for clipping and sigma-snr calculation
-        for image, name in zip(
-            tqdm(images, desc=f"Clipping {clip}sigma..."), catalog["Source_Name"]
-        ):
+        for i, image in enumerate(tqdm(images, desc=f"Clipping {clip}-sigma...")):
             # Clipping
             try:
                 image = clip_image(image, f_clip=clip)
-                catalog.loc[catalog["Source_Name"] == name, f"Clipped_{clip}sigma"] = (
-                    True
-                )
+                clip_flag[i] = True
                 images_clipped.append(image)
             except Exception:
-                catalog.loc[catalog["Source_Name"] == name, f"Clipped_{clip}sigma"] = (
-                    False
-                )
+                pass
 
             # Sigma SNR:
             try:
-                snr = sigma_snr(image, threshold=5)
-                catalog.loc[
-                    catalog["Source_Name"] == name, f"Sigma_SNR_{clip}sigma"
-                ] = snr
+                sigma_snr_vals[i] = sigma_snr(image, threshold=5)
             except Exception:
-                catalog.loc[
-                    catalog["Source_Name"] == name, f"Sigma_SNR_{clip}sigma"
-                ] = -1
+                pass
+
+        # Write values into catalog
+        print("Updating catalog...")
+        catalog[f"Clipped_{clip}sigma"] = np.zeros(len(catalog), dtype=bool)
+        catalog[f"Sigma_SNR_{clip}sigma"] = -1 * np.ones(len(catalog), dtype=bool)
+
+        catalog.loc[catalog_flag, f"Clipped_{clip}sigma"] = clip_flag
+        catalog.loc[catalog_flag, f"Sigma_SNR_{clip}sigma"] = sigma_snr_vals
 
         # Save clipped images to same file as new dataset
         print("Saving images...")
@@ -107,7 +111,7 @@ def clip_cutouts(
     catalog.to_hdf(
         cutout_file,
         key="catalog",
-        mode="w",
+        mode="a",
     )
     print("Done.")
 
@@ -273,7 +277,6 @@ def remove_problematic_sources(catalog):
     return catalog
 
 
-
 def sigma_mask(img, threshold=5):
     _, med, std = sigma_clipped_stats(img)
     return img > med + threshold * std
@@ -366,23 +369,31 @@ def threshold_mask(
 
 def create_subset(
     cutouts_file,
+    subset_name,
     clip_sigma=None,
     las_thr=0.0,
     flux_thr=0.0,
     peak_flux=False,
     SNR_thr=None,
     edge_thr=0.8,
-    tag="norm",
-    norm_dset=False,
 ):
+    # Read cutouts file
+    img_container = h5py.File(cutouts_file, "r")
 
-    # Get the images
+    # Specify dataset tag
     tag = f"cutouts_{clip_sigma}sigma" if clip_sigma is not None else "cutouts"
+
+    # See if dataset is available. If not, clip images first to create.
+    if tag not in img_container:
+        # Close img container
+        img_container.close()
+        print(f"\t{tag} dataset not found. Clipping images...")
+        clip_cutouts(cutouts_file, f_clip=clip_sigma)
+        img_container = h5py.File(cutouts_file, "r")
+
+    # Read images
     print(f"Reading images: {tag}...")
-    with h5py.File(cutouts_file, "r") as f:
-        images = np.array(
-            f[tag]
-        )
+    images = np.array(f[tag])
     print(f"\t{len(images):_} images in catalog.\n")
 
     # Get the catalog
@@ -434,31 +445,25 @@ def create_subset(
 
     # Combine the masks to create the 'cleaned' catalog mask
     print("\tCombining masks...")
-    subcat_mask = ~(
+    subset_mask = ~(
         problem_mask | las_mask | flux_mask | SNR_mask | edge_mask | broken_mask
     )
-    n_bad = (~subcat_mask).sum()
+    n_bad = (~subset_mask).sum()
     print(f"\t{n_bad:_} sources will be removed. {n0 - n_bad:_} sources in subset.\n")
 
     # Filter dataset
     print("Applying mask...")
-    images_subset = images[subcat_mask]
-    names_subset = names[subcat_mask]
-
-    if norm_dset:
-        print("Normalizing dataset...")
-        norm_attrs = {"norm_min": images_subset.min(), "norm_max": images_subset.max()}
-        images_subset = normalize_image(images_subset)
+    images_subset = images[subset_mask]
+    catalog_subset = catalog[subset_mask]
 
     # Create the subset in new file
-    print(f"Creating subset file...")
+    print(f"Saving subset to file...")
     subset_file = Path(cutouts_file).parent.parent / f"{subset_name}.hdf5"
     with h5py.File(subset_file, "w") as f:
         img_dataset = f.create_dataset("images", data=images_subset)
         img_dataset.attrs["las_threshold"] = las_thr
         img_dataset.attrs["flux_threshold"] = flux_thr
         img_dataset.attrs["peak_flux"] = peak_flux
-        img_dataset.attrs["catalog_file"] = str(catalog_file)
         img_dataset.attrs["processed_file"] = str(cutouts_file)
         processed_attrs = {
             key: value
@@ -466,9 +471,8 @@ def create_subset(
             for (key, value) in dset.attrs.items()
         }
         img_dataset.attrs.update(processed_attrs)
-        img_dataset.attrs["norm_subset"] = norm_dset
-        if norm_dset:
-            img_dataset.attrs.update(norm_attrs)
-        f.create_dataset("names", data=names_subset)
+
+    print("Saving catalog to file...")
+    catalog_subset.to_hdf(subset_file, key="catalog", mode="a")
 
     print(f"Subset file created:\n\t{subset_file}\n")

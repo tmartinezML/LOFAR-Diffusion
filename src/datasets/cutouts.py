@@ -1,4 +1,5 @@
 import tempfile
+import cProfile
 
 import h5py
 import numpy as np
@@ -120,25 +121,35 @@ def get_cutouts(
     out_name = f"cutouts"
     out_name += f"_{size_px}p" if size_px is not None else f"_{f}las".replace(".", "p")
     out_name += "_optC" if opt_c else "_radioC"
-    out_file = export_dir / f"{out_name}_{fname_comment}.hdf5"
+    out_name += "_" * int(bool(len(fname_comment))) + fname_comment
+    out_file = export_dir / f"{out_name}.hdf5"
 
     assert not out_file.exists(), f"{out_file} already exists. Aborted for safety."
 
     # Read catalog
-    catalog = catalog or pd.read_csv(catalog_file)
+    catalog = catalog if catalog is not None else pd.read_csv(catalog_file)
 
     # Create columns in catalog for problems,
     # will be set to True if there is a problem
-    catalog["Problem_cutout"] = False
-    catalog["Nans_cutout"] = False
+    problem_cutouts = np.zeros(len(catalog), dtype=bool)
+    nans_cutouts = np.zeros(len(catalog), dtype=bool)
 
     # Loop through unique mosaic IDs in catalogue
     mosaic_ids = catalog["Mosaic_ID"].unique()
+    catalog.set_index("Mosaic_ID", inplace=True)
     images = []
     for mosaic in tqdm(mosaic_ids, desc="Looping through mosaics..."):
 
         # Filter catalogue for sources in mosaic
-        catalog_mosaic = catalog[catalog["Mosaic_ID"] == mosaic]
+        catalog_mosaic = catalog.loc[mosaic]
+        if isinstance(catalog_mosaic, pd.Series):
+            catalog_mosaic = pd.concat(
+                [
+                    pd.DataFrame([i], columns=[name])
+                    for name, i in catalog_mosaic.items()
+                ],
+                axis=1,
+            )
 
         # Assign variables from catalogue:
         # Names
@@ -186,12 +197,17 @@ def get_cutouts(
                 images.append(img_data)
 
                 # Set Nans_cutout to True if there are NaNs
-                catalog.loc[source_mask, "Nans_cutout"] = contain_nan
+                nans_cutouts[source_mask] = contain_nan
 
             except Exception as exc:
                 print(f"Problem with {name} cutout.\n{exc}")
-                catalog.loc[source_mask, "Problem_cutout"] = True
+                problem_cutouts[source_mask] = True
 
+    # Update catalog
+    print("Updating catalog...")
+    catalog.reset_index(inplace=True)
+    catalog["Problem_cutout"] = problem_cutouts
+    catalog["Nans_cutout"] = nans_cutouts
 
     print("Saving images...")
     save_images_hpy5(
@@ -208,7 +224,7 @@ def get_cutouts(
         dtype=h5py.vlen_dtype(images[0].dtype) if size_px is None else None,
     )
 
-    print("Saving catalog...")
+    print("Saving catalog... (this might take a while)")
     catalog.to_hdf(
         out_file,
         key="catalog",
@@ -224,28 +240,22 @@ def save_images_hpy5(
 ):
     out_file = h5py.File(save_path, "a")
 
-    # Create a dataset in the file
-    match img_array:
-        # Used for fixed size images
-        case np.ndarray():
-            img_dset = out_file.create_dataset(dset_name, data=img_array, dtype=dtype)
+    # Variable length
+    if h5py.check_vlen_dtype(dtype) is not None:
+        img_dset = out_file.create_dataset(dset_name, (len(img_array),), dtype=dtype)
+        shapes = []
+        for i, img in enumerate(img_array):
+            img_dset[i] = img.flatten()
+            shapes.append(img.shape)
+        img_dset.attrs["flattened"] = True
+        out_file.create_dataset(
+            f"{dset_name}_shapes",
+            data=np.array(shapes),
+        )
 
-        # Used for variable size images
-        case list():
-            print("Creating variable size dataset.")
-            dtype = h5py.vlen_dtype(img_array[0].dtype)
-            img_dset = out_file.create_dataset(
-                dset_name, (len(img_array),), dtype=dtype
-            )
-            shapes = []
-            for i, img in enumerate(img_array):
-                img_dset[i] = img.flatten()
-                shapes.append(img.shape)
-            img_dset.attrs["flattened"] = True
-            out_file.create_dataset(
-                f"{dset_name}_shapes",
-                data=np.array(shapes),
-            )
+    # Fixed length
+    else:
+        img_dset = out_file.create_dataset(dset_name, data=img_array, dtype=dtype)
 
     # Add source names if passed:
     if src_names is not None:
@@ -261,5 +271,6 @@ def save_images_hpy5(
 
     out_file.close()
 
-if __name__=='__main__':
+
+if __name__ == "__main__":
     get_cutouts()
