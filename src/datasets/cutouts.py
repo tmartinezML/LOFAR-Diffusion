@@ -2,13 +2,14 @@ import tempfile
 
 import h5py
 import numpy as np
+import pandas as pd
 from tqdm import tqdm
 from astropy.io import fits
 from astropy.wcs import WCS
 from astropy.nddata import Cutout2D
 from astropy.coordinates import SkyCoord
 
-from utils.paths import cast_to_Path, MOSAIC_DIR, CUTOUTS_DIR
+from utils.paths import cast_to_Path, MOSAIC_DIR, CUTOUTS_DIR, LOFAR_RES_CAT
 
 
 def single_cutout(
@@ -99,11 +100,12 @@ def cutout_from_catalog(catalog, ind, mask_nan=False, size_px=None, opt_c=True):
 
 
 def get_cutouts(
-    catalog,
-    size_px=None,
+    size_px=80,
     f=1.5,
     opt_c=True,
     fname_comment="",
+    catalog=None,
+    catalog_file=LOFAR_RES_CAT,
     export_dir=CUTOUTS_DIR,
     mosaic_dir=MOSAIC_DIR,
 ):
@@ -121,6 +123,9 @@ def get_cutouts(
     out_file = export_dir / f"{out_name}_{fname_comment}.hdf5"
 
     assert not out_file.exists(), f"{out_file} already exists. Aborted for safety."
+
+    # Read catalog
+    catalog = catalog or pd.read_csv(catalog_file)
 
     # Create columns in catalog for problems,
     # will be set to True if there is a problem
@@ -187,6 +192,8 @@ def get_cutouts(
                 print(f"Problem with {name} cutout.\n{exc}")
                 catalog.loc[source_mask, "Problem_cutout"] = True
 
+
+    print("Saving images...")
     save_images_hpy5(
         np.array(images) if size_px is not None else images,
         out_file,
@@ -200,13 +207,15 @@ def get_cutouts(
         },
         dtype=h5py.vlen_dtype(images[0].dtype) if size_px is None else None,
     )
+
+    print("Saving catalog...")
     catalog.to_hdf(
         out_file,
         key="catalog",
         format="table",
         mode="a",
     )
-
+    print("Done.")
     return catalog, out_file
 
 
@@ -251,3 +260,6 @@ def save_images_hpy5(
         img_dset.attrs[key] = value
 
     out_file.close()
+
+if __name__=='__main__':
+    get_cutouts()
