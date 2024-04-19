@@ -111,7 +111,7 @@ class DiffusionTrainer:
         self.power_ema_models = [
             torch.optim.swa_utils.AveragedModel(
                 self.inner_model,
-                multi_avg_fn=utils.train_utils.get_power_ema_avg_fn(gamma),
+                avg_fn=utils.train_utils.get_power_ema_avg_fn(gamma),
             )
             for gamma in self.power_ema_gammas
         ]
@@ -434,6 +434,8 @@ class DiffusionTrainer:
                 self.inner_model,
                 self.ema_model,
                 self.optimizer,
+                self.power_ema_models,
+                self.power_ema_gammas,
             )
         OM.save_config(self.config.param_dict, iterations=i + 1)
         loss_buffer.clear()

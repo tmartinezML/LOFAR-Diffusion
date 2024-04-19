@@ -137,7 +137,9 @@ class OutputManager:
     def write_val_losses(self, losses):
         self._write_losses(self.val_loss_file, losses)
 
-    def save_params(self, model, ema_model, optimizer, path=None):
+    def save_params(
+        self, model, ema_model, optimizer, power_ema_models, gammas, path=None
+    ):
         path = path or self.parameters_file
 
         # Helper function
@@ -150,6 +152,10 @@ class OutputManager:
                 "model": state_dict_or_none(model),
                 "ema_model": state_dict_or_none(ema_model),
                 "optimizer": state_dict_or_none(optimizer),
+                **{
+                    f"power_ema_{gamma}": state_dict_or_none(model)
+                    for model, gamma in zip(power_ema_models, gammas)
+                },
             },
             path,
         )

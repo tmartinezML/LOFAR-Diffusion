@@ -24,7 +24,7 @@ def DummyConfig():
         ema_rate=0.9999,
         log_interval=5,
         snapshot_interval=50,
-        val_every=10,
+        val_every=50,
         sigma_data=0.5,
         P_mean=-2.5,
         P_std=1.8,

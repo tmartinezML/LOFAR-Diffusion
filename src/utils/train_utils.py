@@ -20,8 +20,7 @@ class use_ema:
 def get_power_ema_avg_fn(gamma):
     @torch.no_grad()
     def ema_update(ema_param: torch.Tensor, current_param: torch.Tensor, num_averaged):
-        t = num_averaged + 1
-        beta = (1 - 1 / t)**(gamma + 1)
+        beta = (1 - 1 / num_averaged)**(gamma + 1)
         return beta * ema_param + (1 - beta) * current_param
 
     return ema_update
