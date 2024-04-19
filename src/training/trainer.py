@@ -146,7 +146,7 @@ class DiffusionTrainer:
 
         if pickup:
             logging.info(
-                f"Picking up model, EMA and optimizer from {self.OM.model_name}."
+                f"Picking up model, EMA, optimizer and PowerEMA from {self.OM.model_name}."
             )
             self.load_state()
 
@@ -222,10 +222,15 @@ class DiffusionTrainer:
     def load_optimizer(self):
         self.optimizer.load_state_dict(self.read_parameters("optimizer"))
 
+    def load_power_ema(self):
+        for gamma, model in zip(self.power_ema_gammas, self.power_ema_models):
+            model.load_state_dict(self.read_parameters(f"power_ema_{gamma}"))
+
     def load_state(self):
         self.load_model()
         self.load_ema()
         self.load_optimizer()
+        self.load_power_ema()
 
     def training_loop(
         self,
