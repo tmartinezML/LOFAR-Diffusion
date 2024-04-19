@@ -3,7 +3,7 @@ import numpy as np
 import torch
 
 
-def plot_image_grid(imgs, suptitle=None, vmin=-1, vmax=1, savefig=None,
+def plot_image_grid(imgs, suptitle=None, vmin=0, vmax=1, savefig=None,
                     n_rows=None, n_cols=None, titles=None, **imshow_kwargs):
 
     if isinstance(imgs, list):

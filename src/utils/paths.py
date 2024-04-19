@@ -1,45 +1,53 @@
 from pathlib import Path
 import os
+from indexed import IndexedOrderedDict
 
 # Base directories for code base & storage
 BASE_PARENT = Path(os.getcwd()).parent
 STORAGE_PARENT = Path("/hs/fs08/data/group-brueggen/tmartinez")
 
 # Three main storage folders.
-MODEL_PARENT = STORAGE_PARENT / 'model_results'
-ANALYSIS_PARENT = STORAGE_PARENT / 'analysis_results'
-IMG_DATA_PARENT = STORAGE_PARENT / 'image_data'
+MODEL_PARENT = STORAGE_PARENT / "model_results"
+ANALYSIS_PARENT = STORAGE_PARENT / "analysis_results"
+IMG_DATA_PARENT = STORAGE_PARENT / "image_data"
 # Create symlinks to the code base
 for p in [MODEL_PARENT, ANALYSIS_PARENT, IMG_DATA_PARENT]:
     symlink = BASE_PARENT / p.name
     if not symlink.exists():
         symlink.symlink_to(p)
     else:
-        assert symlink.resolve() == p, (
-            f"Broken folder structure: Symlink {symlink} points to {symlink.resolve()}."
-        )
+        assert (
+            symlink.resolve() == p
+        ), f"Broken folder structure: Symlink {symlink} points to {symlink.resolve()}."
 
 # Folders for different kinds of image data
-GEN_DATA_PARENT = IMG_DATA_PARENT / 'generated'
-LOFAR_DATA_PARENT = IMG_DATA_PARENT / 'LOFAR'
-FIRST_DATA_PARENT = IMG_DATA_PARENT / 'FIRST'
+GEN_DATA_PARENT = IMG_DATA_PARENT / "generated"
+LOFAR_DATA_PARENT = IMG_DATA_PARENT / "LOFAR"
+FIRST_DATA_PARENT = IMG_DATA_PARENT / "FIRST"
 
 # Other useful folders
-PLAYGROUND_DIR = ANALYSIS_PARENT / 'playground'
-DEBUG_DIR = MODEL_PARENT / 'debug'
+PLAYGROUND_DIR = ANALYSIS_PARENT / "playground"
+DEBUG_DIR = MODEL_PARENT / "debug"
 
 # Train data subsets
-LOFAR_SUBSETS = {k: LOFAR_DATA_PARENT / v for k, v in {
-    '0-clip_unscaled': 'lofar_120asLimit_80p_0-clipped_f-thr=0_SNR>=5_subset.hdf5',
-    '120asLimit_SNR>=5': 'lofar_120asLimit_80p_unclipped_f-thr=0_SNR>=5_subset.hdf5',
-    '50asLimit_SNR>=5': 'lofar_50asLimit_80p_unclipped_subset_f-thr=0_SNR>=5.hdf5',
-    '1.5LAS_f-thr=0.75': 'lofar_1p5las_80p_unclipped_subset_f-thr=0p75.hdf5',
-}.items()}
+LOFAR_SUBSETS = IndexedOrderedDict(
+    {
+        k: (LOFAR_DATA_PARENT / "subsets") / v
+        for k, v in {
+            "0-clip": "0-clip.hdf5",
+            "1.5-clip": "1p5sigma-clip.hdf5",
+            "unclipped": "unclipped.hdf5",
+            "0-clip_unscaled": "lofar_120asLimit_80p_0-clipped_f-thr=0_SNR>=5_subset.hdf5",
+            "120asLimit_SNR>=5": "lofar_120asLimit_80p_unclipped_f-thr=0_SNR>=5_subset.hdf5",
+        }.items()
+    }
+)
 
 # Paths for training data processing
-MOSAIC_DIR = '/hs/fs05/data/AG_Brueggen/nicolasbp/RadioGalaxyImage/data/mosaics_public'
-CUTOUTS_DIR = LOFAR_DATA_PARENT / 'cutouts'
-LOFAR_RES_CAT = LOFAR_DATA_PARENT / '6-LoTSS_DR2-public-resolved_sources.csv'
+MOSAIC_DIR = "/hs/fs05/data/AG_Brueggen/nicolasbp/RadioGalaxyImage/data/mosaics_public"
+CUTOUTS_DIR = LOFAR_DATA_PARENT / "cutouts"
+LOFAR_RES_CAT = LOFAR_DATA_PARENT / "6-LoTSS_DR2-public-resolved_sources.csv"
+
 
 def cast_to_Path(path):
     """
@@ -51,7 +59,7 @@ def cast_to_Path(path):
         case str():
             return Path(path)
         case _:
-            raise TypeError(f'Expected Path or str, got {type(path)}')
+            raise TypeError(f"Expected Path or str, got {type(path)}")
 
 
 if __name__ == "__main__":

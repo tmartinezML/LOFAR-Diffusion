@@ -5,19 +5,24 @@ import random
 import torch
 import h5py
 import numpy as np
-from torch.utils.data import DataLoader
-from torchvision.transforms import Compose, ToTensor, CenterCrop, Lambda
-from astropy.stats import sigma_clipped_stats
-from tqdm import tqdm
+import pandas as pd
 from PIL import Image
+from tqdm import tqdm
+from torch.utils.data import DataLoader
+from astropy.stats import sigma_clipped_stats
 from sklearn.preprocessing import PowerTransformer
+from torchvision.transforms import Compose, ToTensor, CenterCrop, Lambda
 
 from utils import paths
+from plotting.plot_images import plot_image_grid
 
 
 def load_data(dataset, batch_size, shuffle=True):
     loader = DataLoader(
-        dataset, batch_size=batch_size, shuffle=shuffle, num_workers=4,
+        dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        num_workers=4,
         drop_last=True,
         pin_memory=True,
     )
@@ -46,42 +51,46 @@ def minmax_scale(img):
 
 
 def train_transform(image_size):
-    transform = Compose([
-        # ToTensor(),
-        CenterCrop(image_size),
-        Lambda(single_channel),  # Only one channel
-        Lambda(minmax_scale),  # Scale to [0, 1]
-        Lambda(train_scale),  # Scale to [-1, 1]
-    ])
+    transform = Compose(
+        [
+            # ToTensor(),
+            CenterCrop(image_size),
+            Lambda(single_channel),  # Only one channel
+            Lambda(minmax_scale),  # Scale to [0, 1]
+            Lambda(train_scale),  # Scale to [-1, 1]
+        ]
+    )
     return transform
 
 
 def eval_transform(image_size):
-    transform = Compose([
-        Lambda(single_channel),  # Only one channel
-        Lambda(minmax_scale),  # Scale to [0, 1]
-        CenterCrop(image_size),
-    ])
+    transform = Compose(
+        [
+            Lambda(single_channel),  # Only one channel
+            Lambda(minmax_scale),  # Scale to [0, 1]
+            CenterCrop(image_size),
+        ]
+    )
     return transform
 
 
 def eval_transform_FIRST(image_size):
-    transform = Compose([
-        ToTensor(),
-        Lambda(single_channel),  # Only one channel
-        Lambda(minmax_scale),  # Scale to [0, 1]
-        CenterCrop(image_size),
-    ])
+    transform = Compose(
+        [
+            ToTensor(),
+            Lambda(single_channel),  # Only one channel
+            Lambda(minmax_scale),  # Scale to [0, 1]
+            CenterCrop(image_size),
+        ]
+    )
     return transform
 
 
 def clip_and_rescale(img):
-    _, _, stddev = sigma_clipped_stats(data=img.squeeze(),
-                                       sigma=3.0, maxiters=10)
+    _, _, stddev = sigma_clipped_stats(data=img.squeeze(), sigma=3.0, maxiters=10)
     img_clip = torch.clamp(img, 3 * stddev, torch.inf)
-    img_norm = (
-        (img_clip - torch.min(img_clip))
-        / (torch.max(img_clip) - torch.min(img_clip))
+    img_norm = (img_clip - torch.min(img_clip)) / (
+        torch.max(img_clip) - torch.min(img_clip)
     )
     return img_norm
 
@@ -91,18 +100,21 @@ def make_subset(dataset, out_dir):
     imgs = dataset.data
     names = dataset.filenames
     for img, name in tqdm(zip(imgs, names), total=len(imgs)):
-        img.save(f'{out_dir}/{name}.png')
+        img.save(f"{out_dir}/{name}.png")
 
 
 class ImagePathDataset(torch.utils.data.Dataset):
     # From:
     #  https://github.com/mseitzer/pytorch-fid/blob/master/src/pytorch_fid/fid_score.py
     def __init__(
-            self, path,
-            transforms=ToTensor(),
-            n_subset=None,
-            labels=None,
-            key='images'):
+        self,
+        path,
+        transforms=ToTensor(),
+        n_subset=None,
+        labels=None,
+        key="images",
+        catalog_keys=[],
+    ):
 
         self.path = path
         self.transforms = transforms
@@ -113,13 +125,18 @@ class ImagePathDataset(torch.utils.data.Dataset):
             self.load_images_png(n_subset)
 
         elif path.suffix in [".hdf5", ".h5"]:
-            self.load_images_h5py(n_subset, key=key, labels=labels)
+            self.load_images_h5py(
+                n_subset, key=key, labels=labels, catalog_keys=catalog_keys
+            )
 
         elif path.suffix == ".pt":
             self.load_images_pt(n_subset)
 
         else:
             raise ValueError(f"Unknown file type: {path.suffix}")
+
+        if not hasattr(self, "max_values"):
+            self.set_max_values()
 
         print("Data set initialized.")
 
@@ -161,74 +178,95 @@ class ImagePathDataset(torch.utils.data.Dataset):
 
         # Select random subset if desired
         if n_subset is not None:
-            print(
-                f"Selecting {n_subset} random images"
-                f" from {len(files)} files."
-            )
+            print(f"Selecting {n_subset} random images" f" from {len(files)} files.")
             self.files = random.sample(files, k=n_subset)
 
         print("Loading images...")
-        def load(f): return ToTensor()(Image.open(f).convert("RGB"))
+
+        def load(f):
+            return ToTensor()(Image.open(f).convert("RGB"))
+
         self.data = list(map(load, tqdm(files, ncols=80)))
         self.names = [f.stem for f in files]
 
-    def load_images_h5py(self, n_subset=None, key='images', labels=None):
+    def load_images_h5py(
+        self, n_subset=None, key="images", labels=None, catalog_keys=[]
+    ):
 
-        with h5py.File(self.path, 'r') as f:
+        with h5py.File(self.path, "r") as f:
             images = f[key]
 
+            # Select images with labels if labels are passed
             if labels is not None:
                 print(f"Selecting images with label(s) {labels}")
-                idxs = np.isin(f[f'{key}_labels'], labels)
+                idxs = np.isin(f[f"{key}_labels"], labels)
                 images = images[idxs]
 
+            # Select random subset if n_subset is passed
             n_tot = len(images)
             if n_subset is not None:
-                assert n_subset <= n_tot, (
-                    "Requested subset size is larger than total number of images."
-                )
+                assert (
+                    n_subset <= n_tot
+                ), "Requested subset size is larger than total number of images."
                 print(
                     f"Selecting {n_subset} random images"
                     f" from {n_tot} images in hdf5 file."
                 )
-                idxs = sorted(
-                    random.sample(range(n_tot), k=n_subset)
-                )
+                idxs = sorted(random.sample(range(n_tot), k=n_subset))
             else:
                 idxs = slice(None)
             print("Loading images...")
             self.data = torch.tensor(images[idxs])
 
             # See if names are available
-            if 'names' in f:
-                self.names = np.array(f['names'].asstr()[idxs])
-            else:
-                print("No names loaded from hdf5 file.")
-                self.names = np.arange(n_tot)[idxs]
+            if "names" in f:
+                self.names = np.array(f["names"].asstr()[idxs])
 
             # Add variable attributes depending on keys in file
             for key in f.keys():
-                if key not in ['images', 'names']:
+                if key not in ["images", "names", "catalog"]:
                     setattr(self, key, torch.tensor(f[key][idxs]))
 
+            # Load selected attributes if catalog is available
+            if "catalog" in f.keys():
+                catalog = pd.read_hdf(self.path, key="catalog")
+                self.names = catalog["Source_Name"].values[idxs]
+                for key in catalog_keys:
+                    setattr(self, key, catalog[key].values[idxs])
+
+            if not hasattr(self, "names"):
+                print("No names loaded from hdf5 file.")
+                self.names = np.arange(n_tot)[idxs]
+
     def load_images_pt(self, n_subset=None):
-        batch_st = torch.load(self.path, map_location='cpu')
+        batch_st = torch.load(self.path, map_location="cpu")
         samples_itr = torch.clamp(batch_st[:, -1, :, :, :], 0, 1)
         n_tot = len(samples_itr)
 
         if n_subset is not None:
             print(
-                f"Selecting {n_subset} random images"
-                f" from {len(samples_itr)} files."
+                f"Selecting {n_subset} random images" f" from {len(samples_itr)} files."
             )
-            idxs = sorted(
-                random.sample(range(n_tot), k=n_subset)
-            )
+            idxs = sorted(random.sample(range(n_tot), k=n_subset))
         else:
             idxs = slice(None)
 
         self.data = samples_itr[idxs]
         self.names = np.arange(n_tot)[idxs]
+
+    def plot_image_grid(self, n_imgs=64, **kwargs):
+        # pick n_imgs random images
+        idxs = np.random.choice(len(self), n_imgs, replace=False)
+
+        # Plot
+        return plot_image_grid(
+            [self[i] for i in idxs],
+            titles=[self.names[i] for i in idxs],
+            **kwargs,
+        )
+
+    def set_max_values(self):
+        self.max_values = torch.stack([torch.max(img) for img in self.data])
 
 
 class EvaluationDataset(ImagePathDataset):
@@ -241,14 +279,13 @@ class TrainDataset(ImagePathDataset):
         super().__init__(path, transforms=train_transform(img_size), **kwargs)
 
     def transform_max_vals(self):
-        assert hasattr(self, 'max_values'), (
-            "Dataset does not contain max values."
-        )
-        pt = PowerTransformer(method='box-cox')
+        if not hasattr(self, "max_values"):
+            self.set_max_values()
+
+        pt = PowerTransformer(method="box-cox")
         pt.fit(self.max_values.view(-1, 1))
         max_values_tr = pt.transform(self.max_values.view(-1, 1))
 
         self.max_values_tr = max_values_tr.reshape(self.max_values.shape)
         self.box_cox_lambda = pt.lambdas_
-        print(
-            f"Max values transformed with Box-Cox transformation ({pt.lambdas_}).")
+        print(f"Max values transformed with Box-Cox transformation ({pt.lambdas_}).")

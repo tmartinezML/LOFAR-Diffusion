@@ -138,7 +138,7 @@ class OutputManager:
         self._write_losses(self.val_loss_file, losses)
 
     def save_params(
-        self, model, ema_model, optimizer, power_ema_models, gammas, path=None
+        self, model, ema_model, optimizer, power_ema_models=[], gammas=[], path=None
     ):
         path = path or self.parameters_file
 

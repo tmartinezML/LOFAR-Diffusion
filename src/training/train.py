@@ -38,7 +38,7 @@ if __name__ == "__main__":
     trainer = DiffusionTrainer(
         config=conf,
         dataset=dataset,
-        pickup=False,
+        pickup=True,
     )
 
     wandb.init(

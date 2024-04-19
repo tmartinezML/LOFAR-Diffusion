@@ -11,6 +11,7 @@ from astropy.nddata import Cutout2D
 from astropy.coordinates import SkyCoord
 
 from utils.paths import cast_to_Path, MOSAIC_DIR, CUTOUTS_DIR, LOFAR_RES_CAT
+import utils.image_utils as imgutil
 
 
 def single_cutout(
@@ -233,6 +234,46 @@ def get_cutouts(
     )
     print("Done.")
     return catalog, out_file
+
+
+def scan_cutouts(cutout_file):
+    # Load cutouts and catalog from file
+    print(f"Reading file {cutout_file.name}...")
+    cutout_file = cast_to_Path(cutout_file)
+    with h5py.File(cutout_file, "r") as f:
+        images = np.array(f["cutouts"])
+    catalog = pd.read_hdf(cutout_file, key="catalog")
+    catalog_flag = ~catalog["Problem_cutout"]
+
+    assert len(images) == sum(
+        catalog_flag
+    ), f"Number of images {len(images)} and catalog entries {sum(catalog_flag)} do not match."
+
+    # Add broken flag
+    print("Adding broken flag...")
+    broken_flag = imgutil.broken_image_mask(images)
+    catalog["Broken_cutout"] = False
+    catalog.loc[catalog_flag, "Broken_cutout"] = broken_flag
+
+    # Add edge relative max
+    print("Adding edge relative max...")
+    edge_relative_max = imgutil.edge_relative_max(images)
+    catalog["Edge_max"] = 1
+    catalog.loc[catalog_flag, "Edge_max"] = edge_relative_max
+
+    # Add Sigma-SNR
+    print("Adding Sigma-SNR...")
+    sigma_snr_vals = imgutil.sigma_snr_set(images)
+    catalog["Sigma_SNR"] = -1
+    catalog.loc[catalog_flag, "Sigma_SNR"] = sigma_snr_vals
+
+    # Update catalog in file
+    print("Saving catalog...")
+    catalog.to_hdf(
+        cutout_file,
+        key="catalog",
+        mode="a",
+    )
 
 
 def save_images_hpy5(
