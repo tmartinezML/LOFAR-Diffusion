@@ -193,3 +193,4 @@ def create_subset(
     catalog_subset.to_hdf(subset_file, key="catalog", mode="a")
 
     print(f"Subset file created:\n\t{subset_file}\n")
+    img_container.close()
