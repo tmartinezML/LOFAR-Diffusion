@@ -19,11 +19,11 @@ def DummyConfig():
         pretrained_model=None,
         # Training parameters
         batch_size=128,
-        iterations=100,
+        iterations=50,
         learning_rate=2e-5,
         ema_rate=0.9999,
         log_interval=5,
-        snapshot_interval=50,
+        snapshot_interval=10,
         val_every=50,
         sigma_data=0.5,
         P_mean=-2.5,

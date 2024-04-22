@@ -3,8 +3,17 @@ import numpy as np
 import torch
 
 
-def plot_image_grid(imgs, suptitle=None, vmin=0, vmax=1, savefig=None,
-                    n_rows=None, n_cols=None, titles=None, **imshow_kwargs):
+def plot_image_grid(
+    imgs,
+    suptitle=None,
+    vmin=0,
+    vmax=1,
+    savefig=None,
+    n_rows=None,
+    n_cols=None,
+    titles=None,
+    **imshow_kwargs,
+):
 
     if isinstance(imgs, list):
         imgs = np.array(imgs)
@@ -19,8 +28,12 @@ def plot_image_grid(imgs, suptitle=None, vmin=0, vmax=1, savefig=None,
         n_rows = n_rows or n
         n_cols = n_cols or n
 
-    fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, constrained_layout=True,
-                            figsize=(3 * n_cols, 3 * n_rows))
+    fig, axs = plt.subplots(
+        nrows=n_rows,
+        ncols=n_cols,
+        constrained_layout=True,
+        figsize=(3 * n_cols, 3 * n_rows),
+    )
     flat_axs = axs.flat if isinstance(axs, np.ndarray) else [axs]
 
     if titles is not None:
@@ -29,7 +42,7 @@ def plot_image_grid(imgs, suptitle=None, vmin=0, vmax=1, savefig=None,
             f"({len(imgs)})."
         )
     for i, (ax, img) in enumerate(zip(flat_axs, imgs)):
-        ax.axis('off')
+        ax.axis("off")
         ax.imshow(img.squeeze(), vmin=vmin, vmax=vmax, **imshow_kwargs)
 
         # Set axis title if titles are passed
@@ -47,7 +60,7 @@ def plot_image_grid(imgs, suptitle=None, vmin=0, vmax=1, savefig=None,
             ax.set_title(t_str)
 
     if suptitle is not None:
-        fig.suptitle(suptitle, fontsize='xx-large')
+        fig.suptitle(suptitle, fontsize="xx-large")
 
     if savefig is not None:
         fig.savefig(savefig)
@@ -55,9 +68,10 @@ def plot_image_grid(imgs, suptitle=None, vmin=0, vmax=1, savefig=None,
     return fig, axs
 
 
-def plot_image_grid_from_file(path, n_rows=5, n_cols=None, save=False,
-                              idx_titles=False, **kwargs):
-    imgs = torch.load(path, map_location='cpu')
+def plot_image_grid_from_file(
+    path, n_rows=5, n_cols=None, save=False, idx_titles=False, **kwargs
+):
+    imgs = torch.load(path, map_location="cpu")
 
     if n_cols is None:
         n_cols = n_rows
@@ -71,9 +85,7 @@ def plot_image_grid_from_file(path, n_rows=5, n_cols=None, save=False,
     )
 
 
-def metric_peek(metric, edges, images,
-                names=None, n_examples=10, metric_name='Metric'
-                ):
+def metric_peek(metric, edges, images, names=None, n_examples=10, metric_name="Metric"):
     # Find indices of the bins to which each value in input array belongs.
     binned_idxs = np.digitize(metric, edges)
 
@@ -82,11 +94,11 @@ def metric_peek(metric, edges, images,
 
         # Print the bin range
         if i_bin == len(edges):
-            suptitle = f'Bin {i_bin} - {edges[i_bin-1]:.2f} <= {metric_name}'
+            suptitle = f"Bin {i_bin} - {edges[i_bin-1]:.2e} <= {metric_name}"
         else:
             suptitle = (
-                f'Bin {i_bin} - '
-                f'{metric_name} in [{edges[i_bin-1]:.2f}, {edges[i_bin]:.2f})'
+                f"Bin {i_bin} - "
+                f"{metric_name} in [{edges[i_bin-1]:.2e}, {edges[i_bin]:.2e})"
             )
 
         # Get the indices of the images in the bin
@@ -105,7 +117,10 @@ def metric_peek(metric, edges, images,
         n_row = int(np.ceil(len(img_idxs) / n_col))
 
         fig, axes = plt.subplots(
-            n_row, n_col, dpi=150, figsize=(3 * n_col, 3 * n_row + 0.75),
+            n_row,
+            n_col,
+            dpi=150,
+            figsize=(3 * n_col, 3 * n_row + 0.75),
             constrained_layout=True,
         )
         if len(img_idxs) == 1:
@@ -114,13 +129,14 @@ def metric_peek(metric, edges, images,
             ax = axes.flatten()[i]
             ax.imshow(img)
             value = (
-                metric.values[img_idxs[i]] if hasattr(metric, "values")
+                metric.values[img_idxs[i]]
+                if hasattr(metric, "values")
                 else metric[img_idxs[i]]
             )
             ax.set_title(
-                f'{names[img_idxs[i]] if names is not None else img_idxs[i]}\n'
-                f'{metric_name} = {value:.2f}'
+                f"{names[img_idxs[i]] if names is not None else img_idxs[i]}\n"
+                f"{metric_name} = {value:.2f}"
             )
-            ax.axis('off')
-        fig.suptitle(suptitle, fontsize='xx-large')
+            ax.axis("off")
+        fig.suptitle(suptitle, fontsize="xx-large")
         fig.show()

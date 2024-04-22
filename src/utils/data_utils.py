@@ -1,6 +1,7 @@
-from pathlib import Path
 import os
 import random
+from pathlib import Path
+from collections.abc import Iterable
 
 import torch
 import h5py
@@ -161,6 +162,23 @@ class ImagePathDataset(torch.utils.data.Dataset):
         else:
             return img
 
+    def boolean_slice(self, flag):
+        # Slice all attributes that have the same shape as self.data
+        for attr in self.__dict__.keys():
+            if (
+                hasattr(self, attr)
+                and attr != "data"
+                and isinstance(a := getattr(self, attr), Iterable)
+                and len(a) == len(self.data)
+            ):
+                setattr(self, attr, getattr(self, attr)[flag])
+
+        self.data = self.data[flag]
+
+        if len(self._context):
+            print("Context was reset.")
+            self.context = []
+
     def set_context(self, *args):
         assert all(hasattr(self, attr) for attr in args), (
             "Context attributes not found in dataset: "
@@ -216,7 +234,7 @@ class ImagePathDataset(torch.utils.data.Dataset):
             else:
                 idxs = slice(None)
             print("Loading images...")
-            self.data = torch.tensor(images[idxs])
+            self.data = torch.tensor(images[idxs], dtype=torch.float32)
 
             # See if names are available
             if "names" in f:
@@ -225,14 +243,18 @@ class ImagePathDataset(torch.utils.data.Dataset):
             # Add variable attributes depending on keys in file
             for key in f.keys():
                 if key not in ["images", "names", "catalog"]:
-                    setattr(self, key, torch.tensor(f[key][idxs]))
+                    setattr(self, key, torch.tensor(f[key][idxs], dtype=torch.float32))
 
             # Load selected attributes if catalog is available
             if "catalog" in f.keys():
                 catalog = pd.read_hdf(self.path, key="catalog")
                 self.names = catalog["Source_Name"].values[idxs]
                 for key in catalog_keys:
-                    setattr(self, key, catalog[key].values[idxs])
+                    setattr(
+                        self,
+                        key,
+                        torch.tensor(catalog[key].values[idxs], dtype=torch.float32),
+                    )
 
             if not hasattr(self, "names"):
                 print("No names loaded from hdf5 file.")

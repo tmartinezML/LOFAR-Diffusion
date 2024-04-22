@@ -165,7 +165,10 @@ class OutputManager:
         snap_dir.mkdir(parents=True, exist_ok=True)
 
         self.save_params(
-            model, ema_model, optimizer, snap_dir.joinpath(f"snapshot_{snap_name}.pt")
+            model,
+            ema_model,
+            optimizer,
+            path=snap_dir.joinpath(f"snapshot_{snap_name}.pt"),
         )
 
     def save_power_ema(self, models, t, gammas):

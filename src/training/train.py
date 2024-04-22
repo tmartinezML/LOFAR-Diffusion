@@ -28,17 +28,17 @@ if __name__ == "__main__":
     conf.model_name = f"PowerEMA"
 
     dataset = TrainDataset(
-        paths.LOFAR_SUBSETS['0-clip_unscaled'],
+        paths.LOFAR_SUBSETS["0-clip"],
     )
     conf.training_data = str(dataset.path)
-    conf.context = ['max_values_tr']
+    conf.context = ["max_values_tr"]
     conf.context_dropout = 0.1
     conf.power_ema_snapshots = 20
 
     trainer = DiffusionTrainer(
         config=conf,
         dataset=dataset,
-        pickup=True,
+        pickup=False,
     )
 
     wandb.init(
@@ -46,18 +46,18 @@ if __name__ == "__main__":
         config=conf.param_dict,
         # id='fdlc49ai',
         # resume='must',
-        dir=paths.ANALYSIS_PARENT / 'wandb',
+        dir=paths.ANALYSIS_PARENT / "wandb",
     )
     trainer.training_loop()
 
-    '''
+    """
     pickup_path = result_parent / conf.model_name
     trainer = DiffusionTrainer.from_pickup(
         path=pickup_path,
         config=conf,
         dataset=LofarZoomUnclipped80(),
     )
-    '''
+    """
 
     # Class conditioning
     # conf.n_labels = 4
