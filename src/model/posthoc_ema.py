@@ -182,13 +182,13 @@ if __name__ == "__main__":
         "metric": {"name": "W1", "goal": "minimize"},
         "parameters": {
             "sigma": {"values": np.arange(0.02, 0.28, step=.02)},
-            "n_samples": {"value": 1_000},
-            "n_devices": {"value": 1},
+            "n_samples": {"value": 2_000},
+            "n_devices": {"value": 2},
         },
     }
 
     run_sweep(
         sweep_config,
-        model_path=paths.MODEL_PARENT / "posthoc_test",
+        model_path=paths.MODEL_PARENT / "PowerEMA",
         lofar_path=paths.LOFAR_SUBSETS["0-clip"],
     ),
