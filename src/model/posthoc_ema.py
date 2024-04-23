@@ -120,6 +120,21 @@ def posthoc_ema_eval(config, snp_dir, counts_lofar, gammas_snp=[16.97, 6.94]):
     )
     return samples_eval(img_batch, counts_lofar)
 
+def posthoc_ema_test(config, snp_dir, counts_lofar, gammas_snp=[16.97, 6.94]):
+    sigma = config.sigma
+    n_snapshots = len(sorted(snp_dir.glob("*.pt")))
+    gamma = gamma_from_sigma(sigma)
+    model = posthoc_model(
+        gamma=gamma,
+        snp_dir=snp_dir,
+        coeff=get_coefficients(gamma, n_snapshots, gammas_snp),
+        gammas_snp=gammas_snp,
+    )
+    img_batch = get_samples(
+        model, config.n_samples, config.n_devices, **config.sample_kwargs
+    )
+    return samples_eval(img_batch, counts_lofar)
+
 
 def posthoc_ema_wrapper(config=None, snp_dir=None, counts_lofar=None):
     with wandb.init(config=config):

@@ -80,7 +80,7 @@ if __name__ == "__main__":
     print(f"\tFIRST_DATA_PARENT: {FIRST_DATA_PARENT}")
 
     print("\nOther useful folders")
-    print(f"\tPLAYGORUND_DIR: {PLAYGORUND_DIR}")
+    print(f"\tPLAYGORUND_DIR: {PLAYGROUND_DIR}")
     print(f"\tDEBUG_DIR: {DEBUG_DIR}")
 
     print("\nTrain data subsets")
