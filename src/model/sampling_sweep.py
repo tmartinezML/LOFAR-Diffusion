@@ -123,9 +123,6 @@ def run_sweep(config, model_path, lofar_path):
 
 
 if __name__=='__main__':
-    N_GPU = 1
-    DEV_IDS = set_visible_devices(1)
-    print('Setting visible devices:', DEV_IDS)
 
     sweep_config = {
         'method': 'bayes',

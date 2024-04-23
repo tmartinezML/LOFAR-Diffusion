@@ -1,3 +1,4 @@
+from pathlib import Path
 from functools import partial
 
 import numpy as np
@@ -8,6 +9,8 @@ from model.sample import sample_batch
 from analysis.model_evaluations import get_distributions
 import utils.stats_utils as stats
 from utils.device_utils import set_visible_devices, distribute_model
+from utils.init_utils import load_model
+import utils.paths as paths
 
 
 def weight_profile(t, gamma, t_max=None):
@@ -39,15 +42,24 @@ def posthoc_model(gamma, snp_dir, coeff, gammas_snp=[16.97, 6.94]):
     snapshots = sorted(snp_dir.glob("*.pt"))
 
     # Read first snapshot and zero all params
-    model = torch.load(snapshots[0]).values()[0]
+    model = load_model(
+        next(snp_dir.parent.glob("config_*.json")),
+        model_file=snapshots[0],
+        key=f"model_{gammas_snp[0]}",
+    )
     for p in model.parameters():
         p.data.zero_()
 
     # Make linear combination of snapshots with coeffs
     for i, snap in enumerate(snapshots):
         for j, gamma in enumerate(gammas_snp):
-            model_i = torch.load(snap)[f"model_{gamma}"]
-            for p, p_i in zip(model.parameters(), model_i.parameters()):
+
+            # Load state dict of snapshot
+            model_i = torch.load(snap, map_location="cpu")[f"model_{gamma}"]
+
+            # Skip first value in snapshot state dict bc. it's the number of
+            # model averaging steps
+            for p, p_i in zip(model.parameters(), list(model_i.values())[1:]):
                 p.data.add_(p_i, alpha=coeff[j, i])
 
     return model
@@ -116,22 +128,9 @@ def posthoc_ema_eval(config, snp_dir, counts_lofar, gammas_snp=[16.97, 6.94]):
         gammas_snp=gammas_snp,
     )
     img_batch = get_samples(
-        model, config.n_samples, config.n_devices, **config.sample_kwargs
-    )
-    return samples_eval(img_batch, counts_lofar)
-
-def posthoc_ema_test(config, snp_dir, counts_lofar, gammas_snp=[16.97, 6.94]):
-    sigma = config.sigma
-    n_snapshots = len(sorted(snp_dir.glob("*.pt")))
-    gamma = gamma_from_sigma(sigma)
-    model = posthoc_model(
-        gamma=gamma,
-        snp_dir=snp_dir,
-        coeff=get_coefficients(gamma, n_snapshots, gammas_snp),
-        gammas_snp=gammas_snp,
-    )
-    img_batch = get_samples(
-        model, config.n_samples, config.n_devices, **config.sample_kwargs
+        model,
+        config.n_samples,
+        config.n_devices,
     )
     return samples_eval(img_batch, counts_lofar)
 
@@ -170,3 +169,26 @@ def run_sweep(config, model_path, lofar_path):
             posthoc_ema_wrapper, snp_dir=snp_dir, counts_lofar=counts_lofar
         ),
     )
+
+
+if __name__ == "__main__":
+    N_GPU = 1
+    DEV_IDS = set_visible_devices(1)
+    print("Setting visible devices:", DEV_IDS)
+
+    sweep_config = {
+        "name": "Posthoc Test Sweep",
+        "method": "grid",
+        "metric": {"name": "W1", "goal": "minimize"},
+        "parameters": {
+            "sigma": {"values": np.arange(0.02, 0.28, step=.02)},
+            "n_samples": {"value": 1_000},
+            "n_devices": {"value": 1},
+        },
+    }
+
+    run_sweep(
+        sweep_config,
+        model_path=paths.MODEL_PARENT / "posthoc_test",
+        lofar_path=paths.LOFAR_SUBSETS["0-clip"],
+    ),

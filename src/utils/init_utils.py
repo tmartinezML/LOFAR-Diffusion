@@ -24,12 +24,12 @@ def load_config_from_path(path):
     return load_config(config_file)
 
 
-def load_parameters(model, path, use_ema=False):
+def load_parameters(model, path, key='ema_model'):
     # Load model weights
     state_dict = torch.load(
         path, map_location='cpu'
-    )['ema_model' if use_ema else 'model']
-    if use_ema:
+    )[key]
+    if key != 'model':
         # Remove 'module.' from keys
         state_dict = {
             k.replace('module.', ''): v
@@ -40,14 +40,14 @@ def load_parameters(model, path, use_ema=False):
     return model
 
 
-def load_model(config_file, model_file=None, use_ema=False):
+def load_model(config_file, model_file=None, key='ema_model'):
     # Load model config
     config = load_config(config_file)
     # Load model
     model = unet.EDMPrecond.from_config(config)
     # Load model weights
     if model_file is not None:
-        load_parameters(model, model_file, use_ema=use_ema)
+        load_parameters(model, model_file, key=key)
 
     return model
 
