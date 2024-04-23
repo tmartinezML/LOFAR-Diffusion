@@ -64,6 +64,8 @@ def bdsf_on_image(img: np.ndarray, ang_size=120, px_size=80,
                   id=None,
                   tmpdir=paths.ANALYSIS_PARENT / 'tmp',
                   logdir=None,
+                  thresh_isl=1.5,
+                  thresh_pix=0.5,
                   ):
     '''
     Run bdsf on a single image.
@@ -105,8 +107,8 @@ def bdsf_on_image(img: np.ndarray, ang_size=120, px_size=80,
 
         img = bdsf.process_image(
             f.name,
-            thresh_isl=1.5,
-            thresh_pix=0.5,
+            thresh_isl=thresh_isl,
+            thresh_pix=thresh_pix,
             beam=(beam_size, beam_size, 0),
             mean_map='const',
             rms_map=False,
