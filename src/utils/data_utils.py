@@ -115,6 +115,7 @@ class ImagePathDataset(torch.utils.data.Dataset):
         labels=None,
         key="images",
         catalog_keys=[],
+        sorted=False,
     ):
 
         self.path = path
@@ -139,6 +140,10 @@ class ImagePathDataset(torch.utils.data.Dataset):
         if not hasattr(self, "max_values"):
             self.set_max_values()
 
+        if sorted:
+            print("Sorting data set by names...")
+            self.sort_by_names()
+
         print("Data set initialized.")
 
     def __len__(self):
@@ -162,7 +167,7 @@ class ImagePathDataset(torch.utils.data.Dataset):
         else:
             return img
 
-    def boolean_slice(self, flag):
+    def index_slice(self, idx):
         # Slice all attributes that have the same shape as self.data
         for attr in self.__dict__.keys():
             if (
@@ -171,13 +176,17 @@ class ImagePathDataset(torch.utils.data.Dataset):
                 and isinstance(a := getattr(self, attr), Iterable)
                 and len(a) == len(self.data)
             ):
-                setattr(self, attr, getattr(self, attr)[flag])
+                setattr(self, attr, getattr(self, attr)[idx])
 
-        self.data = self.data[flag]
+        self.data = self.data[idx]
 
         if len(self._context):
             print("Context was reset.")
             self.context = []
+
+    def sort_by_names(self):
+        idxs = np.argsort(self.names)
+        self.index_slice(idxs)
 
     def set_context(self, *args):
         assert all(hasattr(self, attr) for attr in args), (

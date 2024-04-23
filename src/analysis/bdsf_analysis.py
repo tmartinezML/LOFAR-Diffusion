@@ -36,6 +36,7 @@ def disable_logging(func):
         result = func(*args, **kwargs)
         logging.disable(logging.NOTSET)
         return result
+
     return wrapper
 
 
@@ -43,7 +44,7 @@ def disable_logging(func):
 def redirect_printing(func):
     def func_wrapper(*args, **kwargs):
         # Redirect all printing to the console
-        sys.stdout = open(os.devnull, 'w')
+        sys.stdout = open(os.devnull, "w")
         # call the method in question
         try:
             value = func(*args, **kwargs)
@@ -60,16 +61,18 @@ def redirect_printing(func):
 
 # @disable_logging
 # @block_printing
-def bdsf_on_image(img: np.ndarray, ang_size=120, px_size=80,
-                  id=None,
-                  tmpdir=paths.ANALYSIS_PARENT / 'tmp',
-                  logdir=None,
-                  thresh_isl=1.5,
-                  thresh_pix=0.5,
-                  ):
-    '''
+def bdsf_on_image(
+    img: np.ndarray,
+    ang_size=120,
+    px_size=80,
+    id=None,
+    tmpdir=paths.ANALYSIS_PARENT / "tmp",
+    logdir=None,
+    **bdsf_kwargs,
+):
+    """
     Run bdsf on a single image.
-    '''
+    """
     img = img.squeeze()
 
     # Add small amount of noise, otherwise sigma-clipping algorithm called
@@ -100,31 +103,33 @@ def bdsf_on_image(img: np.ndarray, ang_size=120, px_size=80,
     hdu = fits.PrimaryHDU(data=img, header=fits.Header(header_dict))
 
     # Create a temporary file
-    with tempfile.NamedTemporaryFile(prefix=id, suffix='.fits', dir=tmpdir) as f:
+    with tempfile.NamedTemporaryFile(prefix=id, suffix=".fits", dir=tmpdir) as f:
 
         # Write the hdu to tmp fits file
         fits.HDUList([hdu]).writeto(f.name, overwrite=True)
 
+        kwargs = {
+            "thresh_isl": 5,
+            "thresh_pix": 0.5,
+            "mean_map": "const",
+            "rms_map": True,
+            "thresh": "hard",
+            "quiet": True,
+            "debug": True,
+        }
+        kwargs.update(bdsf_kwargs)
+
         img = bdsf.process_image(
             f.name,
-            thresh_isl=thresh_isl,
-            thresh_pix=thresh_pix,
             beam=(beam_size, beam_size, 0),
-            mean_map='const',
-            rms_map=False,
-            thresh='hard',
-            quiet=True,
-            debug=True,
+            **kwargs,
         )
 
         # (Re)move log file
         if logdir is not None:
-            os.rename(
-                tmpdir / f'{f.name}.pybdsf.log',
-                logdir / f'{id}.pybdsf.log'
-            )
+            os.rename(tmpdir / f"{f.name}.pybdsf.log", logdir / f"{id}.pybdsf.log")
         else:
-            os.remove(f'{f.name}.pybdsf.log')
+            os.remove(f"{f.name}.pybdsf.log")
 
     # Return bdsf image object
     return img
@@ -135,23 +140,22 @@ def catalogs_from_bdsf(img: bdsf.image.Image):
     cat_list = []
 
     # Loop through both cat types
-    for cat_type in ['gaul', 'srl']:
+    for cat_type in ["gaul", "srl"]:
 
         # Create a temporary csv file
-        with tempfile.NamedTemporaryFile(suffix='.csv') as f:
+        with tempfile.NamedTemporaryFile(suffix=".csv") as f:
 
             # Write the catalog to the csv file
             img.write_catalog(
                 outfile=f.name,
                 clobber=True,
                 catalog_type=cat_type,
-                format='csv',
+                format="csv",
             )
 
             # Read the csv file
             try:
-                catalog = pd.read_csv(f.name, skiprows=5,
-                                      skipinitialspace=True)
+                catalog = pd.read_csv(f.name, skiprows=5, skipinitialspace=True)
 
             except pd.errors.EmptyDataError:
                 catalog = None
@@ -166,7 +170,8 @@ def dict_from_bdsf(img: bdsf.image.Image):
     # Get all attributes of the bdsf image object
     # that are numbers or numpy arrays
     d = {
-        k: v for k, v in img.__dict__.items()
+        k: v
+        for k, v in img.__dict__.items()
         if isinstance(v, Number) or isinstance(v, np.ndarray)
     }
     return d
@@ -174,32 +179,33 @@ def dict_from_bdsf(img: bdsf.image.Image):
 
 def append_to_pickle(obj, fpath):
     if fpath.exists():
-        with open(fpath, 'rb') as f:
+        with open(fpath, "rb") as f:
             data = pickle.load(f)
     else:
         data = []
     data.append(obj)
-    with open(fpath, 'wb') as f:
+    with open(fpath, "wb") as f:
         pickle.dump(data, f)
 
 
 def write_to_pickle(obj, fpath):
-    Image_id = obj['Image_id']
-    with open(fpath / f'{Image_id}.pkl', 'wb') as f:
+    Image_id = obj["Image_id"]
+    with open(fpath / f"{Image_id}.pkl", "wb") as f:
         pickle.dump(obj, f)
 
 
 def append_to_csv(df, fpath):
-    df.to_csv(fpath, index=False, mode='a', header=not fpath.exists())
+    df.to_csv(fpath, index=False, mode="a", header=not fpath.exists())
 
 
 def writer(queue, q_pbar, fpaths, write_fns):
-    print('Writer started.')
-    log_file = fpaths[0].parent / 'writer_log.txt'
+    print("Writer started.")
+    log_file = fpaths[0].parent / "writer_log.txt"
     i = 0
 
     def signal_handler(sig, frame):
-        print('Keyboard interrupt ignored by writer.')
+        print("Keyboard interrupt ignored by writer.")
+
     signal.signal(signal.SIGINT, signal_handler)
     while True:
         items = queue.get()
@@ -219,9 +225,9 @@ def writer(queue, q_pbar, fpaths, write_fns):
                 write_fn(item, fpath)
 
             # Write log
-            img_id = items[0]['Image_id']
-            with open(log_file, 'a' if i else 'w') as f:
-                f.write(f'{i},{img_id}\n')
+            img_id = items[0]["Image_id"]
+            with open(log_file, "a" if i else "w") as f:
+                f.write(f"{i},{img_id}\n")
 
             i += 1
             q_pbar.put(1)
@@ -247,7 +253,7 @@ def bdsf_worker_func(img, image_id, q, bdsf_kwargs):
     # Handle keyboard interrupts
     def signal_handler(sig, frame):
         pid = os.getpid()
-        print(f'Keyboard interrupt handeled by worker process {pid}.')
+        print(f"Keyboard interrupt handeled by worker process {pid}.")
         return
 
     signal.signal(signal.SIGINT, signal_handler)
@@ -259,19 +265,23 @@ def bdsf_worker_func(img, image_id, q, bdsf_kwargs):
     # Retrieve the desired attributes of the bdsf image object as dict
     attr_dict = dict_from_bdsf(bdsf_img)
     bdsf_dict = {
-        k: attr_dict[k] for k in [
-            'model_gaus_arr', 'total_flux_gaus', 'ngaus', 'nsrc',
+        k: attr_dict[k]
+        for k in [
+            "model_gaus_arr",
+            "total_flux_gaus",
+            "ngaus",
+            "nsrc",
         ]
     }
     # Add image_id to the dict
-    bdsf_dict['Image_id'] = image_id
+    bdsf_dict["Image_id"] = image_id
 
     # Catalogs:
     # Retrieve the catalogs of the bdsf image object
     cats = catalogs_from_bdsf(bdsf_img)  # cat_g, cat_s
     for cat in cats:
         if cat is not None:
-            cat['Image_id'] = image_id
+            cat["Image_id"] = image_id
 
     # Append to writer queue
     q.put([bdsf_dict, *cats])
@@ -290,10 +300,10 @@ def iterable_func_caller(func, args):
 
 
 def progress_bar_worker(q_pbar, n_tot):
-    print('Progress bar worker started.')
+    print("Progress bar worker started.")
 
     def signal_handler(sig, frame):
-        print('Keyboard interrupt ignored by progress bar worker.')
+        print("Keyboard interrupt ignored by progress bar worker.")
         q_pbar.put(-1)
 
     signal.signal(signal.SIGINT, signal_handler)
@@ -302,73 +312,77 @@ def progress_bar_worker(q_pbar, n_tot):
             sig = q_pbar.get()
             match sig:
                 case 0:
-                    print('Test signal received.')
+                    print("Test signal received.")
                 case -1:
-                    print('Closing progress bar.')
+                    print("Closing progress bar.")
                     break
                 case 1:
                     pbar.update(1)
                 case _:
-                    print(f'Unknown signal: {sig}')
+                    print(f"Unknown signal: {sig}")
 
 
 def bdsf_run(
-        imgs: Iterable,
-        out_folder: str | Path,
-        out_parent=paths.ANALYSIS_PARENT,
-        names: Iterable[str] = None,
-        override=False,
-        max_workers=96,
-        **bdsf_kwargs,
+    imgs: Iterable,
+    out_folder: str | Path,
+    out_parent=paths.ANALYSIS_PARENT,
+    names: Iterable[str] = None,
+    override=False,
+    max_workers=96,
+    **bdsf_kwargs,
 ):
-    '''
+    """
     Run bdsf on a set of images and save the resulting list as pickle file.
-    '''
+    """
     # Set tmp directory
-    tmp_dir = paths.ANALYSIS_PARENT / 'tmp'
-    os.environ['TMPDIR'] = str(tmp_dir)
-    warnings.filterwarnings('ignore')
+    tmp_dir = paths.ANALYSIS_PARENT / "tmp"
+    os.environ["TMPDIR"] = str(tmp_dir)
+    warnings.filterwarnings("ignore")
 
     # Set up the output folder
-    out_path = out_parent / out_folder / 'bdsf'
+    out_path = out_parent / out_folder / "bdsf"
     out_path.mkdir(exist_ok=True)
 
     # Set up the output file paths
-    dicts_path = out_path / f'dicts'
-    logs_path = out_path / f'logs'
-    err_path = out_path / f'errors'
-    gaul_path = out_path / f'bdsf_gaul.csv'
-    srl_path = out_path / f'bdsf_srl.csv'
+    dicts_path = out_path / f"dicts"
+    logs_path = out_path / f"logs"
+    err_path = out_path / f"errors"
+    gaul_path = out_path / f"bdsf_gaul.csv"
+    srl_path = out_path / f"bdsf_srl.csv"
 
     # If override is True, delete the files if they exist
     if override:
         for fpath in [
-            dicts_path, logs_path, err_path, gaul_path, srl_path,
+            dicts_path,
+            logs_path,
+            err_path,
+            gaul_path,
+            srl_path,
         ]:
             if fpath.exists():
                 fpath.unlink() if fpath.is_file() else shutil.rmtree(fpath)
 
     # Look for images already processed
     else:
-        print('Looking for images already processed...')
+        print("Looking for images already processed...")
 
         if dicts_path.exists():
             # Open pickle files in dicts_path
-            pkl_files = list(dicts_path.glob('*.pkl'))
+            pkl_files = list(dicts_path.glob("*.pkl"))
             ids = np.array([f.stem for f in pkl_files])
-            print(f'Removing {len(ids)} processed images from the list.')
+            print(f"Removing {len(ids)} processed images from the list.")
             mask = np.in1d(names, ids, invert=True)
             imgs = imgs[mask]
             names = names[mask]
         else:
-            print('No images processed yet.')
+            print("No images processed yet.")
 
     logs_path.mkdir(exist_ok=True)
     err_path.mkdir(exist_ok=True)
     dicts_path.mkdir(exist_ok=True)
 
     # This will assign an id to every image/job
-    print('Getting image ids...')
+    print("Getting image ids...")
     image_ids = names if names is not None else range(len(imgs))
     image_ids = [str(i) for i in image_ids]
 
@@ -382,24 +396,22 @@ def bdsf_run(
     w_res = helper_pool.apply_async(
         writer,
         (
-            q, q_pbar,
+            q,
+            q_pbar,
             [dicts_path, gaul_path, srl_path],
-            [write_to_pickle, append_to_csv, append_to_csv]
-        )
+            [write_to_pickle, append_to_csv, append_to_csv],
+        ),
     )
 
     # Start the progress bar process
-    pbar_res = helper_pool.apply_async(
-        progress_bar_worker,
-        (q_pbar, len(imgs))
-    )
+    pbar_res = helper_pool.apply_async(progress_bar_worker, (q_pbar, len(imgs)))
 
     # Launch the worker pool
     with PPEx(max_workers=max_workers) as worker_pool:
 
         # Handle keyboard interrupts
         def signal_handler(sig, frame):
-            print('Keyboard interrupt. Closing pools.')
+            print("Keyboard interrupt. Closing pools.")
             worker_pool.shutdown(cancel_futures=True, wait=False)
             q.put(-1)
             q_pbar.put(-1)
@@ -407,30 +419,27 @@ def bdsf_run(
             helper_pool.join()
             kill_child_processes(os.getpid())
             for f in tmp_dir.iterdir():
-                if f.suffix in ['.log', '.fits']:
+                if f.suffix in [".log", ".fits"]:
                     f.unlink()
             sys.exit(0)
 
         signal.signal(signal.SIGINT, signal_handler)
 
         # Add log dir to bdsf kwargs
-        bdsf_kwargs['logdir'] = logs_path
+        bdsf_kwargs["logdir"] = logs_path
 
         # Run bdsf on the images
-        print(f'Running bdsf on images. Parent process: {os.getpid()}.')
-        '''
+        print(f"Running bdsf on images. Parent process: {os.getpid()}.")
+        """
         res = worker_pool.map(
             partial(iterable_func_caller, bdsf_worker_func),
             zip(imgs, image_ids, [q] * len(imgs), [bdsf_kwargs] * len(imgs)),
             chunksize=10,
         )
-        '''
+        """
         fut = []
         for img, image_id in zip(imgs, image_ids):
-            f = worker_pool.submit(
-                bdsf_wrapper,
-                img, image_id, q, bdsf_kwargs
-            )
+            f = worker_pool.submit(bdsf_wrapper, img, image_id, q, bdsf_kwargs)
             fut.append(f)
 
         # If any exceptions were raised, print to out file
@@ -438,23 +447,23 @@ def bdsf_run(
         for i, f in enumerate(fut):
             res = f.exception()
             if res is not None:
-                with open(err_path / f'{image_ids[i]}.txt', 'w') as f:
+                with open(err_path / f"{image_ids[i]}.txt", "w") as f:
                     traceback.print_exception(res, file=f)
                 err_count += 1
             else:
                 # Check if there is an error file from previous runs,
                 # if so remove.
-                err_file = err_path / f'{image_ids[i]}.txt'
+                err_file = err_path / f"{image_ids[i]}.txt"
                 if err_file.exists():
                     err_file.unlink()
-                    
-        print(f'{err_count} errors were encountered - check error directory.')
+
+        print(f"{err_count} errors were encountered - check error directory.")
 
         # [print(r := f.result()) for f in fut if r is not None]
         # [print(r.successful()) for r in res if r is not None]
 
     # Finish helper processes
-    print('Closing pools.')
+    print("Closing pools.")
     q.put(-1)
     q_pbar.put(-1)
     helper_pool.close()
@@ -462,23 +471,20 @@ def bdsf_run(
 
     # Check if writer was successful
     s = w_res.successful()
-    print(f'Writer success: {s}')
+    print(f"Writer success: {s}")
     if not s:
         print(w_res.get())
 
     # Check if progress bar worker was successful
     s = pbar_res.successful()
-    print(f'Progress bar worker success: {s}')
+    print(f"Progress bar worker success: {s}")
     if not s:
         print(pbar_res.get())
 
-    print('Done.')
+    print("Done.")
 
 
-def bdsf_plot(
-        img,
-        keys=['ch0_arr', 'resid_gaus_arr', 'model_gaus_arr']
-):
+def bdsf_plot(img, keys=["ch0_arr", "resid_gaus_arr", "model_gaus_arr"]):
     fig = plt.figure(figsize=(10, 15))
     for i, key in enumerate(keys):
         # add subplot
@@ -490,26 +496,23 @@ def bdsf_plot(
     fig.show()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-o", "--override", required=False,
+        "-o",
+        "--override",
+        required=False,
         action=argparse.BooleanOptionalAction,
         default=False,
     )
     arguments = parser.parse_args()
 
-    out_folder = paths.ANALYSIS_PARENT / 'Fmax_Context_MLP'
-    data_path = (
-        out_folder
-        / 'Fmax_Context_MLP_samples_10000_guidance_strength=1.00e-01.pt'
-    )
+    data_path = paths.LOFAR_SUBSETS['0-clip']
+    out_folder = paths.ANALYSIS_PARENT / data_path.stem
 
     # Load the dataset
     dataset = EvaluationDataset(data_path)
-
-    # Scale Images
 
     # For testing: deterministic subset (use None for all images)
     n = None
