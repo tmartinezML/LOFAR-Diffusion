@@ -93,12 +93,16 @@ def metric_peek(metric, edges, images, names=None, n_examples=10, metric_name="M
     for i_bin in np.unique(binned_idxs):
 
         # Print the bin range
-        if i_bin == len(edges):
-            suptitle = f"Bin {i_bin} - {edges[i_bin-1]:.2e} <= {metric_name}"
+        if i_bin == 0:
+            suptitle = f"Bin {i_bin} - {metric_name} <= {edges[i_bin]:.2g}"
+
+        elif i_bin == len(edges):
+            suptitle = f"Bin {i_bin} - {edges[i_bin-1]:.2g} <= {metric_name}"
+
         else:
             suptitle = (
                 f"Bin {i_bin} - "
-                f"{metric_name} in [{edges[i_bin-1]:.2e}, {edges[i_bin]:.2e})"
+                f"{metric_name} in [{edges[i_bin-1]:.2g}, {edges[i_bin]:.2g})"
             )
 
         # Get the indices of the images in the bin
@@ -128,11 +132,7 @@ def metric_peek(metric, edges, images, names=None, n_examples=10, metric_name="M
         for i, img in enumerate(images[img_idxs]):
             ax = axes.flatten()[i]
             ax.imshow(img)
-            value = (
-                metric.values[img_idxs[i]]
-                if hasattr(metric, "values")
-                else metric[img_idxs[i]]
-            )
+            value = metric[img_idxs[i]]
             ax.set_title(
                 f"{names[img_idxs[i]] if names is not None else img_idxs[i]}\n"
                 f"{metric_name} = {value:.2f}"
