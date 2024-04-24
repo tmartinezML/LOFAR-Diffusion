@@ -508,8 +508,10 @@ if __name__ == "__main__":
     )
     arguments = parser.parse_args()
 
-    data_path = paths.LOFAR_SUBSETS['0-clip']
-    out_folder = paths.ANALYSIS_PARENT / data_path.stem
+    data_path = Path(
+    paths.ANALYSIS_PARENT / 'Fmax_Context_MLP/Fmax_Context_MLP_samples_10000_guidance_strength=1.00e-01.pt'
+    )
+    out_folder = data_path.parent
 
     # Load the dataset
     dataset = EvaluationDataset(data_path)
