@@ -50,7 +50,8 @@ def metrics_dict_from_iterable(images, n_bins=4):
                     stats_dict[key].append(val)
 
         # Remove pixels that are 1 and 0 for calculating pixel distribution
-        minmax_mask = (img.squeeze().numpy() > 0) & (img.squeeze().numpy() < 1)
+        # minmax_mask = (img.squeeze().numpy() > 0) & (img.squeeze().numpy() < 1)
+        minmax_mask = np.ones(img.squeeze.shape, dtype=bool)
         pixel_dist += np.histogram(
             img.squeeze().numpy()[minmax_mask], bins=np.linspace(0, 1, 257)
         )[0].astype(int)
