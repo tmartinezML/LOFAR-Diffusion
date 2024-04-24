@@ -172,16 +172,16 @@ def run_sweep(config, model_path, lofar_path):
 
 
 if __name__ == "__main__":
-    N_GPU = 1
-    DEV_IDS = set_visible_devices(1)
+    N_GPU = 2
+    DEV_IDS = set_visible_devices(N_GPU)
     print("Setting visible devices:", DEV_IDS)
 
     sweep_config = {
-        "name": "Posthoc Test Sweep",
+        "name": "Posthoc EMA Sweep",
         "method": "grid",
         "metric": {"name": "W1", "goal": "minimize"},
         "parameters": {
-            "sigma": {"values": np.arange(0.02, 0.28, step=.02)},
+            "sigma": {"values": list(np.arange(0.01, 0.08, step=.01))},
             "n_samples": {"value": 2_000},
             "n_devices": {"value": 2},
         },

@@ -33,19 +33,20 @@ if __name__ == "__main__":
     conf.training_data = str(dataset.path)
     conf.context = ["max_values_tr"]
     conf.context_dropout = 0.1
-    conf.power_ema_snapshots = 20
+    conf.power_ema_snapshots = 40
+    conf.iterations = 200_000
 
     trainer = DiffusionTrainer(
         config=conf,
         dataset=dataset,
-        pickup=False,
+        pickup=True,
     )
 
     wandb.init(
         project="Diffusion",
         config=conf.param_dict,
-        # id='fdlc49ai',
-        # resume='must',
+        id='iury3joz',
+        resume='must',
         dir=paths.ANALYSIS_PARENT / "wandb",
     )
     trainer.training_loop()
