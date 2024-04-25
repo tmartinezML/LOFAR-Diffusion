@@ -177,13 +177,13 @@ if __name__ == "__main__":
     print("Setting visible devices:", DEV_IDS)
 
     sweep_config = {
-        "name": "Posthoc EMA Sweep",
+        "name": "Posthoc EMA Sweep 2",
         "method": "grid",
         "metric": {"name": "W1", "goal": "minimize"},
         "parameters": {
-            "sigma": {"values": list(np.arange(0.01, 0.08, step=.01))},
-            "n_samples": {"value": 2_000},
-            "n_devices": {"value": 2},
+            "sigma": {"values": list(np.arange(0.002, 0.1, step=.002))},
+            "n_samples": {"value": 1_000},
+            "n_devices": {"value": 1},
         },
     }
 
