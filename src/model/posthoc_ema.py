@@ -35,11 +35,13 @@ def get_coefficients(gamma, n_snapshots, gammas_snp=[16.97, 6.94]):
     return coeff
 
 
-def posthoc_model(gamma, snp_dir, coeff, gammas_snp=[16.97, 6.94]):
+def posthoc_model(gamma, snp_dir, coeff=None, gammas_snp=[16.97, 6.94]):
 
     # Reshape coeffs: First dim is gamma, 2nd dim is snapshot
-    coeff = coeff.reshape(len(gammas_snp), -1)
     snapshots = sorted(snp_dir.glob("*.pt"))
+    if coeff is None:
+        coeff = get_coefficients(gamma, len(snapshots), gammas_snp=gammas_snp)
+    coeff = coeff.reshape(len(gammas_snp), -1)
 
     # Read first snapshot and zero all params
     model = load_model(

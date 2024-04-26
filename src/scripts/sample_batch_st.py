@@ -5,6 +5,7 @@ import torch
 import numpy as np
 
 from model.sample import sample_batch
+import model.posthoc_ema as phema
 from utils.init_utils import (
     load_model_from_folder,
     load_snapshot,
@@ -36,9 +37,9 @@ def batch_st_sampling(
     label=None,
     comment=None,
     snapshot_it=0,
-    use_ema=True,
     sample_kwargs={},
     out_folder_name=None,
+    posthoc_sigma=None,
 ):
 
     # Set paths
@@ -53,9 +54,14 @@ def batch_st_sampling(
 
     # Load model
     if snapshot_it:
-        model = load_snapshot(model_dir, snapshot_it, use_ema=use_ema)
+        model = load_snapshot(model_dir, snapshot_it)
+    elif posthoc_sigma:
+        model = phema.posthoc_model(
+            phema.gamma_from_sigma(posthoc_sigma),
+            model_dir / 'power_ema',
+        )
     else:
-        model = load_model_from_folder(model_dir, use_ema=use_ema)
+        model = load_model_from_folder(model_dir)
     model, _ = distribute_model(model, n_devices=n_devices)
 
     # Output file for samples
@@ -66,8 +72,11 @@ def batch_st_sampling(
     )
     if snapshot_it:
         outfile_specifier = f"it={snapshot_it}_" + outfile_specifier
+    if posthoc_sigma:
+        outfile_specifier = f"ph-sigma={posthoc_sigma:.2f}_{outfile_specifier}"
     if comment:
         outfile_specifier = f"{comment}_{outfile_specifier}"
+        
     out_file = out_folder / f"{model_dir.name}_samples_{outfile_specifier}.pt"
 
     # Sample from model
@@ -195,19 +204,20 @@ def sample_snapshot_loop(
 
 
 if __name__ == "__main__":
-    from utils.data_utils import ImagePathDataset
+    from utils.data_utils import ImagePathDataset, TrainDataset
     import utils.paths as paths
     from scipy.special import boxcox, inv_boxcox
     from scipy.stats import norm, rv_histogram
     from sklearn import preprocessing as pr
 
     # Load dataset to get max-val histogram
-    dset = ImagePathDataset(paths.LOFAR_SUBSETS["0-clip_unscaled"])
+    dset = TrainDataset(paths.LOFAR_SUBSETS["0-clip"])
     max_vals = dset.max_values.numpy()
     max_hist = np.histogram(max_vals, bins=100)
 
     # Apply power-transform to make distribution more gaussian
-    boxcox_lambda = -0.22659119
+    dset.transform_max_vals()
+    boxcox_lambda = dset.box_cox_lambda
     max_tr = boxcox(max_vals, boxcox_lambda)
     max_tr_sc = pr.scale(max_tr)
 
@@ -224,7 +234,7 @@ if __name__ == "__main__":
     print(f"Using GPU {dev_ids[:n_gpu]}")
 
     # Sampling parameters
-    model_name = "Fmax_Context_MLP"
+    model_name = "PowerEMA"
     n_samples = 10_000
 
     batch_st_sampling(
@@ -235,6 +245,8 @@ if __name__ == "__main__":
         sample_kwargs={
             "guidance_strength": 0.1,
         },
+        # posthoc_sigma=.07,
+        snapshot_it=100_000,
         # out_folder_name=f"{model_name}/unconditioned"
     )
 

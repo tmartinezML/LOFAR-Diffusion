@@ -24,23 +24,21 @@ def load_config_from_path(path):
     return load_config(config_file)
 
 
-def load_parameters(model, path, key='ema_model'):
+def load_parameters(model, path, key="ema_model"):
     # Load model weights
-    state_dict = torch.load(
-        path, map_location='cpu'
-    )[key]
-    if key != 'model':
+    state_dict = torch.load(path, map_location="cpu")[key]
+    if key != "model":
         # Remove 'module.' from keys
         state_dict = {
-            k.replace('module.', ''): v
+            k.replace("module.", ""): v
             for k, v in state_dict.items()
-            if k.startswith('module.')
+            if k.startswith("module.")
         }
     model.load_state_dict(state_dict)
     return model
 
 
-def load_model(config_file, model_file=None, key='ema_model'):
+def load_model(config_file, model_file=None, key="ema_model"):
     # Load model config
     config = load_config(config_file)
     # Load model
@@ -52,7 +50,7 @@ def load_model(config_file, model_file=None, key='ema_model'):
     return model
 
 
-def load_model_from_folder(path, use_ema=True, return_config=False):
+def load_model_from_folder(path, key="ema_model", return_config=False):
     model_name = path.name
     model_file = path / f"parameters_{model_name}.pt"
     config_file = path / f"config_{model_name}.json"
@@ -60,22 +58,19 @@ def load_model_from_folder(path, use_ema=True, return_config=False):
     print(f"Loading model from {model_file} and {config_file}")
 
     if return_config:
-        out = (
-            load_model(config_file, model_file, use_ema=use_ema),
-            load_config(config_file)
-        )
+        out = (load_model(config_file, model_file, key=key), load_config(config_file))
     else:
-        out = load_model(config_file, model_file, use_ema=use_ema)
+        out = load_model(config_file, model_file, key=key)
     return out
 
 
-def load_model_by_name(name, use_ema=True):
+def load_model_by_name(name, key='ema_model'):
     path = paths.MODEL_PARENT / name
-    return load_model_from_folder(path, use_ema=use_ema)
+    return load_model_from_folder(path, key=key)
 
 
 def load_old_model_from_folder(path, use_ema=True, return_config=False):
-    warnings.warn('Using previous UNet model.')
+    warnings.warn("Using previous UNet model.")
     model_name = path.name
     model_file = path / f"parameters_{model_name}.pt"
     config_file = path / f"config_{model_name}.json"
@@ -89,9 +84,9 @@ def load_old_model_from_folder(path, use_ema=True, return_config=False):
     return model
 
 
-def load_snapshot(path, iter, use_ema=True, model=None):
+def load_snapshot(path, iter, key='ema_model', model=None):
     if model is None:
-        model = load_model_from_folder(path, use_ema=use_ema)
+        model = load_model_from_folder(path, key=key)
 
     if iter == 0:
         print("Snapshot iteration is 0 - returning final model.")
@@ -101,16 +96,13 @@ def load_snapshot(path, iter, use_ema=True, model=None):
     if not snapshot_file.exists():
         raise FileNotFoundError(f"Snapshot file {snapshot_file} not found.")
     print(f"Loading snapshot from {snapshot_file}")
-    key = 'ema_params' if use_ema else 'model'
-    model.load_state_dict(
-        torch.load(snapshot_file, map_location='cpu')[key]
-    )
-    return model
+    # model.load_state_dict(torch.load(snapshot_file, map_location="cpu")[key])
+    return load_parameters(model, snapshot_file, key=key)
 
 
 def model_name_from_file(path):
-    name = path.stem.replace('parameters_', '')
-    name = name.replace('model_', '').replace('ema_', '')
+    name = path.stem.replace("parameters_", "")
+    name = name.replace("model_", "").replace("ema_", "")
     return name
 
 
