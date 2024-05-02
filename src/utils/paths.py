@@ -49,6 +49,9 @@ MOSAIC_DIR = "/hs/fs05/data/AG_Brueggen/nicolasbp/RadioGalaxyImage/data/mosaics_
 CUTOUTS_DIR = LOFAR_DATA_PARENT / "cutouts"
 LOFAR_RES_CAT = LOFAR_DATA_PARENT / "6-LoTSS_DR2-public-resolved_sources.csv"
 
+# Paths for output
+PAPER_PLOT_DIR = ANALYSIS_PARENT / 'paper_plots'
+
 
 def cast_to_Path(path):
     """

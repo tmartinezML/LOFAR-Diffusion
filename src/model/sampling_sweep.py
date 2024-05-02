@@ -7,7 +7,7 @@ import wandb
 
 from model.diffusion import Diffusion
 from model.sample import sample_batch
-from analysis.model_evaluations import get_distributions
+from analysis.model_evaluation import get_distributions
 import utils.paths as paths
 import utils.stats_utils as stats
 from utils.init_utils import load_model_from_folder

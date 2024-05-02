@@ -21,6 +21,7 @@ def get_bdsf_metrics_plots(
     train_path=None,
     train_label="Train Data",
     parent=paths.ANALYSIS_PARENT,
+    bdsf_dir=None,
     h5_kwargs={},
     **distribution_kwargs,
 ):
@@ -35,6 +36,7 @@ def get_bdsf_metrics_plots(
                 out_dir = parent / img_dir.name
                 fig_name = img_dir.name
             img_dir = [img_dir]
+            bdsf_dir = [bdsf_dir]
             save_fig = save
 
             if labels is None:
@@ -50,7 +52,7 @@ def get_bdsf_metrics_plots(
                 labels = [d.name if d.is_dir() else d.stem for d in img_dir]
 
     # Get metrics dict
-    gen_distr_dict_list = [get_bdsf_distributions(d) for d in img_dir]
+    gen_distr_dict_list = [get_bdsf_distributions(d, out_dir=p) for d, p in zip(img_dir, bdsf_dir)]
     if train_path is not None:
         lofar_distr_dict = get_bdsf_distributions(train_path, force=force_train)
 
@@ -75,17 +77,19 @@ def get_bdsf_distributions(img_path, **metric_kwargs):
     return bdsf_distributions_from_metrics(bdsf_metric_dict)
 
 
-def get_metric_dict(img_path, parent=paths.ANALYSIS_PARENT, force=False, save=True):
+def get_metric_dict(img_path, parent=paths.ANALYSIS_PARENT, force=False, save=True,
+out_dir=None):
 
+    out_dir = out_dir or 'bdsf'
     match (img_path.is_file(), img_path.suffix):
         case (True, ".pt"):
-            out_dir = img_path.parent / "bdsf"
+            out_dir = img_path.parent / out_dir
 
         case (True, ".h5") | (True, ".hdf5"):
-            out_dir = parent / img_path.stem / "bdsf"
+            out_dir = parent / img_path.stem / out_dir
 
         case (False, _):
-            out_dir = parent / img_path.name / "bdsf"
+            out_dir = parent / img_path.name / out_dir
 
     assert (
         out_dir.exists()

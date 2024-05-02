@@ -1,19 +1,21 @@
 from __future__ import print_function
 import os
-from pathlib import Path
-import numpy as np
-from PIL import Image
-import h5py
-import torch.utils.data as data
-from torch.utils.data import DataLoader
-import matplotlib.pyplot as plt
-import torchvision.transforms as transforms
-from astropy import units as u
-from astropy.coordinates import SkyCoord
-from torchvision.datasets.utils import download_url
+import copy
 import zipfile
 import warnings
-import copy
+from pathlib import Path
+
+import h5py
+import torch
+import numpy as np
+import matplotlib.pyplot as plt
+import torch.utils.data as data
+import torchvision.transforms as transforms
+from PIL import Image
+from astropy import units as u
+from torch.utils.data import DataLoader
+from astropy.coordinates import SkyCoord
+from torchvision.datasets.utils import download_url
 
 from utils.paths import FIRST_DATA_PARENT
 
@@ -26,7 +28,6 @@ def label_to_class_dict(definition='literature'):
     :return: dict
     """
     match definition:
-
         case 'literature':
             return {
                 0: "FRI", 1: "FRII", 2: "Compact", 3: "Bent"
@@ -231,9 +232,9 @@ class FIRSTGalaxyData(data.Dataset):
                     self.coordinates.append(coord)
                     self.mask_params.append(mask_param)
 
-        # Convert to numpy arrays
-        self.data = np.array(self.data)
-        self.labels = np.array(self.labels, dtype=np.uint8)
+        # Convert to Tensor / np array
+        self.data = torch.Tensor(self.data)
+        self.labels = torch.Tensor(np.array(self.labels)).to(torch.uint8)
         self.coordinates = np.array(self.coordinates)
         self.mask_params = np.array(self.mask_params)
 

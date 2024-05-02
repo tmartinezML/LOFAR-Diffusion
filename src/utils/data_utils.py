@@ -12,8 +12,16 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from astropy.stats import sigma_clipped_stats
 from sklearn.preprocessing import PowerTransformer
-from torchvision.transforms import Compose, ToTensor, CenterCrop, Lambda
-
+from torchvision.transforms.v2 import (
+    Compose,
+    ToTensor,
+    CenterCrop,
+    Lambda,
+    RandomHorizontalFlip,
+    RandomVerticalFlip,
+    RandomRotation,
+)
+import torchvision.transforms.v2.functional as TF
 from utils import paths
 from plotting.plot_images import plot_image_grid
 
@@ -51,6 +59,10 @@ def minmax_scale(img):
     return (img - img.min()) / (img.max() - img.min())
 
 
+def random_rotate_90(img):
+    return TF.rotate(img, random.choice([0, 90, 180, 270]))
+
+
 def train_transform(image_size):
     transform = Compose(
         [
@@ -58,6 +70,9 @@ def train_transform(image_size):
             CenterCrop(image_size),
             Lambda(single_channel),  # Only one channel
             Lambda(minmax_scale),  # Scale to [0, 1]
+            RandomHorizontalFlip(),
+            RandomVerticalFlip(),
+            Lambda(random_rotate_90),
             Lambda(train_scale),  # Scale to [-1, 1]
         ]
     )

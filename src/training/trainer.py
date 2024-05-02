@@ -39,6 +39,7 @@ class DiffusionTrainer:
         model_name=None,
         iterations=None,
         parent_dir=MODEL_PARENT,
+        power_ema=False,
     ):
         # Initialize config & class attributes
         if config is None:
@@ -107,14 +108,16 @@ class DiffusionTrainer:
         )
 
         # Initialize power-ema models
-        self.power_ema_gammas = [16.97, 6.94]
-        self.power_ema_models = [
-            torch.optim.swa_utils.AveragedModel(
-                self.inner_model,
-                avg_fn=utils.train_utils.get_power_ema_avg_fn(gamma),
-            )
-            for gamma in self.power_ema_gammas
-        ]
+        self.power_ema = power_ema
+        if self.power_ema:
+            self.power_ema_gammas = [16.97, 6.94]
+            self.power_ema_models = [
+                torch.optim.swa_utils.AveragedModel(
+                    self.inner_model,
+                    avg_fn=utils.train_utils.get_power_ema_avg_fn(gamma),
+                )
+                for gamma in self.power_ema_gammas
+            ]
 
         # Initialize data
         self.dataset = dataset
@@ -230,7 +233,8 @@ class DiffusionTrainer:
         self.load_model()
         self.load_ema()
         self.load_optimizer()
-        self.load_power_ema()
+        if self.power_ema:
+            self.load_power_ema()
 
     def training_loop(
         self,
@@ -320,7 +324,7 @@ class DiffusionTrainer:
                 )
 
             # Save power ema models
-            if (i + 1) % power_ema_interval == 0:
+            if self.power_ema and (i + 1) % power_ema_interval == 0:
                 logging.info(f"Saving power ema models at iteration {i+1}...")
                 OM.save_power_ema(self.power_ema_models, i + 1, self.power_ema_gammas)
 
@@ -367,8 +371,9 @@ class DiffusionTrainer:
         self.ema_model.update_parameters(self.inner_model)
 
         # Update power ema models
-        for power_ema_model in self.power_ema_models:
-            power_ema_model.update_parameters(self.inner_model)
+        if self.power_ema:
+            for power_ema_model in self.power_ema_models:
+                power_ema_model.update_parameters(self.inner_model)
 
         return loss
 
@@ -439,8 +444,8 @@ class DiffusionTrainer:
                 self.inner_model,
                 self.ema_model,
                 self.optimizer,
-                self.power_ema_models,
-                self.power_ema_gammas,
+                self.power_ema_models if self.power_ema else [],
+                self.power_ema_gammas if self.power_ema else [],
             )
         OM.save_config(self.config.param_dict, iterations=i + 1)
         loss_buffer.clear()
