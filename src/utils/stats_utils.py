@@ -16,6 +16,11 @@ def norm_err_poisson(counts):
         (counts - CI[0]) / np.sum(counts),
         (CI[1] - counts) / np.sum(counts),
     ]
+
+    # Set to 0 if counts are 0
+    err[0][counts == 0] = 0
+    err[1][counts == 0] = 0
+
     return err
 
 
