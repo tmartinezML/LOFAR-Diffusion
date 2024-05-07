@@ -262,7 +262,9 @@ class DiffusionTrainer:
         scaler = GradScaler()
         loss_buffer = []
         t0 = datetime.now()
-        power_ema_interval = iterations // self.config.power_ema_snapshots
+
+        if self.power_ema:
+            power_ema_interval = iterations // self.config.power_ema_snapshots
 
         def dt():
             return datetime.now() - t0

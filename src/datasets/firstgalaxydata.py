@@ -107,7 +107,7 @@ class FIRSTGalaxyData(data.Dataset):
     }
 
     def __init__(self, root=FIRST_DATA_PARENT,
-                 input_data_list=None, selected_split="train",
+                 input_data_list=None, selected_split=['train'],
                  selected_classes=None, class_definition="literature",
                  selected_catalogues=None, is_balanced=False, is_PIL=False,
                  is_RGB=False, use_LOAFR_masking=False, transform=None,
@@ -145,8 +145,8 @@ class FIRSTGalaxyData(data.Dataset):
             flag, whether a download should be forced
         """
         # Set data paths
-        self.root = Path(root)
-        self.dl_path = self.root / "downloads"
+        self.path = Path(root)
+        self.dl_path = self.path / "downloads"
         self.input_data_list = ["galaxy_data_h5.h5"] or input_data_list
 
         # Set dataset properties
@@ -206,7 +206,7 @@ class FIRSTGalaxyData(data.Dataset):
         self.mask_params = []
 
         # Loop through input files
-        for file_path in [self.root / f for f in self.input_data_list]:
+        for file_path in [self.path / f for f in self.input_data_list]:
 
             # Check file extension
             if (ext := file_path.suffix) != ".h5":
@@ -358,7 +358,7 @@ class FIRSTGalaxyData(data.Dataset):
 
     def _check_files(self):
         # Loop through input data list, return False if any file is missing
-        for path in [self.root / f for f in self.input_data_list]:
+        for path in [self.path / f for f in self.input_data_list]:
             if not path.exists():
                 return False
 
@@ -397,7 +397,7 @@ class FIRSTGalaxyData(data.Dataset):
         for key in self.urls_zenodo.keys():
             download_url(self.urls_zenodo[key], self.dl_path, key)
             with zipfile.ZipFile(self.dl_path / key, "r") as zip_ref:
-                zip_ref.extractall(path=self.root)
+                zip_ref.extractall(path=self.path)
 
     def get_occurrences(self):
         occ = {
@@ -437,7 +437,7 @@ class FIRSTGalaxyData(data.Dataset):
                 c, (self.labels == self.class_dict_rev[c]).sum())
         tmp = self.selected_split
         fmt_str += '    Split: {}\n'.format(tmp)
-        fmt_str += '    Root Location: {}\n'.format(self.root)
+        fmt_str += '    Root Location: {}\n'.format(self.path)
         fmt_str += '    Input Data List: {}\n'.format(self.input_data_list)
         tmp = '    Transforms (if any): '
         fmt_str += '{0}{1}\n'.format(

@@ -10,8 +10,7 @@ import wandb
 
 import model.configs as configs
 from training.trainer import DiffusionTrainer
-from datasets.firstgalaxydata import FIRSTGalaxyData
-from utils.data_utils import TrainDataset, train_transform
+from utils.data_utils import TrainDataset, TrainDatasetFIRST
 from utils.device_utils import set_visible_devices
 import utils.paths as paths
 
@@ -25,28 +24,25 @@ if __name__ == "__main__":
 
     # conf.pretrained_model = '/home/bbd0953/diffusion/model_results/Dummy/snapshots/snapshot_iter_00000100.pt'
     # conf.optimizer_file = '/home/bbd0953/diffusion/results/EDM_valFix/optimizer_state_EDM_valFix.pt'
-    conf.model_name = f"PowerEMA"
+    conf.model_name = f"FIRST_Labeled"
 
-    dataset = TrainDataset(
-        paths.LOFAR_SUBSETS["0-clip"],
-    )
+    dataset = TrainDatasetFIRST()
     conf.training_data = str(dataset.path)
-    conf.context = ["max_values_tr"]
+    conf.context = ["labels"]
     conf.context_dropout = 0.1
-    conf.power_ema_snapshots = 40
-    conf.iterations = 200_000
+    conf.iterations = 20_000
 
     trainer = DiffusionTrainer(
         config=conf,
         dataset=dataset,
-        pickup=True,
+        pickup=False,
     )
 
     wandb.init(
         project="Diffusion",
         config=conf.param_dict,
-        id='iury3joz',
-        resume='must',
+        # id='iury3joz',
+        # resume='must',
         dir=paths.ANALYSIS_PARENT / "wandb",
     )
     trainer.training_loop()

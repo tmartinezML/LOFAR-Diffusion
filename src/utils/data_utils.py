@@ -11,19 +11,20 @@ from PIL import Image
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from astropy.stats import sigma_clipped_stats
+import torchvision.transforms.v2.functional as TF
 from sklearn.preprocessing import PowerTransformer
 from torchvision.transforms.v2 import (
-    Compose,
-    ToTensor,
-    CenterCrop,
     Lambda,
-    RandomHorizontalFlip,
+    Compose,
+    ToImage,
+    ToDtype,
+    CenterCrop,
     RandomVerticalFlip,
-    RandomRotation,
+    RandomHorizontalFlip,
 )
-import torchvision.transforms.v2.functional as TF
 from utils import paths
 from plotting.plot_images import plot_image_grid
+from datasets.firstgalaxydata import FIRSTGalaxyData
 
 
 def load_data(dataset, batch_size, shuffle=True):
@@ -37,6 +38,16 @@ def load_data(dataset, batch_size, shuffle=True):
     )
     while True:
         yield from loader
+
+
+def to_tensor():
+    transform = Compose(
+        [
+            ToImage(),
+            ToDtype(torch.float32),
+        ]
+    )
+    return transform
 
 
 def single_channel(img):
@@ -66,7 +77,6 @@ def random_rotate_90(img):
 def train_transform(image_size):
     transform = Compose(
         [
-            # ToTensor(),
             CenterCrop(image_size),
             Lambda(single_channel),  # Only one channel
             Lambda(minmax_scale),  # Scale to [0, 1]
@@ -93,7 +103,6 @@ def eval_transform(image_size):
 def eval_transform_FIRST(image_size):
     transform = Compose(
         [
-            ToTensor(),
             Lambda(single_channel),  # Only one channel
             Lambda(minmax_scale),  # Scale to [0, 1]
             CenterCrop(image_size),
@@ -124,8 +133,8 @@ class ImagePathDataset(torch.utils.data.Dataset):
     #  https://github.com/mseitzer/pytorch-fid/blob/master/src/pytorch_fid/fid_score.py
     def __init__(
         self,
-        path,
-        transforms=ToTensor(),
+        dset,
+        transforms=to_tensor(),
         n_subset=None,
         labels=None,
         key="images",
@@ -133,24 +142,34 @@ class ImagePathDataset(torch.utils.data.Dataset):
         sorted=False,
     ):
 
-        self.path = path
+        match dset:
+            case Path():
+                self.path = dset
+
+            case str():
+                try:
+                    self.path = paths.LOFAR_SUBSETS[dset]
+
+                except KeyError as e:
+                    print(f"No dataset {dset} in LOFAR_SUBSETS.")
+
         self.transforms = transforms
         self._context = []
 
         # Load images
-        if path.is_dir():
+        if self.path.is_dir():
             self.load_images_png(n_subset)
 
-        elif path.suffix in [".hdf5", ".h5"]:
+        elif self.path.suffix in [".hdf5", ".h5"]:
             self.load_images_h5py(
                 n_subset, key=key, labels=labels, catalog_keys=catalog_keys
             )
 
-        elif path.suffix == ".pt":
+        elif self.path.suffix == ".pt":
             self.load_images_pt(n_subset)
 
         else:
-            raise ValueError(f"Unknown file type: {path.suffix}")
+            raise ValueError(f"Unknown file type: {self.path.suffix}")
 
         if not hasattr(self, "max_values"):
             self.set_max_values()
@@ -226,7 +245,7 @@ class ImagePathDataset(torch.utils.data.Dataset):
         print("Loading images...")
 
         def load(f):
-            return ToTensor()(Image.open(f).convert("RGB"))
+            return to_tensor()(Image.open(f).convert("RGB"))
 
         self.data = list(map(load, tqdm(files, ncols=80)))
         self.names = [f.stem for f in files]
@@ -335,3 +354,12 @@ class TrainDataset(ImagePathDataset):
         self.max_values_tr = max_values_tr.reshape(self.max_values.shape)
         self.box_cox_lambda = pt.lambdas_
         print(f"Max values transformed with Box-Cox transformation ({pt.lambdas_}).")
+
+
+class TrainDatasetFIRST(FIRSTGalaxyData):
+    def __init__(self, img_size=80, **kwargs):
+        super().__init__(
+            selected_split=["train", "test", "valid"],
+            is_balanced=True,
+            transform=train_transform(80),
+        )

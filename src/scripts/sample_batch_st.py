@@ -234,7 +234,7 @@ if __name__ == "__main__":
     print(f"Using GPU {dev_ids[:n_gpu]}")
 
     # Sampling parameters
-    model_name = "PowerEMA"
+    model_name = "Data_Augmented"
     n_samples = 10_000
 
     batch_st_sampling(
@@ -246,7 +246,7 @@ if __name__ == "__main__":
             "guidance_strength": 0.1,
         },
         # posthoc_sigma=.07,
-        snapshot_it=100_000,
+        # snapshot_it=100_000,
         # out_folder_name=f"{model_name}/unconditioned"
     )
 
