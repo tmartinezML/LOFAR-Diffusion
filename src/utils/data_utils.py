@@ -1,5 +1,6 @@
 import os
 import random
+import warnings
 from pathlib import Path
 from collections.abc import Iterable
 
@@ -305,7 +306,19 @@ class ImagePathDataset(torch.utils.data.Dataset):
 
     def load_images_pt(self, n_subset=None):
         batch_st = torch.load(self.path, map_location="cpu")
-        samples_itr = torch.clamp(batch_st[:, -1, :, :, :], 0, 1)
+        match batch_st.dim():
+            # Sampling steps contained:
+            case 5:
+                samples_itr = torch.clamp(batch_st[:, -1, :, :, :], 0, 1)
+
+            # No sampling steps:
+            case 4:
+                samples_itr = torch.clamp(batch_st, 0, 1)
+
+            case _:
+                raise NotImplementedError(
+                    f"Sample batch of unknown shape {batch_st.shape} with {batch_st.dim()} dimensions."
+                )
         n_tot = len(samples_itr)
 
         if n_subset is not None:
@@ -333,16 +346,6 @@ class ImagePathDataset(torch.utils.data.Dataset):
     def set_max_values(self):
         self.max_values = torch.stack([torch.max(img) for img in self.data])
 
-
-class EvaluationDataset(ImagePathDataset):
-    def __init__(self, path, img_size=80, **kwargs):
-        super().__init__(path, transforms=eval_transform(img_size), **kwargs)
-
-
-class TrainDataset(ImagePathDataset):
-    def __init__(self, path, img_size=80, **kwargs):
-        super().__init__(path, transforms=train_transform(img_size), **kwargs)
-
     def transform_max_vals(self):
         if not hasattr(self, "max_values"):
             self.set_max_values()
@@ -356,10 +359,24 @@ class TrainDataset(ImagePathDataset):
         print(f"Max values transformed with Box-Cox transformation ({pt.lambdas_}).")
 
 
+class EvaluationDataset(ImagePathDataset):
+    def __init__(self, path, img_size=80, **kwargs):
+        super().__init__(path, transforms=eval_transform(img_size), **kwargs)
+
+
+class TrainDataset(ImagePathDataset):
+    def __init__(self, path, img_size=80, **kwargs):
+        super().__init__(path, transforms=train_transform(img_size), **kwargs)
+
+
 class TrainDatasetFIRST(FIRSTGalaxyData):
     def __init__(self, img_size=80, **kwargs):
         super().__init__(
             selected_split=["train", "test", "valid"],
             is_balanced=True,
-            transform=train_transform(80),
+            transform=train_transform(img_size),
         )
+
+    def set_context(self, *args):
+        warnings.warn("FIRSTGalaxyData has class labels as fixed context.")
+        return

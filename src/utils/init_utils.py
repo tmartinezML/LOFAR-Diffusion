@@ -5,7 +5,6 @@ import warnings
 import torch
 
 import model.unet as unet
-import model.unet_prev as unet_prev
 from utils.config_utils import modelConfig
 import utils.paths as paths
 
@@ -64,27 +63,12 @@ def load_model_from_folder(path, key="ema_model", return_config=False):
     return out
 
 
-def load_model_by_name(name, key='ema_model'):
+def load_model_by_name(name, key="ema_model"):
     path = paths.MODEL_PARENT / name
     return load_model_from_folder(path, key=key)
 
 
-def load_old_model_from_folder(path, use_ema=True, return_config=False):
-    warnings.warn("Using previous UNet model.")
-    model_name = path.name
-    model_file = path / f"parameters_{model_name}.pt"
-    config_file = path / f"config_{model_name}.json"
-
-    print(f"Loading model from {model_file} and {config_file}")
-    config = load_config(config_file)
-    # Load model
-    model = unet_prev.EDMPrecond.from_config(config)
-    # Load model weights
-    load_parameters(model, model_file, use_ema=use_ema)
-    return model
-
-
-def load_snapshot(path, iter, key='ema_model', model=None):
+def load_snapshot(path, iter, key="ema_model", model=None):
     if model is None:
         model = load_model_from_folder(path, key=key)
 

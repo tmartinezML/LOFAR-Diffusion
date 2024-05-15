@@ -5,12 +5,12 @@ https://huggingface.co/blog/annotated-diffusion
 """
 
 import math
+from pathlib import Path
 from functools import partial
 from abc import abstractmethod
-from pathlib import Path
 
-import numpy as np
 import torch
+import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.cuda.amp import autocast

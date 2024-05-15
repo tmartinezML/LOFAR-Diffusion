@@ -9,7 +9,6 @@ import model.posthoc_ema as phema
 from utils.init_utils import (
     load_model_from_folder,
     load_snapshot,
-    load_old_model_from_folder,
 )
 from utils.device_utils import distribute_model, set_visible_devices
 from utils.paths import MODEL_PARENT, ANALYSIS_PARENT
@@ -34,12 +33,14 @@ def batch_st_sampling(
     n_samples=4000,
     n_devices=1,
     context_fn=None,  # Call signature!
-    label=None,
+    labels=None,
     comment=None,
     snapshot_it=0,
     sample_kwargs={},
     out_folder_name=None,
     posthoc_sigma=None,
+    model_key="ema_model",
+    return_steps=True,
 ):
 
     # Set paths
@@ -52,16 +53,20 @@ def batch_st_sampling(
     n_batches = max(int(n_samples / batch_size), 1)
     print(f"Sampling {n_batches} batches.")
 
+    # Labels setup
+    if labels is not None:
+        labels = labels.reshape(n_batches, -1)
+
     # Load model
     if snapshot_it:
         model = load_snapshot(model_dir, snapshot_it)
     elif posthoc_sigma:
         model = phema.posthoc_model(
             phema.gamma_from_sigma(posthoc_sigma),
-            model_dir / 'power_ema',
+            model_dir / "power_ema",
         )
     else:
-        model = load_model_from_folder(model_dir)
+        model = load_model_from_folder(model_dir, key=model_key)
     model, _ = distribute_model(model, n_devices=n_devices)
 
     # Output file for samples
@@ -76,7 +81,7 @@ def batch_st_sampling(
         outfile_specifier = f"ph-sigma={posthoc_sigma:.2f}_{outfile_specifier}"
     if comment:
         outfile_specifier = f"{comment}_{outfile_specifier}"
-        
+
     out_file = out_folder / f"{model_dir.name}_samples_{outfile_specifier}.pt"
 
     # Sample from model
@@ -97,7 +102,8 @@ def batch_st_sampling(
                 if context_fn
                 else None
             ),
-            return_steps=True,
+            label_batch=torch.Tensor(labels[i]) if labels is not None else None,
+            return_steps=return_steps,
             **sample_kwargs,
         )
         batch_list.append(batch)
@@ -114,7 +120,13 @@ def batch_st_sampling(
     # i.e. n_batches x (T+1) x (bsize, 1, 80, 80).
     # We want it as a single tensor of shape
     # (n_batches * bsize, T+1, 1, 80, 80).
-    batch_st = torch.concat([torch.stack(b, dim=1) for b in batch_list]).cpu()
+    if return_steps:
+        batch_st = torch.concat([torch.stack(b, dim=1) for b in batch_list]).cpu()
+
+    # If return_steps is False, we only have the final image, i.e. a list
+    # of tensors of shape (bsize, 1, 80, 80).
+    else:
+        batch_st = torch.concat(batch_list).cpu()
 
     # Scale images from [-1, 1] to [0, 1]
     batch_st = (batch_st + 1) / 2
@@ -210,6 +222,7 @@ if __name__ == "__main__":
     from scipy.stats import norm, rv_histogram
     from sklearn import preprocessing as pr
 
+    """
     # Load dataset to get max-val histogram
     dset = TrainDataset(paths.LOFAR_SUBSETS["0-clip"])
     max_vals = dset.max_values.numpy()
@@ -227,6 +240,7 @@ if __name__ == "__main__":
 
     def context_fn(bsize):
         return model_dist.rvs(size=bsize)
+    """
 
     # Set up devices
     n_gpu = 2
@@ -234,17 +248,26 @@ if __name__ == "__main__":
     print(f"Using GPU {dev_ids[:n_gpu]}")
 
     # Sampling parameters
-    model_name = "Data_Augmented"
-    n_samples = 10_000
+    model_name = "FIRST_Labeled"
+    n_samples = 8_000
+
+    # Labels for sampling: equal amounts of 1, 2, 3, 4
+    unique_labels = [0, 1, 2, 3,]
+    labels = np.concatenate(
+        [np.full(n_samples // len(unique_labels), l) for l in unique_labels]
+    )
 
     batch_st_sampling(
         model_name,
         n_samples=n_samples,
         n_devices=n_gpu,
-        context_fn=context_fn,
+        context_fn=None,  # context_fn,
         sample_kwargs={
-            "guidance_strength": 0.1,
+            "guidance_strength": 0.5,
         },
+        labels=labels,
+        return_steps=False,
+        model_key="model",
         # posthoc_sigma=.07,
         # snapshot_it=100_000,
         # out_folder_name=f"{model_name}/unconditioned"

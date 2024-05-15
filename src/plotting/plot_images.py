@@ -3,6 +3,14 @@ import numpy as np
 import torch
 
 
+def random_image_grid(dset, n_img=25, idx_titles=False, **kwargs):
+    idxs = np.random.choice(len(dset), n_img, replace=False)
+    imgs = [dset[i] for i in idxs]
+    if idx_titles:
+        kwargs["titles"] = idxs
+    plot_image_grid(imgs, **kwargs)
+
+
 def plot_image_grid(
     imgs,
     suptitle=None,
@@ -14,7 +22,6 @@ def plot_image_grid(
     titles=None,
     **imshow_kwargs,
 ):
-
     if isinstance(imgs, list):
         imgs = np.array(imgs)
 

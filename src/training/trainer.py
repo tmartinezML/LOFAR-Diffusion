@@ -17,6 +17,7 @@ from torch_ema import ExponentialMovingAverage as EMA
 import wandb
 
 import model.unet as unet
+import model.unet_edm2 as unet2
 import utils.train_utils
 import training.loss_functions as loss_functions
 from training.output_manager import OutputManager

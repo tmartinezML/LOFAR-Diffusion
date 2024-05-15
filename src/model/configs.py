@@ -73,6 +73,40 @@ def EDM_small_config():
     return conf
 
 
+def EDM2_small_config():
+    conf = modelConfig(
+        # Unet parameters
+        model_name="EDM2",
+        model_type="EDMPrecond",
+        image_size=80,
+        image_channels=1,
+        init_channels=128,
+        channel_mults=(1, 2, 2),
+        attention_levels=2,
+        attn_head_dim=32,
+        dropout=0.0,
+        pretrained_model=None,
+        # Training hyperparameters
+        batch_size=256,
+        iterations=100_000,
+        learning_rate=2e-5,
+        ema_rate=0.9999,
+        sigma_data=0.5,
+        P_mean=-2.5,
+        P_std=1.8,
+        # Training settings
+        log_interval=1000,
+        snapshot_interval=20_000,
+        val_every=2500,
+        validate_ema=True,
+        write_output=True,
+        override_files=False,
+        # Parallel training
+        n_devices=2,
+    )
+    return conf
+
+
 def FIRST_labeled_config():
     conf = modelConfig(
         # Unet parameters
@@ -88,15 +122,16 @@ def FIRST_labeled_config():
         attention_head_channels=32,
         dropout=0.1,
         pretrained_model=None,
+        label_dropout=0.1,
         n_labels=4,
-        label_dropout=0.2,
         # Diffusion parameters
         timesteps=1000,
         # Training hyperparameters
         batch_size=128,
-        iterations=10_000,
+        iterations=20_000,
         learning_rate=2e-5,
         ema_rate=0.9999,
+        sigma_data=0.5,
         P_mean=-2.5,
         P_std=1.8,
         # Training settings

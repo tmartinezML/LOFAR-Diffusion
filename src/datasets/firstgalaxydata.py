@@ -20,7 +20,7 @@ from torchvision.datasets.utils import download_url
 from utils.paths import FIRST_DATA_PARENT
 
 
-def label_to_class_dict(definition='literature'):
+def label_to_class_dict(definition="literature"):
     """
     Returns the class definition for the galaxy images.
     :param definition: str, optional
@@ -28,24 +28,17 @@ def label_to_class_dict(definition='literature'):
     :return: dict
     """
     match definition:
-        case 'literature':
-            return {
-                0: "FRI", 1: "FRII", 2: "Compact", 3: "Bent"
-            }
+        case "literature":
+            return {0: "FRI", 1: "FRII", 2: "Compact", 3: "Bent"}
 
-        case 'CDL1':
-            return {
-                0: "FRI-Sta", 1: "FRII", 2: "Compact", 3: "FRI-WAT",
-                4: "FRI-NAT"
-            }
+        case "CDL1":
+            return {0: "FRI-Sta", 1: "FRII", 2: "Compact", 3: "FRI-WAT", 4: "FRI-NAT"}
 
         case _:
-            raise NotImplementedError(
-                f"Definition: {definition} is not implemented."
-            )
+            raise NotImplementedError(f"Definition: {definition} is not implemented.")
 
 
-def class_to_label_dict(definition='literature'):
+def class_to_label_dict(definition="literature"):
     """
     Returns the reverse class definition for the galaxy images.
     :param definition: str, optional
@@ -85,7 +78,7 @@ class FIRSTGalaxyData(data.Dataset):
         shows the coordinates of the images in a Aitoff projection
     __repr__()
         presents import information aboout the dataset in the Repl
-     """
+    """
 
     urls = {
         "mingo_LOFAR.zip": "https://syncandshare.desy.de/index.php/s/4bfk8gAwyaTGAsX/download",
@@ -103,15 +96,25 @@ class FIRSTGalaxyData(data.Dataset):
         "galaxy_data_crossvalid_2_h5.zip": "https://zenodo.org/record/7689127/files/galaxy_data_crossvalid_2_h5.zip?download=1",
         "galaxy_data_crossvalid_3_h5.zip": "https://zenodo.org/record/7689127/files/galaxy_data_crossvalid_3_h5.zip?download=1",
         "galaxy_data_crossvalid_4_h5.zip": "https://zenodo.org/record/7689127/files/galaxy_data_crossvalid_4_h5.zip?download=1",
-        "galaxy_data_crossvalid_test_h5.zip": "https://zenodo.org/record/7689127/files/galaxy_data_crossvalid_test_h5.zip?download=1"
+        "galaxy_data_crossvalid_test_h5.zip": "https://zenodo.org/record/7689127/files/galaxy_data_crossvalid_test_h5.zip?download=1",
     }
 
-    def __init__(self, root=FIRST_DATA_PARENT,
-                 input_data_list=None, selected_split=['train'],
-                 selected_classes=None, class_definition="literature",
-                 selected_catalogues=None, is_balanced=False, is_PIL=False,
-                 is_RGB=False, use_LOAFR_masking=False, transform=None,
-                 target_transform=None, is_download=False):
+    def __init__(
+        self,
+        root=FIRST_DATA_PARENT,
+        input_data_list=None,
+        selected_split=["train"],
+        selected_classes=None,
+        class_definition="literature",
+        selected_catalogues=None,
+        is_balanced=False,
+        is_PIL=False,
+        is_RGB=False,
+        use_LOAFR_masking=False,
+        transform=None,
+        target_transform=None,
+        is_download=False,
+    ):
         """
         Parameters
         ----------
@@ -152,8 +155,7 @@ class FIRSTGalaxyData(data.Dataset):
         # Set dataset properties
         self.selected_split = selected_split
         self.selected_splits = (
-            selected_split if hasattr(selected_split, '__iter__')
-            else [selected_split]
+            selected_split if hasattr(selected_split, "__iter__") else [selected_split]
         )
         self.is_balanced = is_balanced
 
@@ -166,18 +168,20 @@ class FIRSTGalaxyData(data.Dataset):
             self.class_labels = list(self.class_dict.keys())
             self.selected_classes = list(self.class_dict.values())
         else:
-            self.class_labels = [
-                self.class_dict_rev[c] for c in selected_classes
-            ]
+            self.class_labels = [self.class_dict_rev[c] for c in selected_classes]
 
         # Set catalogues
         self.supported_catalogues = [
-            "Gendre", "MiraBest", "Capetti2017a", "Capetti2017b", "Baldi2018",
-            "Proctor_Tab1", "LOFAR_Mingo", "LOFAR"
+            "Gendre",
+            "MiraBest",
+            "Capetti2017a",
+            "Capetti2017b",
+            "Baldi2018",
+            "Proctor_Tab1",
+            "LOFAR_Mingo",
+            "LOFAR",
         ]
-        self.selected_catalogues = (
-            selected_catalogues or self.supported_catalogues
-        )
+        self.selected_catalogues = selected_catalogues or self.supported_catalogues
 
         # Set image properties
         self.is_PIL = is_PIL
@@ -210,8 +214,7 @@ class FIRSTGalaxyData(data.Dataset):
 
             # Check file extension
             if (ext := file_path.suffix) != ".h5":
-                raise NotImplementedError(
-                    f"Data with extension {ext} not supported!")
+                raise NotImplementedError(f"Data with extension {ext} not supported!")
 
             # Open file
             with h5py.File(file_path, "r") as file:
@@ -233,8 +236,8 @@ class FIRSTGalaxyData(data.Dataset):
                     self.mask_params.append(mask_param)
 
         # Convert to Tensor / np array
-        self.data = torch.Tensor(self.data)
-        self.labels = torch.Tensor(np.array(self.labels)).to(torch.uint8)
+        self.data = torch.Tensor(np.array(self.data))
+        self.labels = torch.Tensor(np.array(self.labels)).long()
         self.coordinates = np.array(self.coordinates)
         self.mask_params = np.array(self.mask_params)
 
@@ -247,19 +250,24 @@ class FIRSTGalaxyData(data.Dataset):
         # and ignore more data of other classes.
         if self.is_balanced:
             occ_min = np.min(np.unique(self.labels, return_counts=True)[1])
-            mask = np.array([
-                self.labels == cl for cl in self.class_labels
-            ])
+            mask = np.array([self.labels == cl for cl in self.class_labels])
             mask[mask.cumsum(axis=1) > occ_min] = False
             self._mask_data(np.any(mask, axis=0))
 
         # Remove all images that have only zeros after transform
         if self.transform is not None:
             print("Removing images where all pixels are zero after transform...")
-            mask = np.array([
-                img.sum()  # Here, self.transform was already applied to img
-                for img, _ in DataLoader(self, batch_size=None, num_workers=1, shuffle=False)
-            ]) != 0
+            mask = (
+                np.array(
+                    [
+                        img.sum()  # Here, self.transform was already applied to img
+                        for img, _ in DataLoader(
+                            self, batch_size=None, num_workers=1, shuffle=False
+                        )
+                    ]
+                )
+                != 0
+            )
             print(f"\tRemoved {len(self.data) - np.sum(mask)} images.")
             self._mask_data(mask)
 
@@ -281,7 +289,7 @@ class FIRSTGalaxyData(data.Dataset):
         if self.target_transform is not None:
             labels = self.target_transform(labels)
 
-        return img, int(labels)
+        return img, labels
 
     def __getcoords__(self, index):
         return self.coordinates[index]
@@ -312,28 +320,19 @@ class FIRSTGalaxyData(data.Dataset):
 
         # Read data from h5 file
         data_entry = file[f"{key}/Img"]
-        label_entry = file[
-            f"{key}/Label_{self.class_definition}"
-        ]
+        label_entry = file[f"{key}/Label_{self.class_definition}"]
 
         # Filter for selected catalogues
         if data_entry.attrs["Source"] not in self.selected_catalogues:
             return None
 
         # Read coordinates of source
-        if (
-            data_entry.attrs.__contains__("RA")
-            and data_entry.attrs.__contains__("DEC")
-        ):
+        if data_entry.attrs.__contains__("RA") and data_entry.attrs.__contains__("DEC"):
             coord = SkyCoord(
-                data_entry.attrs["RA"],
-                data_entry.attrs["DEC"],
-                unit=(u.deg, u.deg)
+                data_entry.attrs["RA"], data_entry.attrs["DEC"], unit=(u.deg, u.deg)
             )
         else:
-            raise NotImplementedError(
-                f"No coords in data_entry at key {key}"
-            )
+            raise NotImplementedError(f"No coords in data_entry at key {key}")
 
         # Read masking parameters
         if (
@@ -344,7 +343,7 @@ class FIRSTGalaxyData(data.Dataset):
             mask_param = {
                 "source_PA": data_entry.attrs["source_PA"],
                 "source_size": data_entry.attrs["source_size"],
-                "source_width": data_entry.attrs["source_width"]
+                "source_width": data_entry.attrs["source_width"],
             }
         else:
             mask_param = None
@@ -352,7 +351,7 @@ class FIRSTGalaxyData(data.Dataset):
                 f"Could not find masking parameters, only "
                 "available for LOFAR data. mask_param will "
                 "be None.",
-                category=UserWarning
+                category=UserWarning,
             )
         return data_entry, label_entry, coord, mask_param
 
@@ -381,7 +380,10 @@ class FIRSTGalaxyData(data.Dataset):
         y0 = int(m.shape[1] / 2) - 0.5
         for x in range(m.shape[0]):
             for y in range(m.shape[1]):
-                if (np.power((x - x0) / (source_width / 2), 2) + np.power((y - y0) / (source_size / 2), 2)) <= 1:
+                if (
+                    np.power((x - x0) / (source_width / 2), 2)
+                    + np.power((y - y0) / (source_size / 2), 2)
+                ) <= 1:
                     m[x, y] = 1
 
         m_pil = Image.fromarray(m, mode="L")
@@ -401,8 +403,8 @@ class FIRSTGalaxyData(data.Dataset):
 
     def get_occurrences(self):
         occ = {
-            label: count for label, count
-            in zip(*np.unique(self.labels, return_counts=True))
+            label: count
+            for label, count in zip(*np.unique(self.labels, return_counts=True))
         }
         return occ
 
@@ -420,61 +422,90 @@ class FIRSTGalaxyData(data.Dataset):
             if c is not None:
                 ra_rad = c.ra.wrap_at(180 * u.deg).radian
                 dec_rad = c.dec.radian
-                plt.plot(ra_rad, dec_rad, 'o', markersize=1.5,
-                         color="red", alpha=0.3)
+                plt.plot(ra_rad, dec_rad, "o", markersize=1.5, color="red", alpha=0.3)
 
         plt.subplots_adjust(top=0.95, bottom=0.0)
         plt.show()
 
     def __repr__(self):
-        fmt_str = 'Dataset ' + self.__class__.__name__ + '\n'
-        fmt_str += '    Selected classes: {}'.format(
-            self.selected_classes) + '\n'
-        fmt_str += '    Number of datapoints in total: {}\n'.format(
-            self.__len__())
+        fmt_str = "Dataset " + self.__class__.__name__ + "\n"
+        fmt_str += "    Selected classes: {}".format(self.selected_classes) + "\n"
+        fmt_str += "    Number of datapoints in total: {}\n".format(self.__len__())
         for c in self.selected_classes:
-            fmt_str += '    Number of datapoint in class {}: {}\n'.format(
-                c, (self.labels == self.class_dict_rev[c]).sum())
+            fmt_str += "    Number of datapoint in class {}: {}\n".format(
+                c, (self.labels == self.class_dict_rev[c]).sum()
+            )
         tmp = self.selected_split
-        fmt_str += '    Split: {}\n'.format(tmp)
-        fmt_str += '    Root Location: {}\n'.format(self.path)
-        fmt_str += '    Input Data List: {}\n'.format(self.input_data_list)
-        tmp = '    Transforms (if any): '
-        fmt_str += '{0}{1}\n'.format(
-            tmp, self.transform.__repr__().replace('\n', '\n' + ' ' * len(tmp)))
-        tmp = '    Target Transforms (if any): '
-        fmt_str += '{0}{1}'.format(
-            tmp, self.target_transform.__repr__().replace('\n', '\n' + ' ' * len(tmp)))
+        fmt_str += "    Split: {}\n".format(tmp)
+        fmt_str += "    Root Location: {}\n".format(self.path)
+        fmt_str += "    Input Data List: {}\n".format(self.input_data_list)
+        tmp = "    Transforms (if any): "
+        fmt_str += "{0}{1}\n".format(
+            tmp, self.transform.__repr__().replace("\n", "\n" + " " * len(tmp))
+        )
+        tmp = "    Target Transforms (if any): "
+        fmt_str += "{0}{1}".format(
+            tmp, self.target_transform.__repr__().replace("\n", "\n" + " " * len(tmp))
+        )
         return fmt_str
 
 
 if __name__ == "__main__":
     print("Start firstgalaxydata.py")
     transform = transforms.Compose(
-        [transforms.ToTensor(),
-         transforms.Normalize([0.5], [0.5])])
+        [transforms.ToTensor(), transforms.Normalize([0.5], [0.5])]
+    )
 
     transformRGB = transforms.Compose(
-        [transforms.ToTensor(),
-         transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])])
+        [
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+        ]
+    )
 
-    data_v = FIRSTGalaxyData(root="./", class_definition="literature", selected_split="valid",
-                             input_data_list=[
-                                 "galaxy_data_crossvalid_2_h5.h5"],
-                             is_PIL=True, is_RGB=True, is_balanced=False, transform=transformRGB)
+    data_v = FIRSTGalaxyData(
+        root="./",
+        class_definition="literature",
+        selected_split="valid",
+        input_data_list=["galaxy_data_crossvalid_2_h5.h5"],
+        is_PIL=True,
+        is_RGB=True,
+        is_balanced=False,
+        transform=transformRGB,
+    )
 
-    data_train = FIRSTGalaxyData(root="./", class_definition="literature", selected_split="train",
-                                 input_data_list=[
-                                     "galaxy_data_crossvalid_2_h5.h5"],
-                                 is_PIL=True, is_RGB=True, is_balanced=False, transform=transformRGB)
+    data_train = FIRSTGalaxyData(
+        root="./",
+        class_definition="literature",
+        selected_split="train",
+        input_data_list=["galaxy_data_crossvalid_2_h5.h5"],
+        is_PIL=True,
+        is_RGB=True,
+        is_balanced=False,
+        transform=transformRGB,
+    )
 
-    data_test = FIRSTGalaxyData(root="./", class_definition="literature", selected_split="test",
-                                input_data_list=[
-                                    "galaxy_data_crossvalid_test_h5.h5"],
-                                is_PIL=True, is_RGB=True, is_balanced=False, transform=transformRGB)
+    data_test = FIRSTGalaxyData(
+        root="./",
+        class_definition="literature",
+        selected_split="test",
+        input_data_list=["galaxy_data_crossvalid_test_h5.h5"],
+        is_PIL=True,
+        is_RGB=True,
+        is_balanced=False,
+        transform=transformRGB,
+    )
 
-    data = FIRSTGalaxyData(root="./", class_definition="literature", selected_split="train",
-                           input_data_list=["galaxy_data_h5.h5"], selected_catalogues=["MiraBest", "Capetti2017a", "Baldi2018", "Proctor_Tab1"],
-                           is_PIL=True, is_RGB=True, is_balanced=False, transform=transformRGB)
+    data = FIRSTGalaxyData(
+        root="./",
+        class_definition="literature",
+        selected_split="train",
+        input_data_list=["galaxy_data_h5.h5"],
+        selected_catalogues=["MiraBest", "Capetti2017a", "Baldi2018", "Proctor_Tab1"],
+        is_PIL=True,
+        is_RGB=True,
+        is_balanced=False,
+        transform=transformRGB,
+    )
 
     print("Loading dataset finished.")

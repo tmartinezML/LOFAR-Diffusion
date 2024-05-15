@@ -4,6 +4,7 @@ from functools import partial
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
+from matplotlib import colormaps as cm
 
 import analysis.bdsf_evaluation as bdsfeval
 import analysis.model_evaluation as meval
@@ -136,7 +137,7 @@ def paper_plots_bdsf(
             img_dir = [img_dir]
             bdsf_dir = [bdsf_dir]
             if labels is None:
-                labels = [fig_name]
+                labels = ["Generated"]
 
         case list():
             if labels is None:
@@ -152,6 +153,9 @@ def paper_plots_bdsf(
         lofar_distr_dict = bdsfeval.get_bdsf_distributions(
             train_path, force=force_train
         )
+
+    # Set colors for paper plots
+    colors = colors or [cm["viridis"](i) for i in [0.2, 0.85]]
 
     out = {}
     for metric, xlabel in zip(metrics, xlabels):
@@ -169,9 +173,7 @@ def paper_plots_bdsf(
             key=metric,
             xlabel=xlabel,
         )
-        fig.savefig(
-            paths.PAPER_PLOT_DIR / f"{metric}_{fig_name}.pdf", bbox_inches="tight"
-        )
+        fig.savefig(paths.PAPER_PLOT_DIR / f"{metric}.pdf", bbox_inches="tight")
 
         out[metric] = (fig, axs)
     return out
@@ -196,7 +198,7 @@ def paper_plots_pxstats(
             fig_name = img_dir.stem
             img_dir = [img_dir]
             if labels is None:
-                labels = [fig_name]
+                labels = ["Generated"]
 
         case list():
             if labels is None:
@@ -209,6 +211,9 @@ def paper_plots_pxstats(
     # Get metrics dict
     if train_path is not None:
         lofar_distr_dict = meval.get_distributions(train_path, force=force_train)
+
+    # Set colors for paper plots
+    colors = colors or [cm["viridis"](i) for i in [0.2, 0.85]]
 
     out = {}
     for metric, xlabel in zip(metrics, xlabels):
@@ -226,9 +231,7 @@ def paper_plots_pxstats(
             key=metric,
             xlabel=xlabel,
         )
-        fig.savefig(
-            paths.PAPER_PLOT_DIR / f"{metric}_{fig_name}.pdf", bbox_inches="tight"
-        )
+        fig.savefig(paths.PAPER_PLOT_DIR / f"{metric}.pdf", bbox_inches="tight")
 
         out[metric] = (fig, axs)
     return out

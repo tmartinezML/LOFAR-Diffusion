@@ -11,9 +11,7 @@ from tqdm import tqdm
 import model.diffusion as Diffusion
 from utils.device_utils import distribute_model, set_visible_devices
 from plotting.plot_images import plot_image_grid
-from utils.init_utils import (
-    load_model, load_model_from_folder, load_snapshot
-)
+from utils.init_utils import load_model, load_model_from_folder, load_snapshot
 from utils.paths import GEN_DATA_PARENT, MODEL_PARENT
 
 
@@ -40,26 +38,14 @@ def sample_batch(
     return imgs if return_steps else imgs[-1]
 
 
-def save_batch_png(imgs, out_folder, file_prefix="samples", rescale=True,):
-
-    for i, img in tqdm(enumerate(imgs), desc="Saving..."):
-
-        if rescale:
-            img = (img + 1) / 2
-
-        save_image(
-            img,
-            out_folder.joinpath(f"{file_prefix}_{i:04d}.png")
-        )
-
-
 def _h5_dataset_append(dset, data):
     dset.resize(dset.shape[0] + data.shape[0], axis=0)
-    dset[-data.shape[0]:] = data
+    dset[-data.shape[0] :] = data
 
 
-def save_batch_hdf5(imgs, out_file,
-                    labels=None, dataset_name="samples", rescale=True, attrs={}):
+def save_batch_hdf5(
+    imgs, out_file, labels=None, dataset_name="samples", rescale=True, attrs={}
+):
 
     if rescale:
         imgs = (imgs + 1) / 2
@@ -76,7 +62,6 @@ def save_batch_hdf5(imgs, out_file,
 
         # If dataset does not exist, create it
         else:
-            # Create dataset w. images
             dset = f.create_dataset(
                 f"{dataset_name}",
                 data=imgs.cpu().numpy(),
@@ -85,6 +70,7 @@ def save_batch_hdf5(imgs, out_file,
             )
             dset.attrs.update(attrs)
 
+        # If labels exist, add them to dataset
         if labels is not None:
             if f"{dataset_name}_labels" in f:
                 _h5_dataset_append(f[f"{dataset_name}_labels"], labels)
@@ -100,71 +86,48 @@ def save_batch_hdf5(imgs, out_file,
 
 def sample_and_save_batches(
     model,
-    diffusion,
     out_path,
     bsize,
     n_batches,
     labels=None,
-    prefix_shift=0,
     dataset_name="samples",
-    h5=True,
     **sample_kwargs,
 ):
+
+    # Adapt labels to batch size
     if labels is not None:
-        assert n_batches % len(labels) == 0, (
-            "Number of labels must be divisible by number of batches."
-        )
-        if not h5:
-            raise NotImplementedError(
-                "Saving as PNG files is only implemented for label-less "
-                "sampling."
-            )
+        assert (
+            n_batches % len(labels) == 0
+        ), "Number of labels must be divisible by number of batches."
         labels = labels * (n_batches // len(labels))
 
+    # Loop through batches
     for i in range(n_batches):
         # Set labels
         label_batch = tensor([labels[i]] * bsize) if labels else None
 
         # Sample
-        imgs = sample_batch(
-            model,
-            diffusion,
-            bsize,
-            label_batch=label_batch,
-            **sample_kwargs
-        )
+        imgs = sample_batch(model, bsize, label_batch=label_batch, **sample_kwargs)
 
         # Save as single HDF5 files
-        if h5:
-            save_batch_hdf5(
-                imgs,
-                out_path,
-                labels=label_batch.numpy() if labels else None,
-                dataset_name=dataset_name
-            )
-
-        # Save as PNG files
-        else:
-            out_folder = out_path / dataset_name
-            out_path.mkdir(exist_ok=True, parents=True)
-            save_batch_png(
-                imgs,
-                out_folder,
-                file_prefix=f'{i + prefix_shift}_{dataset_name}'
-            )
-
+        save_batch_hdf5(
+            imgs,
+            out_path,
+            labels=label_batch.numpy() if labels else None,
+            dataset_name=dataset_name,
+        )
 
 def sample_set_from_config_model_files(
-        config_file,
-        model_file,
-        out_path,
-        bsize,
-        n_batches,
-        n_devices=1,
-        T=None,
-        img_size=80,
-        save_as_h5=True,
-        **sampling_kwargs,
+    config_file,
+    model_file,
+    out_path,
+    bsize,
+    n_batches,
+    n_devices=1,
+    T=None,
+    img_size=80,
+    save_as_h5=True,
+    **sampling_kwargs,
 ):
 
     # Load model & diffusion
@@ -183,7 +146,7 @@ def sample_set_from_config_model_files(
         n_batches,
         img_size=img_size,
         h5=save_as_h5,
-        **sampling_kwargs
+        **sampling_kwargs,
     )
 
     return
@@ -204,27 +167,27 @@ def save_sampling_info(out_path, info_dict):
                     info_dict["dataset_name"],
                     (0, 0, 0, 0),
                     chunks=True,
-                    maxshape=(None, 1, *(info_dict["img_size"],) * 2)
+                    maxshape=(None, 1, *(info_dict["img_size"],) * 2),
                 )
 
             f[info_dict["dataset_name"]].attrs.update(info_dict)
 
 
 def sample_set_from_model(
-        model_name,
-        batch_size,
-        n_batches,
-        n_devices=1,
-        labels=None,
-        T=None,
-        use_ema=True,
-        img_size=80,
-        snapshot_iter=None,
-        save_as_h5=True,
-        dataset_suffix=None,
-        out_parent=GEN_DATA_PARENT,
-        model_parent=MODEL_PARENT,
-        **sampling_kwargs,
+    model_name,
+    batch_size,
+    n_batches,
+    n_devices=1,
+    labels=None,
+    T=None,
+    use_ema=True,
+    img_size=80,
+    snapshot_iter=None,
+    save_as_h5=True,
+    dataset_suffix=None,
+    out_parent=GEN_DATA_PARENT,
+    model_parent=MODEL_PARENT,
+    **sampling_kwargs,
 ):
     model_dir = model_parent / model_name
 
@@ -241,33 +204,24 @@ def sample_set_from_model(
     # If out folder contains images, shift prefix:
     prefix_shift = 0
     if len(list(out_path.glob("*.png"))):
-        prefix_shift = max(
-            [int(f.name[0]) for f in list(out_path.glob("*.png"))]
-        ) + 1
+        prefix_shift = max([int(f.name[0]) for f in list(out_path.glob("*.png"))]) + 1
 
     # Load model & config
     model, config = load_model_from_folder(
         model_dir, use_ema=use_ema, return_config=True
     )
     if snapshot_iter is not None:
-        model = load_snapshot(
-            model_dir, snapshot_iter, use_ema=use_ema, model=model
-        )
+        model = load_snapshot(model_dir, snapshot_iter, use_ema=use_ema, model=model)
 
     # Move to GPU
     model, _ = distribute_model(model, n_devices)
-
-    # Load diffusion
-    diffusion = load_diffusion_from_config(config)
-    if T:
-        diffusion.timesteps = T
 
     # Save sampling info
     sampling_info = {
         "dataset_name": dataset_name,
         "model_name": model_name,
         "img_size": img_size,
-        "sampling_timesteps": diffusion.timesteps,
+        "sampling_timesteps": T or 25,
         **sampling_kwargs,
     }
 
@@ -275,7 +229,6 @@ def sample_set_from_model(
     t0 = datetime.now()
     sample_and_save_batches(
         model,
-        diffusion,
         out_path,
         batch_size,
         n_batches,
@@ -284,7 +237,7 @@ def sample_set_from_model(
         prefix_shift=prefix_shift,
         dataset_name=dataset_name,
         h5=save_as_h5,
-        **sampling_kwargs
+        **sampling_kwargs,
     )
     save_sampling_info(out_path, sampling_info)
     dt = datetime.now() - t0
@@ -295,21 +248,21 @@ def sample_set_from_model(
 if __name__ == "__main__":
 
     # Setup
-    model_name = 'EDM_SNR5_50as'
+    model_name = "FIRST_Labeled"
     n_devices = 2
     # n_samples = 100
-    # labels = [0, 1, 2, 3]
+    labels = [0, 1, 2, 3]
     batch_size = 1000
-    n_batches = 10
-    # n_batches = len(labels)
+    # n_batches = 10
+    n_batches = len(labels)
 
     sample_set_from_model(
         model_name,
         batch_size=batch_size,
         n_batches=n_batches,
-        # labels=labels,
+        labels=labels,
         n_devices=n_devices,
         T=25,
-        use_ema=True,
+        use_ema=False,
         img_size=80,
     )
