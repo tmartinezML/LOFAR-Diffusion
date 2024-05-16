@@ -252,7 +252,12 @@ if __name__ == "__main__":
     n_samples = 8_000
 
     # Labels for sampling: equal amounts of 1, 2, 3, 4
-    unique_labels = [0, 1, 2, 3,]
+    unique_labels = [
+        0,
+        1,
+        2,
+        3,
+    ]
     labels = np.concatenate(
         [np.full(n_samples // len(unique_labels), l) for l in unique_labels]
     )
@@ -263,7 +268,7 @@ if __name__ == "__main__":
         n_devices=n_gpu,
         context_fn=None,  # context_fn,
         sample_kwargs={
-            "guidance_strength": 0.5,
+            "guidance_strength": 0.75,
         },
         labels=labels,
         return_steps=False,

@@ -215,9 +215,6 @@ class ImagePathDataset(torch.utils.data.Dataset):
 
         self.data = self.data[idx]
 
-        if len(self._context):
-            print("Context was reset.")
-            self.context = []
 
     def sort_by_names(self):
         idxs = np.argsort(self.names)
