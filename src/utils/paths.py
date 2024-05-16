@@ -3,7 +3,7 @@ import os
 from indexed import IndexedOrderedDict
 
 # Base directories for code base & storage
-BASE_PARENT = Path(os.getcwd()).parent
+BASE_PARENT = Path(__file__).parent
 STORAGE_PARENT = Path("/hs/fs08/data/group-brueggen/tmartinez")
 
 # Three main storage folders.
@@ -50,7 +50,7 @@ CUTOUTS_DIR = LOFAR_DATA_PARENT / "cutouts"
 LOFAR_RES_CAT = LOFAR_DATA_PARENT / "6-LoTSS_DR2-public-resolved_sources.csv"
 
 # Paths for output
-PAPER_PLOT_DIR = ANALYSIS_PARENT / 'paper_plots'
+PAPER_PLOT_DIR = ANALYSIS_PARENT / "paper_plots"
 
 
 def cast_to_Path(path):
