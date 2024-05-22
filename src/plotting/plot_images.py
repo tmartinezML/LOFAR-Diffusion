@@ -8,7 +8,7 @@ def random_image_grid(dset, n_img=25, idx_titles=False, **kwargs):
     imgs = [dset[i] for i in idxs]
     if idx_titles:
         kwargs["titles"] = idxs
-    plot_image_grid(imgs, **kwargs)
+    return plot_image_grid(imgs, **kwargs)
 
 
 def plot_image_grid(
@@ -75,21 +75,10 @@ def plot_image_grid(
     return fig, axs
 
 
-def plot_image_grid_from_file(
-    path, n_rows=5, n_cols=None, save=False, idx_titles=False, **kwargs
-):
-    imgs = torch.load(path, map_location="cpu")
-
-    if n_cols is None:
-        n_cols = n_rows
-
-    idxs = np.random.choice(len(imgs), n_rows * n_cols, replace=False)
-    imgs = imgs[idxs].numpy()[:, -1, :, :]
+def plot_image_grid_from_file(path, save=False, **kwargs):
+    imgs = torch.load(path, map_location="cpu").numpy()[:, -1, :, :]
     savefig = path.parent / f"{path.stem}_grid.png" if save else None
-    titles = idxs if idx_titles else None
-    return plot_image_grid(
-        imgs, suptitle=path.stem, savefig=savefig, titles=titles, **kwargs
-    )
+    return random_image_grid(imgs, savefig=savefig, **kwargs)
 
 
 def metric_peek(metric, edges, images, names=None, n_examples=10, metric_name="Metric"):
