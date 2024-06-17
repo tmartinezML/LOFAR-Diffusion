@@ -215,7 +215,6 @@ class ImagePathDataset(torch.utils.data.Dataset):
 
         self.data = self.data[idx]
 
-
     def sort_by_names(self):
         idxs = np.argsort(self.names)
         self.index_slice(idxs)
@@ -372,6 +371,7 @@ class TrainDatasetFIRST(FIRSTGalaxyData):
             selected_split=["train", "test", "valid"],
             is_balanced=True,
             transform=train_transform(img_size),
+            **kwargs,
         )
 
     def set_context(self, *args):

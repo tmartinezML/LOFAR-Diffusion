@@ -362,12 +362,12 @@ class ResidualBlock(TimestepBlock):
             # (up/downsample will happen in between)
             in_pre, in_conv = self.in_layers[:-1], self.in_layers[-1]
 
-            # Hidden state update
+            # Hidden state
             h = in_pre(x)  # Norm+SiLU
             h = self.h_upd(h)  # Up/downsample
             h = in_conv(h)  # Conv
 
-            # Residual update
+            # Residual
             x = self.x_upd(x)  # Up/downsample residual
 
         else:

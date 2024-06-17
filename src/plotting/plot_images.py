@@ -1,11 +1,18 @@
 import matplotlib.pyplot as plt
+from matplotlib import colormaps as cm
 import numpy as np
 import torch
 
+import analysis.bdsf_evaluation as bdsfeval
+
 
 def random_image_grid(dset, n_img=25, idx_titles=False, **kwargs):
+    def has_context(img):
+        return isinstance(img, list) or isinstance(img, tuple)
+
     idxs = np.random.choice(len(dset), n_img, replace=False)
-    imgs = [dset[i] for i in idxs]
+    imgs = [img if not has_context(img := dset[i]) else img[0] for i in idxs]
+
     if idx_titles:
         kwargs["titles"] = idxs
     return plot_image_grid(imgs, **kwargs)
@@ -136,3 +143,30 @@ def metric_peek(metric, edges, images, names=None, n_examples=10, metric_name="M
             ax.axis("off")
         fig.suptitle(suptitle, fontsize="xx-large")
         fig.show()
+
+
+def quantile_contour_plot(img_arr, p_vals=[0.9, 0.5, 0.1], ax=None, label=False):
+    if ax is None:
+        fig, ax = plt.subplots(1, 1, figsize=(4, 4), constrained_layout=True)
+    q_vals = bdsfeval.quantile_values(img_arr, p_vals)
+
+    ax.imshow(img_arr)
+    
+    cnt = ax.contour(
+        img_arr, levels=np.unique(q_vals), colors=cm["PiYG"](p_vals), linewidths=0.5
+    )
+    if label:
+        ax.clabel(cnt, inline=True, fontsize=8, fmt={q: p for q, p in zip(q_vals, p_vals)})
+
+    if ax is None:
+        plt.show()
+    return q_vals
+
+
+def remove_axes(ax):
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.spines["bottom"].set_visible(False)
+        ax.spines["left"].set_visible(False)

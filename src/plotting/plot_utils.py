@@ -5,14 +5,23 @@ from utils.stats_utils import norm, norm_err, norm_err_poisson, centers
 
 
 def add_distribution_plot(
-    counts, edges, ax, label="", color="black", alpha=0.5, fill=False
+    counts,
+    edges,
+    ax,
+    label="",
+    color="black",
+    alpha=0.5,
+    fill=False,
+    normalize=True,
+    label_count=True,
+    errorbar=True,
 ):
     # Extract counts and edges from distribution
-    c_norm = norm(counts)
-    c_norm_err = norm_err_poisson(counts)
+    c_norm = norm(counts) if normalize else counts
+    c_norm_err = norm_err_poisson(counts) if normalize else np.sqrt(counts)
 
     # Add number of images to label
-    if label is not None:
+    if label is not None and label_count:
         label += f" (n={int(np.sum(counts)):_})"
 
     # Check if lines or collections are already present in axes
@@ -21,17 +30,18 @@ def add_distribution_plot(
 
     # Plot distribution and error bars
     ax.stairs(c_norm, edges, alpha=alpha, fill=fill, label=label, color=color, lw=1.5)
-    ax.errorbar(
-        centers(edges),
-        c_norm,
-        yerr=c_norm_err,
-        alpha=0.75 * alpha,
-        color=color,
-        ls="none",
-        elinewidth=0.5,
-        capsize=2.5,
-        capthick=0.5,
-    )
+    if errorbar:
+        ax.errorbar(
+            centers(edges),
+            c_norm,
+            yerr=c_norm_err,
+            alpha=0.75 * alpha,
+            color=color,
+            ls="none",
+            elinewidth=0.5,
+            capsize=2.5,
+            capthick=0.5,
+        )
 
     # Set x limits
     _, x_max = ax.get_xlim()
@@ -39,7 +49,7 @@ def add_distribution_plot(
     new_xmax = (max(fullbins) if len(fullbins) else edges[-1]) * 1.02
     if data_present:
         new_xmax = max(new_xmax, x_max)
-    ax.set_xlim(-0.02 * new_xmax, new_xmax)
+    ax.set_xlim(edges[0] - 0.02 * new_xmax, new_xmax)
     return counts, edges
 
 

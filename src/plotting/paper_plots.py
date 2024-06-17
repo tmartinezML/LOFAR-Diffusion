@@ -4,19 +4,26 @@ from functools import partial
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
+import matplotlib.gridspec as gridspec
+from scipy.stats import norm as sp_norm
+from scipy.optimize import curve_fit
 from matplotlib import colormaps as cm
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
-import analysis.bdsf_evaluation as bdsfeval
-import analysis.model_evaluation as meval
 import utils.paths as paths
-from utils.stats_utils import norm
+import analysis.model_evaluation as meval
+import analysis.bdsf_evaluation as bdsfeval
+from utils.stats_utils import norm, centers
+from plotting.plot_images import plot_image_grid, quantile_contour_plot, remove_axes
 from plotting.plot_utils import add_distribution_plot, plot_collection
+
 
 # Plot the following metrics separately and save each of them to pdf:
 # Pixel Value distribution, Image Mean, Image Sigma, COM Contours,
 # Total flux gaus, nsrc, q0.1_area
 
 mm = 1 / 25.4  # mm in inches
+fig_width = 88 * mm
 # plt.rcParams.update({"font.size": 5})
 plt.style.use("seaborn-paper")
 plt.rcParams.update(
@@ -33,6 +40,251 @@ plt.rcParams.update(
         "text.usetex": False,
     }
 )
+out_path = Path("/home/bbd0953/diffusion/analysis_results/paper_plots")
+
+
+def pyBDSF_residual_plot(img_arr, model_arr, residuals, fmax):
+    n = len(img_arr)
+    assert len(model_arr) == n, "Number of images must match"
+    assert len(residuals) == n, "Number of residuals must match"
+
+    fig, axs = plt.subplots(
+        3, n, figsize=(fig_width, fig_width * 2 / 3), tight_layout=True
+    )
+
+    for i, ax in zip(range(len(img_arr)), axs.T):
+        img = img_arr[i]
+        res = residuals[i]
+        ax[0].imshow(img)
+        ax[0].set_title(f"{fmax[i]:.2f}")
+        ax[1].imshow(model_arr[i])
+        ax[2].imshow(res, vmin=0, vmax=residuals.max(), cmap="binary_r")
+        print(residuals.max())
+
+        delta = res[res >= 0].sum()
+        ax[2].set_xlabel(f"{delta:.2f}")
+
+        if i == 0:
+            ax[0].set_ylabel("Image")
+            ax[1].set_ylabel("Model")
+            ax[2].set_ylabel("Res. $\geq$0")
+
+    # Add annotation on bottom left:
+    fig.text(
+        0.095, 0.927, "$\hat{f}_\mathrm{scaled}$:", ha="right", va="bottom", fontsize=9
+    )
+    fig.text(0.095, 0.028, "$\Delta_+$:", ha="right", va="bottom", fontsize=9)
+
+    for ax in axs.flatten():
+        remove_axes(ax)
+
+    return fig, axs
+
+
+def pyBDSF_examples(imgs, model_imgs, a50=False):
+    # Two patches with 6 cols and two rows each, upper row is images,
+    # lower row is model images. The separation between the two patches is
+    # larger than the separation between the images in each patch.
+    # Create a figure
+    fig = plt.figure(
+        figsize=(fig_width, fig_width * 0.5),
+        dpi=150,
+        tight_layout=True,
+    )
+
+    assert len(imgs) == len(model_imgs), "Number of images must match"
+
+    n_subplots = 1
+    n_cols = len(imgs) // n_subplots
+
+    gs_outer = gridspec.GridSpec(
+        n_subplots,
+        1,
+        height_ratios=[
+            1,
+        ]
+        * n_subplots,
+        # hspace=0.1,
+    )
+
+    axs = []
+    for i in range(n_subplots):
+        # Create a GridSpec for each subplot
+        gs = gridspec.GridSpecFromSubplotSpec(
+            2,
+            n_cols,
+            subplot_spec=gs_outer[i],
+            wspace=0.1,  # adjust the space between the plots in the grid
+            hspace=0.02,
+        )
+
+        # Create the 2xn_cols grid of axes
+        for j in range(2):
+            for k in range(n_cols):
+                ax = fig.add_subplot(gs[j, k])
+                axs.append(ax)
+                remove_axes(ax)  # Turn off the axis (or customize as needed)
+
+    axs = np.array(axs).reshape(n_subplots, 2, n_cols)
+
+    for i, (img, model_img) in enumerate(zip(imgs, model_imgs)):
+        ax_img, ax_model = axs[i // n_cols, :, i % n_cols]
+        ax_img.imshow(img.squeeze())
+        if a50:
+            (q,) = quantile_contour_plot(model_img.squeeze(), p_vals=[0.5], ax=ax_model)
+            area = (model_img >= q).sum()
+            ax_model.set_xlabel(f"{area}")
+        else:
+            ax_model.imshow(model_img.squeeze())
+
+    # Add annotation on bottom left:
+    fig.text(-0.025, 0.045, "$A_{50\%}$:", ha="left", va="bottom", fontsize=9)
+
+    return fig, ax
+
+
+def boxcox_plot(dset):
+    dset.transform_max_vals()
+
+    fig, axs = plt.subplots(2, 1, figsize=(fig_width, fig_width * 4 / 3), dpi=150)
+
+    add_distribution_plot(
+        *np.histogram(dset.max_values, bins=100),
+        axs[0],
+        label="Dataset",
+        color="black",
+        normalize=False,
+        label_count=False,
+        errorbar=False,
+        alpha=0.7,
+    )
+    axs[0].set_yscale("log")
+    axs[0].set_xlabel("$\hat{f}$")
+    axs[0].set_ylabel("Count")
+    axs[0].legend()
+
+    add_distribution_plot(
+        *(hist := np.histogram(dset.max_values_tr, bins=100)),
+        axs[1],
+        label="Dataset",
+        color="black",
+        normalize=False,
+        label_count=False,
+        errorbar=False,
+        alpha=0.7,
+    )
+
+    # Plot standard normal gaussian with amplitude fitted to histogram
+    # Step 3: Define the standard normal distribution with amplitude as the free parameter
+    def gaussian(x, amplitude):
+        return amplitude * sp_norm.pdf(x, 0, 1)
+
+    # Step 4: Fit the amplitude
+    popt, _ = curve_fit(gaussian, centers(hist[1]), hist[0])
+
+    axs[1].plot(
+        hist[1],
+        gaussian(hist[1], *popt),
+        color="grey",
+        label="Gaussian",
+        alpha=0.5,
+        ls="--",
+    )
+    axs[1].set_xlabel("$\hat{f}_\mathrm{scaled}$")
+    axs[1].set_ylabel("Count")
+    axs[1].legend(loc="upper right")
+
+    return fig, axs
+
+
+def selection_dropout_plot(edge_imgs, broken_imgs):
+    fig, ax = plt.subplots(
+        2,
+        len(edge_imgs),
+        figsize=(fig_width, fig_width * 0.45),
+        dpi=150,
+        tight_layout=True,
+    )
+
+    for i, (edge_img, broken_img) in enumerate(zip(edge_imgs, broken_imgs)):
+        ax[0, i].imshow(edge_img.squeeze())
+        ax[0, i].axis("off")
+        ax[1, i].imshow(broken_img.squeeze())
+        ax[1, i].axis("off")
+
+    return fig, ax
+
+
+def SNR_example_plot(SNR, edges, images, n_row=5):
+
+    # Figure should have one plot on top for the distribution and a grid of images below
+    fig = plt.figure(
+        dpi=150,
+        figsize=(fig_width, fig_width * 4 / 3 * 0.9),
+        tight_layout=True,
+    )
+
+    gs = gridspec.GridSpec(2, 1, height_ratios=[1, 1])
+    ax0 = fig.add_subplot(gs[0])
+
+    # Make grid on the bottom
+    n_col = len(edges) - 1
+    gs_lower = gridspec.GridSpecFromSubplotSpec(
+        n_row, n_col, subplot_spec=gs[1], wspace=0.05, hspace=0.05
+    )
+
+    # Make 2d grid with axes
+    grid_axs = []
+    for i in range(n_row):
+        for j in range(n_col):
+            ax = fig.add_subplot(gs_lower[i, j])
+            ax.axis("off")
+            grid_axs.append(ax)
+    grid_axs = np.array(grid_axs).reshape(n_row, n_col)
+
+    # Plot the distribution
+    counts = np.histogram(SNR, bins=edges)[0]
+    add_distribution_plot(
+        counts,
+        edges,
+        ax0,
+        color="black",
+        alpha=0.8,
+        normalize=False,
+        label="Cutouts",
+        label_count=False,
+    )
+    ax0.axvline(5, color="grey", linestyle="--", label="Sel. cut")
+    ax0.set_xlabel("$\mathit{SNR}_\sigma$")
+    ax0.set_ylabel("Count")
+    # Set ticks format to abbreviate thousands
+    ax0.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x/1e3:.0f}k"))
+
+    # Plot inset with entire distribution
+    ax_inset = inset_axes(ax0, width="40%", height="40%", loc="upper right")
+    ax_inset.hist(SNR, bins=25, color="black", alpha=0.8)
+    ax_inset.set_yscale("log")
+    # ax_inset.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x/1e3:.0f}k"))
+
+    ax0.legend(loc=(0.72, 0.2))
+
+    # Pick n_row examples from each bin
+    binned_idxs = np.digitize(SNR, edges)  # Bin index for every SNR value
+    bin_idxs = np.arange(0, n_col) + 1
+    img_idxs = [np.argwhere(binned_idxs == i_bin).flatten() for i_bin in bin_idxs]
+    img_idxs = [
+        np.random.choice(idxs, n_row, replace=False) if len(idxs) > 0 else []
+        for idxs in img_idxs
+    ]
+    print(len(img_idxs))
+
+    for i, idxs in enumerate(img_idxs):
+        for j, img_idx in enumerate(idxs):
+            ax = grid_axs[j, i]
+            ax.imshow(images[img_idx].squeeze())
+            ax.axis("off")
+
+    return fig
 
 
 def COM_contour_plot(COM, fig_ax=None, color="black", label=None):

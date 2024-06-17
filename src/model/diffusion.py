@@ -46,7 +46,10 @@ def denoised_guided(
 
         # Denoised image with class conditioning
         denoised_cond = model(
-            img, sigma, class_labels=class_labels.long(), context=context
+            img,
+            sigma,
+            class_labels=class_labels.long() if class_labels is not None else None,
+            context=context,
         )
 
         # Apply guidance
