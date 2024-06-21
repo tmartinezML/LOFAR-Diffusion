@@ -40,7 +40,9 @@ plt.rcParams.update(
         "text.usetex": False,
     }
 )
-out_path = Path("/home/bbd0953/diffusion/analysis_results/paper_plots")
+out_path = Path(
+    "/hs/fs08/data/group-brueggen/tmartinez/diffusion/analysis_results/paper_plots"
+)
 
 
 def pyBDSF_residual_plot(img_arr, model_arr, residuals, fmax):
@@ -355,6 +357,7 @@ def single_metric_plot(
         label=label,
         color=color,
         alpha=alpha,
+        label_count=False,
     )
 
     # Axis and plot properties
@@ -376,7 +379,7 @@ def paper_plots_bdsf(
     plot_train=True,
     force_train=False,
     train_path=paths.LOFAR_SUBSETS["0-clip"],
-    train_label="Train Data",
+    train_label="LOFAR Dataset",
     bdsf_dir=None,
     h5_kwargs={},
     **distribution_kwargs,
@@ -395,8 +398,8 @@ def paper_plots_bdsf(
             if labels is None:
                 labels = [d.stem for d in img_dir]
 
-    metrics = ["total_flux_gaus", "nsrc", "q0.1_area"]
-    xlabels = ["Model Flux (a.u.)", "Identified Sources", "$A_\mathrm{10\%}$ (px)"]
+    metrics = ["total_flux_gaus", "nsrc", "q0.5_area"]
+    xlabels = ["Model Flux (a.u.)", "Identified Sources", "$A_\mathrm{50\%}$ (px)"]
     gen_distr_dict_list = [
         bdsfeval.get_bdsf_distributions(d, out_dir=p) for d, p in zip(img_dir, bdsf_dir)
     ]
@@ -428,6 +431,22 @@ def paper_plots_bdsf(
         fig.savefig(paths.PAPER_PLOT_DIR / f"{metric}.pdf", bbox_inches="tight")
 
         out[metric] = (fig, axs)
+
+        # Plot rmae between distributions
+        c_lofar, e = lofar_distr_dict[metric]
+        c_gen, _ = gen_distr_dict_list[0][metric]
+        if "area" in metric:
+            c_lofar, c_gen, e = c_lofar[:-1], c_gen[:-1], e[:-1]
+        c_lofar, c_gen = norm(c_lofar), norm(c_gen)
+        rmae = (c_lofar - c_gen) / c_lofar
+        rmae[np.isnan(rmae)] = 0
+
+        fig, ax = plt.subplots(1, 1, figsize=(fig_width, fig_width * 0.2))
+        add_distribution_plot(
+            rmae, e, ax, normalize=False, errorbar=False, label_count=False
+        )
+        fig.show()
+
     return out
 
 
@@ -439,7 +458,7 @@ def paper_plots_pxstats(
     plot_train=True,
     force_train=False,
     train_path=paths.LOFAR_SUBSETS["0-clip"],
-    train_label="Train Data",
+    train_label="LOFAR Dataset",
     h5_kwargs={},
     **distribution_kwargs,
 ):
@@ -456,8 +475,8 @@ def paper_plots_pxstats(
             if labels is None:
                 labels = [d.stem for d in img_dir]
 
-    metrics = ["Pixel_Intensity", "Image_Mean", "Image_Sigma", "COM"]
-    xlabels = ["Pixel Values", "Image Mean", "Image Sigma", "COM"]
+    metrics = ["Pixel_Intensity", "Image_Mean", "Image_Sigma"]
+    xlabels = ["Pixel Values", "Image Mean", "Image Sigma"]
 
     gen_distr_dict_list = [meval.get_distributions(d) for d in img_dir]
     # Get metrics dict
@@ -486,4 +505,18 @@ def paper_plots_pxstats(
         fig.savefig(paths.PAPER_PLOT_DIR / f"{metric}.pdf", bbox_inches="tight")
 
         out[metric] = (fig, axs)
+
+        # Plot rmae between distributions
+        c_lofar, e = lofar_distr_dict[metric]
+        c_gen, _ = gen_distr_dict_list[0][metric]
+        c_lofar, c_gen = norm(c_lofar), norm(c_gen)
+        rmae = c_lofar - c_gen  # / (c_lofar + c_gen)
+        rmae[np.isnan(rmae)] = 0
+
+        fig, ax = plt.subplots(1, 1, figsize=(fig_width, fig_width * 0.2))
+        add_distribution_plot(
+            rmae, e, ax, normalize=False, errorbar=False, label_count=False
+        )
+        fig.show()
+
     return out
