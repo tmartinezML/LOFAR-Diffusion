@@ -390,25 +390,6 @@ class ResidualBlock(TimestepBlock):
         if self.do_res_conv:
             x = self.res_conv(x)
 
-        """
-        # Debugging
-        if torch.any(torch.isnan(x)):
-            save_debug()
-            raise ValueError(f"Residual layer x has nan values.")
-        
-        if torch.any(torch.isinf(x)):
-            save_debug()
-            raise ValueError(f"Residual layer x has inf values.")
-
-        if torch.any(torch.isnan(h)):
-            save_debug()
-            raise ValueError(f"Hidden layer h has nan values.")
-
-        if torch.any(torch.isinf(h)):
-            save_debug()
-            raise ValueError(f"Hidden layer h has inf values.")
-        """
-
         return clamp_tensor(h + x)
 
 

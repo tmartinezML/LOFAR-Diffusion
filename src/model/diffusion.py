@@ -118,6 +118,9 @@ def edm_sampling(
             f"Context batch size ({context_batch.shape[0]})"
             f"must match batch size ({batch_size})."
         )
+        if type(context_batch) != torch.Tensor:
+            context_batch = torch.tensor(context_batch)
+
         context_batch = context_batch.to(device)
 
     if label_batch is not None:

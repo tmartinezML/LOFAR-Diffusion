@@ -476,7 +476,7 @@ def paper_plots_pxstats(
                 labels = [d.stem for d in img_dir]
 
     metrics = ["Pixel_Intensity", "Image_Mean", "Image_Sigma"]
-    xlabels = ["Pixel Values", "Image Mean", "Image Sigma"]
+    xlabels = ["Pixel Values", "Image Mean", "Image Std. Dev."]
 
     gen_distr_dict_list = [meval.get_distributions(d) for d in img_dir]
     # Get metrics dict
