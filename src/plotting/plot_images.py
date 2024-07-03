@@ -24,6 +24,7 @@ def plot_image_grid(
     vmin=0,
     vmax=1,
     savefig=None,
+    fig_axs=None,
     n_rows=None,
     n_cols=None,
     titles=None,
@@ -38,11 +39,11 @@ def plot_image_grid(
         n_rows = n + np.ceil((imgs.shape[0] - n**2) / n).astype(int)
     elif n_rows is None or n_cols is None:
         known = n_rows or n_cols
-        n = int(imgs.shape[0] // known)
+        n = int(imgs.shape[0] // known) + int(bool(imgs.shape[0] % known))
         n_rows = n_rows or n
         n_cols = n_cols or n
 
-    fig, axs = plt.subplots(
+    fig, axs = fig_axs or plt.subplots(
         nrows=n_rows,
         ncols=n_cols,
         constrained_layout=True,
@@ -151,12 +152,14 @@ def quantile_contour_plot(img_arr, p_vals=[0.9, 0.5, 0.1], ax=None, label=False)
     q_vals = bdsfeval.quantile_values(img_arr, p_vals)
 
     ax.imshow(img_arr)
-    
+
     cnt = ax.contour(
         img_arr, levels=np.unique(q_vals), colors=cm["PiYG"](p_vals), linewidths=0.5
     )
     if label:
-        ax.clabel(cnt, inline=True, fontsize=8, fmt={q: p for q, p in zip(q_vals, p_vals)})
+        ax.clabel(
+            cnt, inline=True, fontsize=8, fmt={q: p for q, p in zip(q_vals, p_vals)}
+        )
 
     if ax is None:
         plt.show()
@@ -164,9 +167,9 @@ def quantile_contour_plot(img_arr, p_vals=[0.9, 0.5, 0.1], ax=None, label=False)
 
 
 def remove_axes(ax):
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        ax.spines["bottom"].set_visible(False)
-        ax.spines["left"].set_visible(False)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["bottom"].set_visible(False)
+    ax.spines["left"].set_visible(False)
