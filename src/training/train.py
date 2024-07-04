@@ -24,7 +24,7 @@ if __name__ == "__main__":
 
     # conf.pretrained_model = '/home/bbd0953/diffusion/model_results/Dummy/snapshots/snapshot_iter_00000100.pt'
     # conf.optimizer_file = '/home/bbd0953/diffusion/results/EDM_valFix/optimizer_state_EDM_valFix.pt'
-    conf.model_name = f"FIRST_Labeled"
+    conf.model_name = f"FIRST_QKV-Corr"
 
     dataset = TrainDatasetFIRST()
     conf.training_data = str(dataset.path)
@@ -34,14 +34,14 @@ if __name__ == "__main__":
     trainer = DiffusionTrainer(
         config=conf,
         dataset=dataset,
-        pickup=True,
+        # pickup=True,
     )
 
     wandb.init(
         project="Diffusion",
         config=conf.param_dict,
-        id="wdh8djaz",
-        resume="must",
+        # id="wdh8djaz",
+        # resume="must",
         dir=paths.ANALYSIS_PARENT / "wandb",
     )
     trainer.training_loop()
