@@ -17,19 +17,17 @@ import utils.paths as paths
 
 if __name__ == "__main__":
     # Limit visible GPUs
-    set_visible_devices(1)
+    set_visible_devices(2)
 
     # Hyperparameters
-    conf = configs.FIRST_labeled_config()
+    conf = configs.EDM_small_config()
 
     # conf.pretrained_model = '/home/bbd0953/diffusion/model_results/Dummy/snapshots/snapshot_iter_00000100.pt'
     # conf.optimizer_file = '/home/bbd0953/diffusion/results/EDM_valFix/optimizer_state_EDM_valFix.pt'
-    conf.model_name = f"FIRST_QKV-Corr"
+    conf.model_name = f"LOFAR_QKV-Corr"
 
-    dataset = TrainDatasetFIRST()
+    dataset = TrainDataset(paths.LOFAR_SUBSETS["0-clip"])
     conf.training_data = str(dataset.path)
-    conf.batch_size = 128
-    conf.iterations = 40_000
 
     trainer = DiffusionTrainer(
         config=conf,

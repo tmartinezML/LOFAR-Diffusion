@@ -128,7 +128,7 @@ def FIRST_labeled_config():
         timesteps=1000,
         # Training hyperparameters
         batch_size=128,
-        iterations=20_000,
+        iterations=40_000,
         learning_rate=2e-5,
         ema_rate=0.9999,
         sigma_data=0.5,
