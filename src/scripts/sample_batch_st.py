@@ -249,7 +249,7 @@ if __name__ == "__main__":
 
     # Sampling parameters
     model_name = "Data_Augmented"
-    n_samples = 50_000
+    n_samples = 10_000
 
     """
     # Use this when sampling class-conditioned:
@@ -280,6 +280,7 @@ if __name__ == "__main__":
         # posthoc_sigma=.07,
         # snapshot_it=100_000,
         # out_folder_name=f"{model_name}/unconditioned"
+        comment="QKV-corrected",
     )
 
     print(f"Finished sampling {n_samples:_} samples from {model_name}.")

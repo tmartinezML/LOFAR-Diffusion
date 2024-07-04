@@ -279,11 +279,11 @@ class ResidualLinearAttention(nn.Module):
         q = q * self.scale
 
         # Trick to prevent overflow in softmax
-        q_shift = q - q.amax(dim=-2, keepdim=True).detach()
-        k_shift = k - k.amax(dim=-1, keepdim=True).detach()
+        q_shift = q - q.amax(dim=-1, keepdim=True).detach()
+        k_shift = k - k.amax(dim=-2, keepdim=True).detach()
 
-        q_norm = q_shift.softmax(dim=-2)
-        k_norm = k_shift.softmax(dim=-1)
+        q_norm = q_shift.softmax(dim=-1)
+        k_norm = k_shift.softmax(dim=-2)
 
         context = torch.einsum("b h d n, b h e n -> b h d e", k_norm, v)
         out = torch.einsum("b h d e, b h d n -> b h e n", context, q_norm)

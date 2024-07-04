@@ -66,6 +66,7 @@ def edm_sampling(
     image_size,
     context_batch=None,
     label_batch=None,
+    latents=None,
     *,
     batch_size=16,
     timesteps=25,
@@ -85,9 +86,22 @@ def edm_sampling(
     device = next(model.parameters()).device
     print("Sampling on device:", device)
 
-    # Sample seed for x_0 from normal distribution. Will be scaled with
-    # noise level before the sampling loop.
-    latents = torch.randn([batch_size, 1, image_size, image_size], device=device)
+    if latents is not None:
+        # Prepare latents
+        assert latents.shape[1] == 1, "Latents must have 1 channel."
+        assert (
+            latents.shape[2] == image_size
+        ), f"Latents must have size {image_size}x{image_size}."
+        batch_size = latents.shape[0]
+
+        # Make sure it's torch tensor
+        if type(latents) != torch.Tensor:
+            latents = torch.tensor(latents, device=device, dtype=torch.float32)
+
+    else:
+        # Sample seed for x_0 from normal distribution. Will be scaled with
+        # noise level before the sampling loop.
+        latents = torch.randn([batch_size, 1, image_size, image_size], device=device)
 
     # Get sigma_min and sigma_max from model, which may further restrict
     # the range of noise levels.
