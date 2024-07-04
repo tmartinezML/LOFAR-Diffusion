@@ -51,7 +51,9 @@ def metrics_dict_from_data(
                 shuffle=False,
                 num_workers=1,
             )
-            out_file = paths.ANALYSIS_PARENT / img_data.stem / f"{img_data.stem}_metrics.npy"
+            out_file = (
+                paths.ANALYSIS_PARENT / img_data.stem / f"{img_data.stem}_metrics.npy"
+            )
 
         # Dataset instance:
         case Dataset():
@@ -59,8 +61,9 @@ def metrics_dict_from_data(
                 img_data, batch_size=None, shuffle=False, num_workers=1
             )
             src_path = img_data.path
-            out_file = paths.ANALYSIS_PARENT / src_path.stem / f"{src_path.stem}_metrics.npy"
-
+            out_file = (
+                paths.ANALYSIS_PARENT / src_path.stem / f"{src_path.stem}_metrics.npy"
+            )
 
         # Other type:
         case _:
@@ -70,13 +73,19 @@ def metrics_dict_from_data(
                 samples_itr = img_data
 
             # Unknown type:
+            elif isinstance(img_data, Path):
+                if img_data.is_file():
+                    raise ValueError(f"Unknown image data type: {img_data.suffix}")
+                else:
+                    raise ValueError(f"Unknown image data path: {img_data}")
+
             else:
-                raise ValueError(f"Unknown image data type: {img_data.suffix}")
+                raise ValueError(f"Unknown image data type: {type(img_data)}")
 
     if not force and out_file.exists():
         print(f"Found existing metrics file {out_file.name}.")
         return np.load(out_file, allow_pickle=True).item()
-    
+
     metrics = imet.metrics_dict_from_iterable(samples_itr, n_bins=n_bins)
 
     if save:
