@@ -222,7 +222,7 @@ if __name__ == "__main__":
     from scipy.stats import norm, rv_histogram
     from sklearn import preprocessing as pr
 
-    
+    """
     # Load dataset to get max-val histogram
     dset = TrainDataset(paths.LOFAR_SUBSETS["0-clip"])
     max_vals = dset.max_values.numpy()
@@ -240,7 +240,7 @@ if __name__ == "__main__":
 
     def context_fn(bsize):
         return model_dist.rvs(size=bsize)
-    
+    """
 
     # Set up devices
     n_gpu = 2
@@ -248,10 +248,9 @@ if __name__ == "__main__":
     print(f"Using GPU {dev_ids[:n_gpu]}")
 
     # Sampling parameters
-    model_name = "Data_Augmented"
-    n_samples = 10_000
+    model_name = "FIRST_Labeled"
+    n_samples = 8_000
 
-    """
     # Use this when sampling class-conditioned:
 
     # Labels for sampling: equal amounts of 1, 2, 3, 4
@@ -264,18 +263,17 @@ if __name__ == "__main__":
     labels = np.concatenate(
         [np.full(n_samples // len(unique_labels), l) for l in unique_labels]
     )
-    """
 
     batch_st_sampling(
         model_name,
         n_samples=n_samples,
         n_devices=n_gpu,
-        context_fn=context_fn,
+        # context_fn=context_fn,
         sample_kwargs={
-            "guidance_strength": 0.1,
+            "guidance_strength": 0.75,
         },
-        # labels=labels,
-        return_steps=True,
+        labels=labels,
+        return_steps=False,
         # model_key="model",
         # posthoc_sigma=.07,
         # snapshot_it=100_000,
