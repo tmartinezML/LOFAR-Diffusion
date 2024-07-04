@@ -6,7 +6,7 @@ import numpy as np
 
 from model.sample import sample_batch
 import model.posthoc_ema as phema
-from utils.init_utils import (
+from model.init_utils import (
     load_model_from_folder,
     load_snapshot,
 )
@@ -216,7 +216,7 @@ def sample_snapshot_loop(
 
 
 if __name__ == "__main__":
-    from utils.data_utils import ImagePathDataset, TrainDataset
+    from datasets.data_utils import ImagePathDataset, TrainDataset
     import utils.paths as paths
     from scipy.special import boxcox, inv_boxcox
     from scipy.stats import norm, rv_histogram

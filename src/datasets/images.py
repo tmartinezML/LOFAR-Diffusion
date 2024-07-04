@@ -8,9 +8,9 @@ from tqdm import tqdm
 from astropy.io import fits
 
 from datasets.cutouts import save_images_hpy5
-from utils.image_utils import clip_image
-from utils.image_utils import edge_threshold_mask
-from utils.image_utils import threshold_mask
+from datasets.image_utils import clip_image
+from datasets.image_utils import edge_threshold_mask
+from datasets.image_utils import threshold_mask
 from utils.paths import cast_to_Path
 
 

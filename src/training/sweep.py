@@ -7,9 +7,9 @@ import wandb
 from model.configs import EDM_small_config
 from training.trainer import DiffusionTrainer
 import utils.paths as paths
-from utils.data_utils import TrainDataset
+from datasets.data_utils import TrainDataset
 from utils.device_utils import visible_gpus_by_space, set_visible_devices
-from utils.init_utils import load_parameters
+from model.init_utils import load_parameters
 
 
 def train_wrapper(sweep_config=None, pretrained=None, dev_ids=None):

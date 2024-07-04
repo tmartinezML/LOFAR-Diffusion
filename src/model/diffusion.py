@@ -4,8 +4,8 @@ from tqdm import tqdm
 from pathlib import Path
 
 from model.unet import EDMPrecond
-from utils.config_utils import construct_from_config
-from utils.config_utils import isModel
+from model.config_utils import construct_from_config
+from model.config_utils import isModel
 
 
 def sampling_noise_levels(timesteps, sigma_min=2e-3, sigma_max=80, rho=7):

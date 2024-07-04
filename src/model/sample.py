@@ -11,7 +11,7 @@ from tqdm import tqdm
 import model.diffusion as Diffusion
 from utils.device_utils import distribute_model, set_visible_devices
 from plotting.plot_images import plot_image_grid
-from utils.init_utils import load_model, load_model_from_folder, load_snapshot
+from model.init_utils import load_model, load_model_from_folder, load_snapshot
 from utils.paths import GEN_DATA_PARENT, MODEL_PARENT
 
 

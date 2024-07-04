@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib as mpl
 
-from utils.stats_utils import norm, norm_err, norm_err_poisson, centers
+from analysis.stats_utils import norm, norm_err, norm_err_poisson, centers
 
 
 def add_distribution_plot(

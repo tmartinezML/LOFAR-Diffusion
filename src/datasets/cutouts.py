@@ -11,7 +11,7 @@ from astropy.nddata import Cutout2D
 from astropy.coordinates import SkyCoord
 
 from utils.paths import cast_to_Path, MOSAIC_DIR, CUTOUTS_DIR, LOFAR_RES_CAT
-import utils.image_utils as imgutil
+import datasets.image_utils as imgutil
 
 
 def single_cutout(

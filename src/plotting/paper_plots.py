@@ -13,7 +13,7 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import utils.paths as paths
 import analysis.model_evaluation as meval
 import analysis.bdsf_evaluation as bdsfeval
-from utils.stats_utils import norm, centers
+from analysis.stats_utils import norm, centers
 from plotting.plot_images import plot_image_grid, quantile_contour_plot, remove_axes
 from plotting.plot_utils import add_distribution_plot, plot_collection
 

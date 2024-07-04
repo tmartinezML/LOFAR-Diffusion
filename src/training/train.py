@@ -10,7 +10,7 @@ import wandb
 
 import model.configs as configs
 from training.trainer import DiffusionTrainer
-from utils.data_utils import TrainDataset, TrainDatasetFIRST
+from datasets.data_utils import TrainDataset, TrainDatasetFIRST
 from utils.device_utils import set_visible_devices
 import utils.paths as paths
 

@@ -3,7 +3,7 @@ import os
 from indexed import IndexedOrderedDict
 
 # Base directories for code base & storage
-BASE_PARENT = Path(__file__).parent
+BASE_PARENT = Path(__file__).parent.parent.parent
 STORAGE_PARENT = Path("/hs/fs08/data/group-brueggen/tmartinez")
 
 # Three main storage folders.

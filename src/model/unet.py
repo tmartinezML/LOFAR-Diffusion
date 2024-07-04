@@ -17,9 +17,9 @@ from torch.cuda.amp import autocast
 
 from einops import rearrange, reduce
 from einops.layers.torch import Rearrange
-from utils.config_utils import construct_from_config
+from model.config_utils import construct_from_config
 
-from utils.config_utils import configModuleBase
+from model.config_utils import configModuleBase
 
 DEBUG_DIR = Path("/home/bbd0953/diffusion/results/debug")
 

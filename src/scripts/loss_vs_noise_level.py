@@ -14,10 +14,10 @@ from torch.utils.data import DataLoader
 
 from model.sample import sample_batch
 from model.diffusion import Diffusion
-from utils.init_utils import (
+from model.init_utils import (
     load_model_from_folder, load_diffusion_from_folder, load_snapshot
 )
-from utils.data_utils import TrainDataset
+from datasets.data_utils import TrainDataset
 from utils.device_utils import distribute_model, set_visible_devices
 from utils.paths import MODEL_PARENT, ANALYSIS_PARENT, LOFAR_SUBSETS
 

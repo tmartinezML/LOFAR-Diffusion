@@ -9,13 +9,13 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader, Dataset
 
 import utils.paths as paths
-import utils.stats_utils as stats
+import analysis.stats_utils as stats
 import analysis.image_metrics as imet
 from plotting.plot_metrics import (
     pixel_metrics_plot,
     shape_metrics_plot,
 )
-from utils.data_utils import EvaluationDataset
+from datasets.data_utils import EvaluationDataset
 from plotting.plot_utils import plot_collection
 from utils.device_utils import visible_gpus_by_space
 from analysis.fid_score import calculate_fid_given_paths, save_fid_stats

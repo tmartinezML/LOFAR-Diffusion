@@ -7,9 +7,9 @@ import wandb
 
 from model.sample import sample_batch
 from analysis.model_evaluation import get_distributions
-import utils.stats_utils as stats
+import analysis.stats_utils as stats
 from utils.device_utils import set_visible_devices, distribute_model
-from utils.init_utils import load_model
+from model.init_utils import load_model
 import utils.paths as paths
 
 

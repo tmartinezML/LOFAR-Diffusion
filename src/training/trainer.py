@@ -18,15 +18,15 @@ import wandb
 
 import model.unet as unet
 import model.unet_edm2 as unet2
-import utils.train_utils
+import training.train_utils
 import training.loss_functions as loss_functions
 from training.output_manager import OutputManager
 from datasets.firstgalaxydata import FIRSTGalaxyData
 from utils.device_utils import visible_gpus_by_space
-from utils.init_utils import load_config_from_path, load_parameters
+from model.init_utils import load_config_from_path, load_parameters
 from utils.paths import MODEL_PARENT, DEBUG_DIR
-from utils.data_utils import load_data
-from utils.train_utils import use_ema
+from datasets.data_utils import load_data
+from training.train_utils import use_ema
 
 
 class DiffusionTrainer:
@@ -115,7 +115,7 @@ class DiffusionTrainer:
             self.power_ema_models = [
                 torch.optim.swa_utils.AveragedModel(
                     self.inner_model,
-                    avg_fn=utils.train_utils.get_power_ema_avg_fn(gamma),
+                    avg_fn=training.train_utils.get_power_ema_avg_fn(gamma),
                 )
                 for gamma in self.power_ema_gammas
             ]

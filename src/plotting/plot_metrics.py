@@ -6,7 +6,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
 
-from utils.stats_utils import norm
+from analysis.stats_utils import norm
 
 
 def init_pixel_metrics_plot():

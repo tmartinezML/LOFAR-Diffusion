@@ -1,4 +1,4 @@
-from utils.config_utils import modelConfig
+from model.config_utils import modelConfig
 
 
 def DummyConfig():
