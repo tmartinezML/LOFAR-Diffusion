@@ -102,13 +102,8 @@ class DiffusionTrainer:
             self.model = DataParallel(self.model, device_ids=dev_ids)
             self.inner_model = self.model.module
 
-        # Initialize EMA model
-        self.ema_model = torch.optim.swa_utils.AveragedModel(
-            self.inner_model,
-            multi_avg_fn=torch.optim.swa_utils.get_ema_multi_avg_fn(
-                self.config.ema_rate
-            ),
-        )
+        # EMA Model is initialized after 500 iterations in the training loop
+        self.ema_model = None
 
         # Initialize power-ema models
         self.power_ema = power_ema
@@ -373,8 +368,16 @@ class DiffusionTrainer:
             self.scheduler.step()
 
         # Update EMA model
-        if it > 500:
-            self.ema_model.update_parameters(self.inner_model)
+        if (it + 1) >= min(self.val_every, 500):
+            if self.ema_model is None:
+                self.ema_model = torch.optim.swa_utils.AveragedModel(
+                    self.inner_model,
+                    multi_avg_fn=torch.optim.swa_utils.get_ema_multi_avg_fn(
+                        self.config.ema_rate
+                    ),
+                )
+            else:
+                self.ema_model.update_parameters(self.inner_model)
 
         # Update power ema models
         if self.power_ema:
