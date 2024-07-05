@@ -275,7 +275,7 @@ class DiffusionTrainer:
         # Print start info
         self.logger.info(
             f"Starting training loop at {t0.strftime('%H:%M:%S')}...\n"
-            f"Training for {iterations:_} iterations - "
+            f"\tTraining for {iterations:_} iterations - "
             f"Starting from {self.iter_start:_} - "
             f"Remaining iterations {iterations - self.iter_start:_}"
         )

@@ -292,5 +292,5 @@ class TrainDatasetFIRST(FIRSTGalaxyData):
         )
 
     def set_context(self, *args):
-        warnings.warn("FIRSTGalaxyData has class labels as fixed context.")
+        logger.warn("FIRSTGalaxyData has class labels as fixed context.")
         return
