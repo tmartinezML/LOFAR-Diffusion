@@ -249,11 +249,11 @@ if __name__ == "__main__":
     print(f"Using GPU {dev_ids[:n_gpu]}")
 
     # Sampling parameters
-    model_name = "FIRST_Labeled"
-    n_samples = 8_000
+    model_name = "LOFAR_QKV-Corr"
+    n_samples = 10_000
 
     # Use this when sampling class-conditioned:
-
+    '''
     # Labels for sampling: equal amounts of 1, 2, 3, 4
     unique_labels = [
         0,
@@ -264,22 +264,22 @@ if __name__ == "__main__":
     labels = np.concatenate(
         [np.full(n_samples // len(unique_labels), l) for l in unique_labels]
     )
-
+    '''
     batch_st_sampling(
         model_name,
         n_samples=n_samples,
         n_devices=n_gpu,
         # context_fn=context_fn,
         sample_kwargs={
-            "guidance_strength": 0.75,
+            "guidance_strength": 0.1,
         },
-        labels=labels,
-        return_steps=False,
+        # labels=labels,
+        return_steps=True,
         # model_key="model",
         # posthoc_sigma=.07,
         # snapshot_it=100_000,
         # out_folder_name=f"{model_name}/unconditioned"
-        comment="QKV-corrected",
+        # comment="QKV-corrected",
     )
 
     print(f"Finished sampling {n_samples:_} samples from {model_name}.")
