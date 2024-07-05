@@ -1,6 +1,3 @@
-import tempfile
-import cProfile
-
 import h5py
 import numpy as np
 import pandas as pd
@@ -10,8 +7,8 @@ from astropy.wcs import WCS
 from astropy.nddata import Cutout2D
 from astropy.coordinates import SkyCoord
 
-from utils.paths import cast_to_Path, MOSAIC_DIR, CUTOUTS_DIR, LOFAR_RES_CAT
 import datasets.image_utils as imgutil
+from utils.paths import cast_to_Path, MOSAIC_DIR, CUTOUTS_DIR, LOFAR_RES_CAT
 
 
 def single_cutout(
@@ -30,9 +27,8 @@ def single_cutout(
     """
     Create a cutout of the mosaic for a given source.
     """
-    contain_nan = False
-
-    # Set size of cutout
+    
+    # Set size of cutout in pixels
     pixel_size = 1.5  # arcsec
     assert (size_px is not None) or (las is not None)
     if size_px is None:
@@ -47,8 +43,7 @@ def single_cutout(
     cutout = Cutout2D(data, center, size_px, wcs=wcs, mode="strict")
 
     # Check for NaNs, replace with nanmin if mask_nan is True
-    if np.isnan(cutout.data).any():
-        contain_nan = True
+    if (contain_nan := np.isnan(cutout.data).any()):
         if mask_nan:
             print(
                 f"Nan values present in {name} cutout.\n" " Nan values set to nanmin."
@@ -76,8 +71,7 @@ def cutout_from_catalog(catalog, ind, mask_nan=False, size_px=None, opt_c=True):
     mosaic = catalog["Mosaic_ID"].iloc[ind]
     file_name = f"../data/mosaics_public/{mosaic}/mosaic-blanked.fits"
     with fits.open(file_name) as hdul:
-        data = hdul[0].data
-        header = hdul[0].header
+        data, header = hdul[0].data, hdul[0].header
         wcs = WCS(header)
     name = catalog["Source_Name"].iloc[ind]
 

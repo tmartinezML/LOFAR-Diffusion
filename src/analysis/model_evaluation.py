@@ -15,7 +15,7 @@ from plotting.plot_metrics import (
     pixel_metrics_plot,
     shape_metrics_plot,
 )
-from datasets.data_utils import EvaluationDataset
+from datasets.datasets import EvaluationDataset
 from plotting.plot_utils import plot_collection
 from utils.device_utils import visible_gpus_by_space
 from analysis.fid_score import calculate_fid_given_paths, save_fid_stats

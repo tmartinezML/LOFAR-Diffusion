@@ -4,6 +4,7 @@ from pathlib import Path
 import torch
 import numpy as np
 
+from datasets.datasets import ImagePathDataset
 from model.sample import sample_batch
 import model.posthoc_ema as phema
 from model.init_utils import (
@@ -216,7 +217,7 @@ def sample_snapshot_loop(
 
 
 if __name__ == "__main__":
-    from datasets.data_utils import ImagePathDataset, TrainDataset
+    from datasets.datasets import TrainDataset
     import utils.paths as paths
     from scipy.special import boxcox, inv_boxcox
     from scipy.stats import norm, rv_histogram

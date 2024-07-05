@@ -8,9 +8,10 @@ import torch
 import torch.distributed as dist
 import wandb
 
+from datasets.datasets import TrainDataset
 import model.configs as configs
 from training.trainer import DiffusionTrainer
-from datasets.data_utils import TrainDataset, TrainDatasetFIRST
+from datasets.datasets import TrainDatasetFIRST
 from utils.device_utils import set_visible_devices
 import utils.paths as paths
 

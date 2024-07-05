@@ -55,18 +55,22 @@ class OutputManager:
         self.log_file = self.results_folder.joinpath(
             f"training_log_{self.model_name}.log"
         )
-        logging.basicConfig(
-            format="%(levelname)s: %(message)s",
-            level=logging.INFO,
-            handlers=[
+        logger = logging.getLogger("OM")
+        if logger.hasHandlers():  # Check if the logger already has handlers
+            logger.handlers.clear()  # Clear the default handlers
+        formatter = logging.Formatter("%(name)s - %(levelname)s: %(message)s")
+        handlers = (
+            [
                 logging.FileHandler(
                     self.log_file,
                     mode="a" if self.log_file.exists() else "w",
                 ),
                 logging.StreamHandler(),
             ],
-            force=True,
         )
+        [h.setFormatter(formatter) for h in handlers]
+        [logger.addHandler(h) for h in handlers]
+        logger.setLevel(logging.INFO)
 
     def _check_rename_model(self):
         model_name = self.model_name
@@ -104,7 +108,7 @@ class OutputManager:
                 try:
                     inputimeout(prompt="Press enter to continue...", timeout=10)
                 except TimeoutOccurred:
-                    logging.info("No key was pressed - training aborted.\n")
+                    logger.info("No key was pressed - training aborted.\n")
                     raise SystemExit
                 break
         self._init_loss_file(self.train_loss_file)
@@ -198,7 +202,7 @@ class OutputManager:
         return config["iterations"]
 
     def log_training_progress(self, dt, t_per_it, i, i_tot, loss):
-        logging.info(
+        logger.info(
             f"{datetime.now().strftime('%H:%M:%S')} "
             f"- Running {dt} "
             f"- Iteration {i+1} - Loss: {loss.item():.2e} "
@@ -208,7 +212,7 @@ class OutputManager:
         )
 
     def log_val_loss(self, i, val_loss):
-        logging.info(
+        logger.info(
             f"{datetime.now().strftime('%H:%M:%S')} "
             f"- Iteration {i+1} - Validation loss: {val_loss[0]:.2e} "
             f"- Validation EMA loss: {val_loss[1]:.2e}"

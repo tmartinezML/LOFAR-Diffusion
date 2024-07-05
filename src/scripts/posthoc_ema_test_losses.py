@@ -6,7 +6,7 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 
 import model.posthoc_ema as phema
-from datasets.data_utils import TrainDataset
+from datasets.datasets import TrainDataset
 from training.loss_functions import edm_loss
 from utils.paths import MODEL_PARENT, ANALYSIS_PARENT, LOFAR_SUBSETS
 from utils.device_utils import distribute_model, set_visible_devices

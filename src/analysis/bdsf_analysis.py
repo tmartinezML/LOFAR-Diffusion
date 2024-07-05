@@ -25,7 +25,7 @@ from tqdm import tqdm
 from astropy.io import fits
 
 import utils.paths as paths
-from datasets.data_utils import EvaluationDataset
+from datasets.datasets import EvaluationDataset
 
 
 def disable_logging(func):

@@ -7,13 +7,13 @@ import wandb
 from model.configs import EDM_small_config
 from training.trainer import DiffusionTrainer
 import utils.paths as paths
-from datasets.data_utils import TrainDataset
+from datasets.datasets import TrainDataset
 from utils.device_utils import visible_gpus_by_space, set_visible_devices
 from model.init_utils import load_parameters
 
 
 def train_wrapper(sweep_config=None, pretrained=None, dev_ids=None):
-    wandb_path = paths.ANALYSIS_PARENT / 'wandb'
+    wandb_path = paths.ANALYSIS_PARENT / "wandb"
     wandb_path.mkdir(exist_ok=True, parents=True)
     # Initialize wandb run
     with wandb.init(config=sweep_config, dir=wandb_path):
@@ -30,7 +30,7 @@ def train_wrapper(sweep_config=None, pretrained=None, dev_ids=None):
             set_visible_devices(dev_ids)
 
         dev_id = visible_gpus_by_space()[0]
-        device = torch.device('cuda', dev_id)
+        device = torch.device("cuda", dev_id)
 
         # Load trainer
         torch.manual_seed(42)
@@ -41,7 +41,7 @@ def train_wrapper(sweep_config=None, pretrained=None, dev_ids=None):
 
         # Load pretrained
         if pretrained:
-            print('Loading pretrained model:\n', pretrained)
+            print("Loading pretrained model:\n", pretrained)
             load_parameters(trainer.inner_model, pretrained, use_ema=True)
 
         # Custom training loop
@@ -66,35 +66,35 @@ def train_wrapper(sweep_config=None, pretrained=None, dev_ids=None):
                     "loss": loss.item(),
                     "val_loss": val_loss[0],
                     "val_ema_loss": val_loss[1],
-                    'training_iteration': i + 1,
+                    "training_iteration": i + 1,
                     "loss_smoothed": loss_smoothed,
                 }
                 wandb.log(metrics, step=i + 1, commit=True)
 
             else:
                 wandb.log(
-                    {'loss': loss.item(), 'loss_smoothed': loss_smoothed},
+                    {"loss": loss.item(), "loss_smoothed": loss_smoothed},
                     step=i + 1,
-                    commit=False
+                    commit=False,
                 )
 
         # Remove everything
-        trainer.model.to('cpu')
+        trainer.model.to("cpu")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Set global variables
     GLOBAL_CONF = EDM_small_config()
     dataset = TrainDataset(
-        paths.LOFAR_SUBSETS['120asLimit_SNR>=5'],
+        paths.LOFAR_SUBSETS["120asLimit_SNR>=5"],
     )
     GLOBAL_TRAINER_CLASS = partial(
         DiffusionTrainer,
         dataset=dataset,
     )
     N_GPU = 2
-    DEV_IDS = [1, 2] # set_visible_devices(N_GPU)
-    print('Setting visible devices:', DEV_IDS)
+    DEV_IDS = [1, 2]  # set_visible_devices(N_GPU)
+    print("Setting visible devices:", DEV_IDS)
     USE_DP = True
 
     GLOBAL_CONF.iterations = 50_000
@@ -102,15 +102,15 @@ if __name__ == '__main__':
 
     # Sweep config
     sweep_config = {
-        'method': 'grid',
-        'name': 'EMA Rate Sweep',
-        'metric': {
-            'name': 'val_ema_loss',
-            'goal': 'minimize',
+        "method": "grid",
+        "name": "EMA Rate Sweep",
+        "metric": {
+            "name": "val_ema_loss",
+            "goal": "minimize",
         },
-        'parameters': {
-            'ema_rate': {
-                'values': [
+        "parameters": {
+            "ema_rate": {
+                "values": [
                     # 0.9999,
                     0.99999,
                     0.999999,
@@ -121,19 +121,19 @@ if __name__ == '__main__':
                 # 'max': 8e-5,
             }
         },
-        'early_terminate': {
-            'type': 'hyperband',
-            'min_iter': 2,
+        "early_terminate": {
+            "type": "hyperband",
+            "min_iter": 2,
             # 's': 2,
-            'eta': 2,
+            "eta": 2,
         },
     }
 
     # Sweep
-    sweep_id = wandb.sweep(sweep_config, project='Diffusion')
+    sweep_id = wandb.sweep(sweep_config, project="Diffusion")
     wandb.agent(
         sweep_id,
         function=partial(train_wrapper, pretrained=None, dev_ids=DEV_IDS),
         count=5,
-        project='Diffusion',
+        project="Diffusion",
     )
