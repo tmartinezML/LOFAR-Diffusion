@@ -18,16 +18,16 @@ import utils.paths as paths
 
 if __name__ == "__main__":
     # Limit visible GPUs
-    set_visible_devices(2)
+    set_visible_devices(1)
 
     # Hyperparameters
-    conf = configs.EDM_small_config()
+    conf = configs.FIRST_labeled_config()
 
     # conf.pretrained_model = '/home/bbd0953/diffusion/model_results/Dummy/snapshots/snapshot_iter_00000100.pt'
     # conf.optimizer_file = '/home/bbd0953/diffusion/results/EDM_valFix/optimizer_state_EDM_valFix.pt'
-    conf.model_name = f"LOFAR_QKV-Corr"
+    conf.model_name = f"FIRST_QKV-Corr"
 
-    dataset = TrainDataset(paths.LOFAR_SUBSETS["0-clip"])
+    dataset = TrainDatasetFIRST()
     conf.training_data = str(dataset.path)
 
     trainer = DiffusionTrainer(
@@ -44,15 +44,6 @@ if __name__ == "__main__":
         dir=paths.ANALYSIS_PARENT / "wandb",
     )
     trainer.training_loop()
-
-    """
-    pickup_path = result_parent / conf.model_name
-    trainer = DiffusionTrainer.from_pickup(
-        path=pickup_path,
-        config=conf,
-        dataset=LofarZoomUnclipped80(),
-    )
-    """
 
     # Class conditioning
     # conf.n_labels = 4

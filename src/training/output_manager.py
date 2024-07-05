@@ -21,12 +21,32 @@ class OutputManager:
         self.parent_dir = parent_dir
         self.results_folder = self.parent_dir.joinpath(self.model_name)
 
+        # Set up logging
+        self.log_file = self.results_folder.joinpath(
+            f"training_log_{self.model_name}.log"
+        )
+        logger = logging.getLogger("OM")
+        if logger.hasHandlers():  # Check if the logger already has handlers
+            logger.handlers.clear()  # Clear the default handlers
+        formatter = logging.Formatter("OutputManager - %(levelname)s: %(message)s")
+        handler = logging.StreamHandler()
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+        self.logger = logger
+
         if not (self.override or self.pickup):
             # Check if model name already exists, if so rename both model and
             # results folder.
             self._check_rename_model()
-
         self.results_folder.mkdir(parents=True, exist_ok=True)
+
+        handler = logging.FileHandler(
+            self.log_file,
+            mode="a" if self.log_file.exists() else "w",
+        )
+        handler.setFormatter(formatter)
+        self.logger.addHandler(handler)
 
         self.train_loss_file = self.results_folder.joinpath(
             f"losses_train_{self.model_name}.csv"
@@ -52,38 +72,18 @@ class OutputManager:
             self.power_ema_file,
         ]
 
-        self.log_file = self.results_folder.joinpath(
-            f"training_log_{self.model_name}.log"
-        )
-        logger = logging.getLogger("OM")
-        if logger.hasHandlers():  # Check if the logger already has handlers
-            logger.handlers.clear()  # Clear the default handlers
-        formatter = logging.Formatter("%(name)s - %(levelname)s: %(message)s")
-        handlers = (
-            [
-                logging.FileHandler(
-                    self.log_file,
-                    mode="a" if self.log_file.exists() else "w",
-                ),
-                logging.StreamHandler(),
-            ],
-        )
-        [h.setFormatter(formatter) for h in handlers]
-        [logger.addHandler(h) for h in handlers]
-        logger.setLevel(logging.INFO)
-
     def _check_rename_model(self):
         model_name = self.model_name
         results_folder = self.parent_dir.joinpath(model_name)
         if results_folder.exists():
             i = 1
             while results_folder.exists():
-                model_name = f"{model_name}_{i}"
-                results_folder = self.parent_dir.joinpath(self.model_name)
+                model_name = f"{model_name if i==1 else model_name[:-2]}_{i}"
+                results_folder = self.parent_dir.joinpath(model_name)
                 i += 1
-            logging.warning(
-                f"Model name {model_name} already exists."
-                f" Renaming to {self.model_name}."
+            self.logger.warning(
+                f"Model name {self.model_name} already exists."
+                f" Renaming to {model_name}."
             )
             self.model_name = model_name
             self.results_folder = results_folder
@@ -108,7 +108,7 @@ class OutputManager:
                 try:
                     inputimeout(prompt="Press enter to continue...", timeout=10)
                 except TimeoutOccurred:
-                    logger.info("No key was pressed - training aborted.\n")
+                    self.logger.info("No key was pressed - training aborted.\n")
                     raise SystemExit
                 break
         self._init_loss_file(self.train_loss_file)
@@ -202,7 +202,7 @@ class OutputManager:
         return config["iterations"]
 
     def log_training_progress(self, dt, t_per_it, i, i_tot, loss):
-        logger.info(
+        self.logger.info(
             f"{datetime.now().strftime('%H:%M:%S')} "
             f"- Running {dt} "
             f"- Iteration {i+1} - Loss: {loss.item():.2e} "
@@ -212,7 +212,7 @@ class OutputManager:
         )
 
     def log_val_loss(self, i, val_loss):
-        logger.info(
+        self.logger.info(
             f"{datetime.now().strftime('%H:%M:%S')} "
             f"- Iteration {i+1} - Validation loss: {val_loss[0]:.2e} "
             f"- Validation EMA loss: {val_loss[1]:.2e}"
