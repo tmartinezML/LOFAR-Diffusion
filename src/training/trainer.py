@@ -66,17 +66,17 @@ class DiffusionTrainer:
             parent_dir=parent_dir,
             pickup=pickup,
         )
-        logger = logging.getLogger("OM")
+        self.logger = logging.getLogger("OM")
 
         self.iter_start = 0
         if pickup:
             self.iter_start = self.OM.read_iter_count()
-            logger.info(f"Starting training at iteration {self.iter_start}.")
+            self.logger.info(f"Starting training at iteration {self.iter_start}.")
 
         # Initialize device
         device_ids_by_space = visible_gpus_by_space()
         self.device = device or torch.device("cuda", device_ids_by_space[0])
-        logger.info(f"Working on: {self.device}")
+        self.logger.info(f"Working on: {self.device}")
 
         # Initialize Model
         self.model = unet.EDMPrecond.from_config(self.config)
@@ -87,7 +87,7 @@ class DiffusionTrainer:
                 self.config.pretrained_model,
                 use_ema=True,
             )
-            logger.info(
+            self.logger.info(
                 f"Loaded pretrained ema model from: \
                   \n\t{self.config.pretrained_model}"
             )
@@ -97,7 +97,7 @@ class DiffusionTrainer:
         # Initialize parallel training
         if self.config.n_devices > 1:
             dev_ids = device_ids_by_space[: self.config.n_devices]
-            logger.info(f"Parallel training on multiple GPUs: {dev_ids}.")
+            self.logger.info(f"Parallel training on multiple GPUs: {dev_ids}.")
             self.model.to(f"cuda:{dev_ids[0]}")  # Necessary for DataParallel
             self.model = DataParallel(self.model, device_ids=dev_ids)
             self.inner_model = self.model.module
@@ -125,7 +125,7 @@ class DiffusionTrainer:
         # Initialize data
         self.dataset = dataset
         if hasattr(self.config, "context"):
-            logger.info(f"Working with context: {self.config.context}.")
+            self.logger.info(f"Working with context: {self.config.context}.")
             if "max_values_tr" in self.config.context:
                 self.dataset.transform_max_vals()
             self.dataset.set_context(*self.config.context)
@@ -151,7 +151,7 @@ class DiffusionTrainer:
             )
 
         if pickup:
-            logger.info(
+            self.logger.info(
                 f"Picking up model, EMA, optimizer and PowerEMA from {self.OM.model_name}."
             )
             self.load_state()
@@ -195,7 +195,7 @@ class DiffusionTrainer:
             hasattr(self.config, "optimizer_file")
             and self.config.optimizer_file is not None
         ):
-            logger.info(
+            self.logger.info(
                 "Loading optimizer state from:" f"\n\t{self.config.optimizer_file}"
             )
             self.load_optimizer(self.config.optimizer_file)
@@ -273,7 +273,7 @@ class DiffusionTrainer:
             return datetime.now() - t0
 
         # Print start info
-        logger.info(
+        self.logger.info(
             f"Starting training loop at {t0.strftime('%H:%M:%S')}...\n"
             f"Training for {iterations:_} iterations - "
             f"Starting from {self.iter_start:_} - "
@@ -284,7 +284,7 @@ class DiffusionTrainer:
         for i in range(self.iter_start, iterations):
 
             # Perform training step
-            loss = self.training_step(scaler)
+            loss = self.training_step(scaler, i)
             loss_buffer.append([i + 1, loss.item()])
 
             # Log loss to wandb
@@ -323,17 +323,17 @@ class DiffusionTrainer:
                 and save_model
                 and (i + 1) % self.config.snapshot_interval == 0
             ):
-                logger.info(f"Saving snapshot at iteration {i+1}...")
+                self.logger.info(f"Saving snapshot at iteration {i+1}...")
                 OM.save_snapshot(
                     f"iter_{i+1:08d}", self.inner_model, self.ema_model, self.optimizer
                 )
 
             # Save power ema models
             if self.power_ema and (i + 1) % power_ema_interval == 0:
-                logger.info(f"Saving power ema models at iteration {i+1}...")
+                self.logger.info(f"Saving power ema models at iteration {i+1}...")
                 OM.save_power_ema(self.power_ema_models, i + 1, self.power_ema_gammas)
 
-        logger.info(f"Training time {dt()} - Done!")
+        self.logger.info(f"Training time {dt()} - Done!")
 
     def handle_batch(self, batch):
         context, labels = None, None
@@ -354,7 +354,7 @@ class DiffusionTrainer:
                     )
         return batch, context, labels
 
-    def training_step(self, scaler):
+    def training_step(self, scaler, it):
         # Zero gradients
         self.optimizer.zero_grad()
 
@@ -373,7 +373,8 @@ class DiffusionTrainer:
             self.scheduler.step()
 
         # Update EMA model
-        self.ema_model.update_parameters(self.inner_model)
+        if it > 500:
+            self.ema_model.update_parameters(self.inner_model)
 
         # Update power ema models
         if self.power_ema:
