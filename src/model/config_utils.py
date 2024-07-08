@@ -8,20 +8,6 @@ import torch.nn as nn
 class modelConfig(object):
     def __init__(self, **kwargs):
         self.param_dict = kwargs
-
-        # Backwards compatibility:
-        kk = self.param_dict.keys()
-        # Changes 25.09.23:
-        if 'use_improved_unet' in kk:
-            self.param_dict["model_type"] = "ImprovedUnet"
-        if "loss_type" not in kk and "learn_variance" in kk:
-            self.param_dict["loss_type"] = (
-                "hybrid" if self.param_dict["learn_variance"] else "huber"
-            )
-        # Change 13.10.23: Snapshotting & lr decay
-        if "snapshot_interval" not in kk:
-            self.param_dict["snapshot_interval"] = None
-
         self.__dict__.update(self.param_dict)
 
     def __setattr__(self, __name: str, __value: Any) -> None:

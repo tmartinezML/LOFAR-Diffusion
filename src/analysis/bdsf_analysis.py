@@ -509,7 +509,7 @@ if __name__ == "__main__":
     arguments = parser.parse_args()
 
     data_path = Path(
-        "/hs/fs08/data/group-brueggen/tmartinez/diffusion/analysis_results/Data_Augmented/Data_Augmented_samples_QKV-corrected_10000_guidance_strength=1.00e-01.pt"
+        "/hs/fs08/data/group-brueggen/tmartinez/diffusion/analysis_results/LOFAR_QKV-Corr/LOFAR_QKV-Corr_samples_10000_guidance_strength=1.00e-01.pt"
     )
     out_folder = data_path.parent
 
