@@ -249,7 +249,7 @@ if __name__ == "__main__":
     print(f"Using GPU {dev_ids[:n_gpu]}")
 
     # Sampling parameters
-    model_name = "FIRST_Labeled"
+    model_name = "FIRST_QKV-Corr"
     n_samples = 8_000
 
     # Use this when sampling class-conditioned:
@@ -279,7 +279,7 @@ if __name__ == "__main__":
         # posthoc_sigma=.07,
         # snapshot_it=100_000,
         # out_folder_name=f"{model_name}/unconditioned"
-        comment="QKV-corrected",
+        # comment="QKV-corrected",
     )
 
     print(f"Finished sampling {n_samples:_} samples from {model_name}.")

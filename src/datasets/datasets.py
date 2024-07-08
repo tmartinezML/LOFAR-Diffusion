@@ -251,7 +251,7 @@ class ImagePathDataset(torch.utils.data.Dataset):
 
         # Plot
         return plot_image_grid(
-            [self[i] for i in idxs],
+            [self.transforms(self.data[i]) for i in idxs],
             titles=[self.names[i] for i in idxs],
             **kwargs,
         )

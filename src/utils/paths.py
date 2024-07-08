@@ -66,6 +66,18 @@ def cast_to_Path(path):
             raise TypeError(f"Expected Path or str, got {type(path)}")
 
 
+def rename_files(path, model_name_new, model_name_old=None):
+    if model_name_old is None:
+        model_name_old = path.name
+
+    for file in path.iterdir():
+        if file.is_file():
+            name = file.stem.replace(model_name_old, model_name_new)
+            file.rename(path / f"{name}{file.suffix}")
+        elif file.is_dir():
+            rename_files(file, model_name_new, model_name_old)
+
+
 if __name__ == "__main__":
 
     print("Base directories for code base & storage")

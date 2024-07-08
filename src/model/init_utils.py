@@ -88,15 +88,3 @@ def model_name_from_file(path):
     name = path.stem.replace("parameters_", "")
     name = name.replace("model_", "").replace("ema_", "")
     return name
-
-
-def rename_files(path, model_name_new, model_name_old=None):
-    if model_name_old is None:
-        model_name_old = path.name
-
-    for file in path.iterdir():
-        if file.is_file():
-            name = file.stem.replace(model_name_old, model_name_new)
-            file.rename(path / f"{name}{file.suffix}")
-        elif file.is_dir():
-            rename_files(file, model_name_new, model_name_old)

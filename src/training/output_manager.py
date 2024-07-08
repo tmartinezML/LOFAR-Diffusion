@@ -19,12 +19,8 @@ class OutputManager:
         self.pickup = pickup
 
         self.parent_dir = parent_dir
-        self.results_folder = self.parent_dir.joinpath(self.model_name)
 
         # Set up logging
-        self.log_file = self.results_folder.joinpath(
-            f"training_log_{self.model_name}.log"
-        )
         logger = logging.getLogger("OM")
         if logger.hasHandlers():  # Check if the logger already has handlers
             logger.handlers.clear()  # Clear the default handlers
@@ -39,8 +35,12 @@ class OutputManager:
             # Check if model name already exists, if so rename both model and
             # results folder.
             self._check_rename_model()
-        self.results_folder.mkdir(parents=True, exist_ok=True)
 
+        self.results_folder = self.parent_dir.joinpath(self.model_name)
+        self.results_folder.mkdir(parents=True, exist_ok=True)
+        self.log_file = self.results_folder.joinpath(
+            f"training_log_{self.model_name}.log"
+        )
         handler = logging.FileHandler(
             self.log_file,
             mode="a" if self.log_file.exists() else "w",
