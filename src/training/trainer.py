@@ -13,7 +13,7 @@ from utils.paths import MODEL_PARENT
 from training.output_manager import OutputManager
 from utils.device_utils import visible_gpus_by_space
 from model.model_utils import load_parameters
-from model.config import modelConfig
+from model.config import ModelConfig
 
 
 class DiffusionTrainer:
@@ -163,7 +163,7 @@ class DiffusionTrainer:
                 "Model name must be specified if no config is passed, "
                 "else no files can be found."
             )
-            config = modelConfig.from_preset(parent_dir / model_name)
+            config = ModelConfig.from_preset(parent_dir / model_name)
         if iterations is not None:
             config.iterations = iterations
         self.config = config
@@ -285,7 +285,7 @@ class DiffusionTrainer:
         ), "Either config or iterations must be specified for pickup."
 
         if config is None:
-            config = modelConfig.from_preset(path)
+            config = ModelConfig.from_preset(path)
 
         if iterations is not None:
             config.iterations = iterations

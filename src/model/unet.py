@@ -10,7 +10,7 @@ from typing import Any
 import torch.nn as nn
 
 from model.layers import *
-from model.config import modelConfig
+from model.config import ModelConfig
 
 
 class configModuleBase(nn.Module):
@@ -23,7 +23,7 @@ class configModuleBase(nn.Module):
 
     @classmethod
     def from_config(
-        cls: type, config: modelConfig, *args: Any, **kwargs: Any
+        cls: type, config: ModelConfig, *args: Any, **kwargs: Any
     ) -> nn.Module:
         """
         Construct a neural network module from a given configuration.

@@ -3,7 +3,9 @@ from indexed import IndexedOrderedDict
 
 # Base directories for code base & storage
 BASE_PARENT = Path(__file__).parent.parent.parent
-STORAGE_PARENT = Path("/hs/fs08/data/group-brueggen/tmartinez")
+
+# Change this if desired:
+STORAGE_PARENT = BASE_PARENT
 
 # Three main storage folders.
 MODEL_PARENT = STORAGE_PARENT / "model_results"
@@ -20,19 +22,13 @@ for p in [MODEL_PARENT, ANALYSIS_PARENT, IMG_DATA_PARENT]:
             symlink.resolve() == p
         ), f"Broken folder structure: Symlink {symlink} points to {symlink.resolve()}."
 
+# Model configuration presets
+CONFIG_PARENT = BASE_PARENT / "src/model/configs"
+MODEL_CONFIGS = IndexedOrderedDict({f.stem: f for f in [CONFIG_PARENT.glob("*.json")]})
+
 # Folders for different kinds of image data
 LOFAR_DATA_PARENT = IMG_DATA_PARENT / "LOFAR"
 FIRST_DATA_PARENT = IMG_DATA_PARENT / "FIRST"
-
-# Other useful folders
-PLAYGROUND_DIR = ANALYSIS_PARENT / "playground"
-DEBUG_DIR = MODEL_PARENT / "debug"
-
-# Model configuration presets
-CONFIG_PARENT = BASE_PARENT / "src" / "model" / "configs"
-MODEL_CONFIGS = IndexedOrderedDict(
-    {k: CONFIG_PARENT / f"{k}.json" for k in ["LOFAR_Model", "FIRST_Model", "Dummy"]}
-)
 
 # Train data subsets
 LOFAR_SUBSETS = IndexedOrderedDict(
@@ -43,8 +39,6 @@ LOFAR_SUBSETS = IndexedOrderedDict(
             "1.5-clip": "1p5sigma-clip.hdf5",
             "2-clip": "2sigma-clip.hdf5",
             "unclipped": "unclipped.hdf5",
-            "0-clip_unscaled": "lofar_120asLimit_80p_0-clipped_f-thr=0_SNR>=5_subset.hdf5",
-            "120asLimit_SNR>=5": "lofar_120asLimit_80p_unclipped_f-thr=0_SNR>=5_subset.hdf5",
         }.items()
     }
 )
@@ -53,9 +47,6 @@ LOFAR_SUBSETS = IndexedOrderedDict(
 MOSAIC_DIR = "/hs/fs05/data/AG_Brueggen/nicolasbp/RadioGalaxyImage/data/mosaics_public"
 CUTOUTS_DIR = LOFAR_DATA_PARENT / "cutouts"
 LOFAR_RES_CAT = LOFAR_DATA_PARENT / "6-LoTSS_DR2-public-resolved_sources.csv"
-
-# Paths for output
-PAPER_PLOT_DIR = ANALYSIS_PARENT / "paper_plots"
 
 
 def cast_to_Path(path):
@@ -127,10 +118,6 @@ if __name__ == "__main__":
     print("\nFolders for different kinds of image data")
     print(f"\tLOFAR_DATA_PARENT: {LOFAR_DATA_PARENT}")
     print(f"\tFIRST_DATA_PARENT: {FIRST_DATA_PARENT}")
-
-    print("\nOther useful folders")
-    print(f"\tPLAYGORUND_DIR: {PLAYGROUND_DIR}")
-    print(f"\tDEBUG_DIR: {DEBUG_DIR}")
 
     print("\nTrain data subsets")
     for k, v in LOFAR_SUBSETS.items():

@@ -6,7 +6,7 @@ from inspect import signature
 import utils.paths as paths
 
 
-class modelConfig(object):
+class ModelConfig(object):
     """
     A class representing the configuration for a model. The purpose of this
     class is to provide a single, flexible object that can be passed to a model
@@ -38,7 +38,7 @@ class modelConfig(object):
             self.param_dict[__name] = __value
 
     @classmethod
-    def from_preset(self, preset: Path | str) -> "modelConfig":
+    def from_preset(self, preset: Path | str) -> "ModelConfig":
         match preset:
 
             # If path is a file, it is either the config file or its parent:

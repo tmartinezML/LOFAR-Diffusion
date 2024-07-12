@@ -6,7 +6,7 @@ import torch.nn as nn
 import utils.logging
 import model.unet as unet
 import utils.paths as paths
-from model.config import modelConfig
+from model.config import ModelConfig
 
 logger = utils.logging.get_logger(__name__)
 
@@ -17,7 +17,7 @@ def load_model(
     key: str = "ema_model",
     return_config: bool = False,
     snapshot_iter: int | None = None,
-) -> nn.Module | tuple[nn.Module, modelConfig]:
+) -> nn.Module | tuple[nn.Module, ModelConfig]:
     """
     Load a model from a given source.
 
@@ -82,7 +82,7 @@ def load_model(
 
     # Load config and construct model
     logger.info(f"Loading model from {config_file}")
-    config = modelConfig.from_preset(config_file)
+    config = ModelConfig.from_preset(config_file)
     model = unet.EDMPrecond.from_config(config)
 
     # Load model weights

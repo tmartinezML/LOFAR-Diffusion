@@ -1,33 +1,30 @@
-import wandb
-
 import utils.paths as paths
-from model.config import modelConfig
+import data.datasets as datasets
+import utils.device_utils as device_utils
+from model.config import ModelConfig
 from training.trainer import DiffusionTrainer
-from data.datasets import TrainDataset, TrainDatasetFIRST
-from utils.device_utils import set_visible_devices
 
 
 if __name__ == "__main__":
     # Limit visible GPUs
-    set_visible_devices(1)
+    device_utils.set_visible_devices(1)
+
+    # Set model preset:
+    # (i.e. name of the json file in the model_configs directory)
+    model_preset = ""
 
     # Hyperparameters
-    conf = modelConfig.from_preset("FIRST_Model")
-    conf.model_name = f"FIRST_Test"
+    conf = ModelConfig.from_preset(model_preset)
 
-    dataset = TrainDatasetFIRST()
+    # Change the name if you want:
+    # (otherwise default name is used)
+    # conf.model_name = "Alternative_Name"
 
-    trainer = DiffusionTrainer(
-        config=conf,
-        dataset=dataset,
-    )
+    # Load dataset:
+    dataset = datasets.TrainDatasetFIRST()
 
-    wandb.init(
-        project="Diffusion",
-        config=conf.param_dict,
-        dir=paths.ANALYSIS_PARENT / "wandb",
-        # Use this for pickup:
-        # id="wdh8djaz",
-        # resume="must",
-    )
+    # Initialize trainer
+    trainer = DiffusionTrainer(config=conf, dataset=dataset)
+
+    # Start training
     trainer.training_loop()
