@@ -2,7 +2,6 @@ import logging
 from datetime import datetime
 
 import torch
-import wandb
 from torch import optim
 from torch.nn.parallel import DataParallel
 from torch.cuda.amp import autocast, GradScaler
@@ -459,9 +458,6 @@ class DiffusionTrainer:
             loss = self.training_step(scaler, i)
             loss_buffer.append([i + 1, loss.item()])
 
-            # Log loss to wandb at every step
-            wandb.log({"loss": loss.item()}, step=i + 1)
-
             # Log & write output at log interval
             if (i + 1) % self.config.log_interval == 0:
 
@@ -483,11 +479,6 @@ class DiffusionTrainer:
                 # Write output
                 if write_output:
                     OM.write_val_losses([[i + 1, *val_loss]])
-
-                # Log val loss to wandb
-                wandb.log(
-                    {"val_loss": val_loss[0], "val_loss_ema": val_loss[1]}, step=i + 1
-                )
 
             # Save snapshot at snapshot interval if desired
             if (
