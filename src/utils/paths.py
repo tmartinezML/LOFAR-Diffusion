@@ -3,7 +3,6 @@ from indexed import IndexedOrderedDict
 
 # Base directories for code base & storage
 BASE_PARENT = Path(__file__).parent.parent.parent
-
 # Change this if desired:
 STORAGE_PARENT = BASE_PARENT
 
