@@ -43,8 +43,6 @@ LOFAR_SUBSETS = IndexedOrderedDict(
             "1.5-clip": "1p5sigma-clip.hdf5",
             "2-clip": "2sigma-clip.hdf5",
             "unclipped": "unclipped.hdf5",
-            "0-clip_unscaled": "lofar_120asLimit_80p_0-clipped_f-thr=0_SNR>=5_subset.hdf5",
-            "120asLimit_SNR>=5": "lofar_120asLimit_80p_unclipped_f-thr=0_SNR>=5_subset.hdf5",
         }.items()
     }
 )
