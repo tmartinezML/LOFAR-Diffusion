@@ -1,7 +1,7 @@
 from functools import partial
 
-from wpca import WPCA
 import numpy as np
+from wpca import WPCA
 from tqdm import tqdm
 
 

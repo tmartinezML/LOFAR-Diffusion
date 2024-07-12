@@ -14,7 +14,7 @@ import utils.paths as paths
 import analysis.model_evaluation as meval
 import analysis.bdsf_evaluation as bdsfeval
 from analysis.stats_utils import norm, centers
-from plotting.plot_images import plot_image_grid, quantile_contour_plot, remove_axes
+from plotting.image_plots import plot_image_grid, quantile_contour_plot, remove_axes
 from plotting.plot_utils import add_distribution_plot, plot_collection
 
 
@@ -25,7 +25,7 @@ from plotting.plot_utils import add_distribution_plot, plot_collection
 mm = 1 / 25.4  # mm in inches
 fig_width = 88 * mm
 # plt.rcParams.update({"font.size": 5})
-plt.style.use("seaborn-paper")
+plt.style.use("seaborn-v0_8-paper")
 plt.rcParams.update(
     {
         "figure.constrained_layout.use": True,
@@ -69,13 +69,13 @@ def pyBDSF_residual_plot(img_arr, model_arr, residuals, fmax):
         if i == 0:
             ax[0].set_ylabel("Image")
             ax[1].set_ylabel("Model")
-            ax[2].set_ylabel("Res. $\geq$0")
+            ax[2].set_ylabel(r"Res. $\geq$0")
 
     # Add annotation on bottom left:
     fig.text(
-        0.095, 0.927, "$\hat{f}_\mathrm{scaled}$:", ha="right", va="bottom", fontsize=9
+        0.095, 0.927, r"$\hat{f}_\mathrm{scaled}$:", ha="right", va="bottom", fontsize=9
     )
-    fig.text(0.095, 0.028, "$\Delta_+$:", ha="right", va="bottom", fontsize=9)
+    fig.text(0.095, 0.028, r"$\Delta_+$:", ha="right", va="bottom", fontsize=9)
 
     for ax in axs.flatten():
         remove_axes(ax)
@@ -140,7 +140,7 @@ def pyBDSF_examples(imgs, model_imgs, a50=False):
             ax_model.imshow(model_img.squeeze())
 
     # Add annotation on bottom left:
-    fig.text(-0.025, 0.045, "$A_{50\%}$:", ha="left", va="bottom", fontsize=9)
+    fig.text(-0.025, 0.045, r"$A_{50\%}$:", ha="left", va="bottom", fontsize=9)
 
     return fig, ax
 
@@ -161,7 +161,7 @@ def boxcox_plot(dset):
         alpha=0.7,
     )
     axs[0].set_yscale("log")
-    axs[0].set_xlabel("$\hat{f}$")
+    axs[0].set_xlabel(r"$\hat{f}$")
     axs[0].set_ylabel("Count")
     axs[0].legend()
 
@@ -192,7 +192,7 @@ def boxcox_plot(dset):
         alpha=0.5,
         ls="--",
     )
-    axs[1].set_xlabel("$\hat{f}_\mathrm{scaled}$")
+    axs[1].set_xlabel(r"$\hat{f}_\mathrm{scaled}$")
     axs[1].set_ylabel("Count")
     axs[1].legend(loc="upper right")
 
@@ -257,7 +257,7 @@ def SNR_example_plot(SNR, edges, images, n_row=5):
         label_count=False,
     )
     ax0.axvline(5, color="grey", linestyle="--", label="Sel. cut")
-    ax0.set_xlabel("$\mathit{SNR}_\sigma$")
+    ax0.set_xlabel(r"$\mathit{SNR}_\sigma$")
     ax0.set_ylabel("Count")
     # Set ticks format to abbreviate thousands
     ax0.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x/1e3:.0f}k"))
@@ -399,7 +399,7 @@ def paper_plots_bdsf(
                 labels = [d.stem for d in img_dir]
 
     metrics = ["total_flux_gaus", "nsrc", "q0.5_area"]
-    xlabels = ["Model Flux (a.u.)", "Identified Sources", "$A_\mathrm{50\%}$ (px)"]
+    xlabels = ["Model Flux (a.u.)", "Identified Sources", r"$A_\mathrm{50\%}$ (px)"]
     gen_distr_dict_list = [
         bdsfeval.get_bdsf_distributions(d, out_dir=p) for d, p in zip(img_dir, bdsf_dir)
     ]

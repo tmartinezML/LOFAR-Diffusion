@@ -1,19 +1,10 @@
-import os
-import socket
-from contextlib import closing
-import logging
-from pathlib import Path
-
-import torch
-import torch.distributed as dist
 import wandb
 
-from datasets.datasets import TrainDataset
-import model.configs as configs
-from training.trainer import DiffusionTrainer
-from datasets.datasets import TrainDatasetFIRST
-from utils.device_utils import set_visible_devices
 import utils.paths as paths
+from model.config import modelConfig
+from training.trainer import DiffusionTrainer
+from data.datasets import TrainDataset, TrainDatasetFIRST
+from utils.device_utils import set_visible_devices
 
 
 if __name__ == "__main__":
@@ -21,32 +12,22 @@ if __name__ == "__main__":
     set_visible_devices(1)
 
     # Hyperparameters
-    conf = configs.FIRST_labeled_config()
-
-    # conf.pretrained_model = '/home/bbd0953/diffusion/model_results/Dummy/snapshots/snapshot_iter_00000100.pt'
-    # conf.optimizer_file = '/home/bbd0953/diffusion/results/EDM_valFix/optimizer_state_EDM_valFix.pt'
-    conf.model_name = f"FIRST_QKV-Corr"
+    conf = modelConfig.from_preset("FIRST_Model")
+    conf.model_name = f"FIRST_Test"
 
     dataset = TrainDatasetFIRST()
-    conf.training_data = str(dataset.path)
 
     trainer = DiffusionTrainer(
         config=conf,
         dataset=dataset,
-        # pickup=True,
     )
 
     wandb.init(
         project="Diffusion",
         config=conf.param_dict,
+        dir=paths.ANALYSIS_PARENT / "wandb",
+        # Use this for pickup:
         # id="wdh8djaz",
         # resume="must",
-        dir=paths.ANALYSIS_PARENT / "wandb",
     )
     trainer.training_loop()
-
-    # Class conditioning
-    # conf.n_labels = 4
-    # conf.label_dropout = 0.1
-    # conf.pretrained_model = '/home/bbd0953/diffusion/results/EDM_small_SAFETY/snapshots/ema_iter_00020000.pt'
-    # conf.optimizer_file = '/home/bbd0953/diffusion/results/EDM/optimizer_state_EDM.pt'

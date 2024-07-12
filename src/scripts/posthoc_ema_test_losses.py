@@ -5,12 +5,12 @@ import numpy as np
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 
-import model.posthoc_ema as phema
-from datasets.datasets import TrainDataset
-from training.loss_functions import edm_loss
+import develop.posthoc_ema as phema
+from data.datasets import TrainDataset
+from model.model_utils import load_model
+from training.train_utils import edm_loss
 from utils.paths import MODEL_PARENT, ANALYSIS_PARENT, LOFAR_SUBSETS
 from utils.device_utils import distribute_model, set_visible_devices
-from model.init_utils import load_model_by_name
 
 # Limit GPUs to 1
 dev_ids = set_visible_devices(1)
@@ -60,7 +60,7 @@ for sigma in tqdm(posthoc_sigmas, desc="Looping through sigmas"):
     out_dict[f"losses_sigma={sigma}"] = batch_losses
 
 # Load original model
-model = load_model_by_name(model_name)
+model = load_model(model_name)
 model, dev_id = distribute_model(model, n_devices=1)
 
 model.eval()

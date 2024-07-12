@@ -1,25 +1,16 @@
-import os
-from pathlib import Path
-
-from matplotlib import colormaps
-import matplotlib.lines as mlines
-from numpy.lib.npyio import NpzFile
-import scipy.stats as stats
-from tqdm import tqdm
-import numpy as np
-import matplotlib.pyplot as plt
 import torch
+import numpy as np
+import scipy.stats as stats
+import matplotlib.pyplot as plt
+import matplotlib.lines as mlines
+from tqdm import tqdm
+from matplotlib import colormaps
+from numpy.lib.npyio import NpzFile
 from torch.utils.data import DataLoader
 
-
-from model.sample import sample_batch
-from model.diffusion import Diffusion
-from model.init_utils import (
-    load_model_from_folder,
-    load_diffusion_from_folder,
-    load_snapshot,
-)
-from datasets.datasets import TrainDataset
+from data.datasets import TrainDataset
+from model.model_utils import load_model
+from training.train_utils import edm_loss
 from utils.device_utils import distribute_model, set_visible_devices
 from utils.paths import MODEL_PARENT, ANALYSIS_PARENT, LOFAR_SUBSETS
 
@@ -38,7 +29,6 @@ out_dir = ANALYSIS_PARENT / model_name
 out_dir.mkdir(exist_ok=True)
 
 # Load diffusion and data
-diffusion = Diffusion(timesteps=25)
 dataset = TrainDataset(lofar_subset)
 dataloader = DataLoader(dataset, batch_size=100, shuffle=False)
 
@@ -50,7 +40,7 @@ out_dict = {"noise_levels": noise_levels}
 for it in snp_iters:
 
     # Load model and diffusion
-    model = load_snapshot(model_dir, it)
+    model = load_model(model_dir, snapshot_iter=it)
     model, dev_id = distribute_model(model, n_devices=1)
 
     level_losses = []
@@ -65,7 +55,7 @@ for it in snp_iters:
                 )
 
                 # Shape: [batch_size, 1, 80, 80]
-                loss = diffusion.edm_loss(model, batch, sigmas=sigmas, mean=False)
+                loss = edm_loss(model, batch, sigmas=sigmas, mean=False)
                 # Shape: --> [batch_size]
                 L2 = loss.detach().mean(axis=(-1, -2)).squeeze()
 

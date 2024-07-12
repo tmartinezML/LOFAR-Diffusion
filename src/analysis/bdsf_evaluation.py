@@ -6,9 +6,9 @@ import numpy as np
 from tqdm import tqdm
 from scipy.optimize import fminbound
 
-from plotting.plot_utils import plot_collection
-from plotting.plot_metrics import bdsf_metrics_plot
 import utils.paths as paths
+from plotting.plot_utils import plot_collection
+from plotting.metric_plots import bdsf_metrics_plot
 
 
 def get_bdsf_metrics_plots(

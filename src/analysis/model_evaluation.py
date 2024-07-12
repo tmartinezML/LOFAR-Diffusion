@@ -11,14 +11,14 @@ from torch.utils.data import DataLoader, Dataset
 import utils.paths as paths
 import analysis.stats_utils as stats
 import analysis.image_metrics as imet
-from plotting.plot_metrics import (
+from plotting.metric_plots import (
     pixel_metrics_plot,
     shape_metrics_plot,
 )
-from datasets.datasets import EvaluationDataset
+from data.datasets import EvaluationDataset
 from plotting.plot_utils import plot_collection
 from utils.device_utils import visible_gpus_by_space
-from analysis.fid_score import calculate_fid_given_paths, save_fid_stats
+from develop.fid_score import calculate_fid_given_paths, save_fid_stats
 
 
 def metrics_dict_from_data(
