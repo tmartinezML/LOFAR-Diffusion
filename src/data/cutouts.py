@@ -1,4 +1,7 @@
+from pathlib import Path
+
 import h5py
+import wget
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -27,7 +30,7 @@ def single_cutout(
     """
     Create a cutout of the mosaic for a given source.
     """
-    
+
     # Set size of cutout in pixels
     pixel_size = 1.5  # arcsec
     assert (size_px is not None) or (las is not None)
@@ -43,7 +46,7 @@ def single_cutout(
     cutout = Cutout2D(data, center, size_px, wcs=wcs, mode="strict")
 
     # Check for NaNs, replace with nanmin if mask_nan is True
-    if (contain_nan := np.isnan(cutout.data).any()):
+    if contain_nan := np.isnan(cutout.data).any():
         if mask_nan:
             print(
                 f"Nan values present in {name} cutout.\n" " Nan values set to nanmin."
@@ -305,6 +308,57 @@ def save_images_hpy5(
         img_dset.attrs[key] = value
 
     out_file.close()
+
+
+def download_mosaics(
+    mosaic_dir: Path = MOSAIC_DIR,
+    catalog: pd.DataFrame | None = LOFAR_RES_CAT,
+    mosaic_id: str | None = None,
+    url_base: str | None = None,
+):
+    """
+    Download the mosaics from the LoTSS DR2.
+    """
+    # Set default url_base for downloading mosaics
+    url_base = url_base or "https://lofar-webdav.grid.surfsara.nl:2881/"
+
+    # Create mosaic directory if it doesn't exist
+    mosaic_dir = cast_to_Path(mosaic_dir)
+    mosaic_dir.mkdir(parents=True, exist_ok=True)
+
+    # Get mosaic IDs
+    if catalog is not None:
+        mosaic_ids = catalog["Mosaic_ID"].unique()
+    elif mosaic_id is not None:
+        assert isinstance(mosaic_id, str), "mosaic_id must be a string."
+        mosaic_ids = [mosaic_id]
+    else:
+        raise ValueError("Either catalog or mosaic_id must be passed.")
+
+    # Loop through mosaic IDs
+    print(f"Downloading {len(mosaic_ids)} mosaics...")
+    for mosaic in tqdm(mosaic_ids):
+
+        # Set mosaic file path
+        mosaic_file = mosaic_dir / f"{mosaic}/mosaic-blanked.fits"
+
+        # Download mosaic if it doesn't exist
+        if not mosaic_file.exists():
+            print(f"Downloading {mosaic}...")
+
+            # Create mosaic directory
+            mosaic_file.parent.mkdir(parents=True, exist_ok=True)
+
+            # Download mosaic
+            wget.download(
+                url_base + f"{mosaic}/mosaic-blanked.fits",
+                out=str(mosaic_file.parent),
+            )
+
+        else:
+            print(f"{mosaic} already exists under {mosaic_file}.")
+
+    return mosaic_ids
 
 
 if __name__ == "__main__":
