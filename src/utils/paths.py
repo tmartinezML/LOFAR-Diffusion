@@ -3,7 +3,8 @@ from indexed import IndexedOrderedDict
 
 # Base directories for code base & storage
 BASE_PARENT = Path(__file__).parent.parent.parent
-# Change this if desired:
+
+# CHANGE THIS IF DESIRED:
 STORAGE_PARENT = BASE_PARENT
 
 # Three main storage folders.
@@ -28,6 +29,9 @@ MODEL_CONFIGS = IndexedOrderedDict({f.stem: f for f in [CONFIG_PARENT.glob("*.js
 # Folders for different kinds of image data
 LOFAR_DATA_PARENT = IMG_DATA_PARENT / "LOFAR"
 FIRST_DATA_PARENT = IMG_DATA_PARENT / "FIRST"
+
+# Pretrained models
+PRETRAINED_PARENT = BASE_PARENT / "pretrained"
 
 # Train data subsets
 LOFAR_SUBSETS = IndexedOrderedDict(

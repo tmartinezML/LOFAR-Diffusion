@@ -17,6 +17,7 @@ def load_model(
     key: str = "ema_model",
     return_config: bool = False,
     snapshot_iter: int | None = None,
+    model_parent: Path = paths.PRETRAINED_PARENT,
 ) -> nn.Module | tuple[nn.Module, ModelConfig]:
     """
     Load a model from a given source.
@@ -72,7 +73,7 @@ def load_model(
         # If source is a string, it is assumed to be the model name.
         case str():
             model_name = source
-            model_dir = paths.MODEL_PARENT / model_name
+            model_dir = model_parent / model_name
             model_file = model_dir / f"parameters_{model_name}.pt"
             config_file = model_dir / f"config_{model_name}.json"
 

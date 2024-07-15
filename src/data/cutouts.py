@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import h5py
 import numpy as np
 import pandas as pd
@@ -27,7 +29,7 @@ def single_cutout(
     """
     Create a cutout of the mosaic for a given source.
     """
-    
+
     # Set size of cutout in pixels
     pixel_size = 1.5  # arcsec
     assert (size_px is not None) or (las is not None)
@@ -43,7 +45,7 @@ def single_cutout(
     cutout = Cutout2D(data, center, size_px, wcs=wcs, mode="strict")
 
     # Check for NaNs, replace with nanmin if mask_nan is True
-    if (contain_nan := np.isnan(cutout.data).any()):
+    if contain_nan := np.isnan(cutout.data).any():
         if mask_nan:
             print(
                 f"Nan values present in {name} cutout.\n" " Nan values set to nanmin."
@@ -108,8 +110,13 @@ def get_cutouts(
     """
     Create cutouts for all the sources in the catalogue.
     """
+    # Check mosaic directory
+    mosaic_dir = cast_to_Path(mosaic_dir)
+    assert mosaic_dir.exists(), f"Mosaic directory {mosaic_dir} does not exist."
+    assert len(mosaic_dir.glob("*.fits")), f"No mosaics found in {mosaic_dir}."
+
     # Create export directory
-    mosaic_dir, export_dir = cast_to_Path(mosaic_dir), cast_to_Path(export_dir)
+    export_dir = cast_to_Path(export_dir)
     export_dir.mkdir(parents=True, exist_ok=True)
 
     # Name for outfile:
@@ -119,6 +126,7 @@ def get_cutouts(
     out_name += "_" * int(bool(len(fname_comment))) + fname_comment
     out_file = export_dir / f"{out_name}.hdf5"
 
+    # Check if out_file already exists
     assert not out_file.exists(), f"{out_file} already exists. Aborted for safety."
 
     # Read catalog
@@ -129,9 +137,20 @@ def get_cutouts(
     problem_cutouts = np.zeros(len(catalog), dtype=bool)
     nans_cutouts = np.zeros(len(catalog), dtype=bool)
 
-    # Loop through unique mosaic IDs in catalogue
+    # Extract unique mosaic IDs from catalogue
     mosaic_ids = catalog["Mosaic_ID"].unique()
     catalog.set_index("Mosaic_ID", inplace=True)
+
+    # Assert that all mosaics are present
+    assert all(
+        (mosaic_dir / f"{mosaic}/mosaic-blanked.fits").exists() for mosaic in mosaic_ids
+    ), (
+        "Not all mosaics are present in the mosaic directory."
+        "Make sure to download all mosaics with the given catalogue."
+        f"Missing mosaics: {set(mosaic_ids) - set(mosaic_dir.glob('*'))}"
+    )
+
+    # Loop through unique mosaic IDs in catalogue and collect images
     images = []
     for mosaic in tqdm(mosaic_ids, desc="Looping through mosaics..."):
 
@@ -305,6 +324,57 @@ def save_images_hpy5(
         img_dset.attrs[key] = value
 
     out_file.close()
+
+
+def download_mosaics(
+    mosaic_dir: Path | str = MOSAIC_DIR,
+    catalog: pd.DataFrame = LOFAR_RES_CAT,
+    mosaic_id=None,
+    url_base=None,
+):
+    """
+    Download the mosaics from the LoTSS DR2.
+    """
+    # Set default url_base for downloading mosaics
+    url_base = url_base or "https://lofar-webdav.grid.surfsara.nl:2881/"
+
+    # Create mosaic directory if it doesn't exist
+    mosaic_dir = cast_to_Path(mosaic_dir)
+    mosaic_dir.mkdir(parents=True, exist_ok=True)
+
+    # Get mosaic IDs
+    assert (catalog is not None) or (
+        mosaic_id is not None
+    ), "Either a catalogue or a mosaic ID must be passed."
+    if catalog is not None:
+        mosaic_ids = catalog["Mosaic_ID"].unique()
+    else:
+        assert isinstance(mosaic_id, str), "mosaic_id must be a string."
+        mosaic_ids = [mosaic_id]
+
+    # Loop through mosaic IDs
+    print(f"Downloading {len(mosaic_ids)} mosaics...")
+    for mosaic in tqdm(mosaic_ids):
+
+        # Set mosaic file path
+        mosaic_file = mosaic_dir / f"{mosaic}/mosaic-blanked.fits"
+
+        # Download mosaic if it doesn't exist
+        if not mosaic_file.exists():
+            print(f"Downloading {mosaic}...")
+
+            # Create mosaic directory
+            mosaic_file.parent.mkdir(parents=True, exist_ok=True)
+
+            # Download mosaic
+            wget.download(
+                url_base + f"{mosaic}/mosaic-blanked.fits",
+                out=str(mosaic_file.parent),
+            )
+        else:
+            print(f"{mosaic} already exists under {mosaic_file}.")
+
+    return mosaic_ids
 
 
 if __name__ == "__main__":
