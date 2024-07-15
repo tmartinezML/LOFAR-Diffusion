@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import h5py
+import wget
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -327,10 +328,10 @@ def save_images_hpy5(
 
 
 def download_mosaics(
-    mosaic_dir: Path | str = MOSAIC_DIR,
-    catalog: pd.DataFrame = LOFAR_RES_CAT,
-    mosaic_id=None,
-    url_base=None,
+    mosaic_dir: Path = MOSAIC_DIR,
+    catalog: pd.DataFrame | None = LOFAR_RES_CAT,
+    mosaic_id: str | None = None,
+    url_base: str | None = None,
 ):
     """
     Download the mosaics from the LoTSS DR2.
@@ -342,15 +343,16 @@ def download_mosaics(
     mosaic_dir = cast_to_Path(mosaic_dir)
     mosaic_dir.mkdir(parents=True, exist_ok=True)
 
-    # Get mosaic IDs
-    assert (catalog is not None) or (
-        mosaic_id is not None
-    ), "Either a catalogue or a mosaic ID must be passed."
+    # Get unique mosaic IDs from catalog if passed
     if catalog is not None:
         mosaic_ids = catalog["Mosaic_ID"].unique()
-    else:
+    # Else, set mosaic ID if passed
+    elif mosaic_id is not None:
         assert isinstance(mosaic_id, str), "mosaic_id must be a string."
         mosaic_ids = [mosaic_id]
+    # Else, raise error
+    else:
+        raise ValueError("Either catalog or mosaic_id must be passed.")
 
     # Loop through mosaic IDs
     print(f"Downloading {len(mosaic_ids)} mosaics...")
@@ -358,19 +360,17 @@ def download_mosaics(
 
         # Set mosaic file path
         mosaic_file = mosaic_dir / f"{mosaic}/mosaic-blanked.fits"
+        mosaic_file.parent.mkdir(parents=True, exist_ok=True)
 
         # Download mosaic if it doesn't exist
         if not mosaic_file.exists():
             print(f"Downloading {mosaic}...")
-
-            # Create mosaic directory
-            mosaic_file.parent.mkdir(parents=True, exist_ok=True)
-
-            # Download mosaic
             wget.download(
                 url_base + f"{mosaic}/mosaic-blanked.fits",
                 out=str(mosaic_file.parent),
             )
+
+        # Print message if mosaic already exists
         else:
             print(f"{mosaic} already exists under {mosaic_file}.")
 

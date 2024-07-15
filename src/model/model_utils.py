@@ -17,7 +17,7 @@ def load_model(
     key: str = "ema_model",
     return_config: bool = False,
     snapshot_iter: int | None = None,
-    model_parent: Path = paths.PRETRAINED_PARENT,
+    from_pretrained: bool = False,
 ) -> nn.Module | tuple[nn.Module, ModelConfig]:
     """
     Load a model from a given source.
@@ -35,6 +35,11 @@ def load_model(
         Whether to return the model configuration. Defaults to False.
     snapshot_iter : int, optional
         The iteration number of the snapshot to load. Defaults to None.
+    from_pretrained : bool, optional
+        Whether to load the model from the PRETRAINED_PARENT. Will be used if
+        model name is passed as 'source'. If False, the MODEL_PARENT directory
+        is used. Set this to False if you want to use your own trained model.
+        Defaults to False.
 
     Returns:
     ----------
@@ -73,7 +78,9 @@ def load_model(
         # If source is a string, it is assumed to be the model name.
         case str():
             model_name = source
-            model_dir = model_parent / model_name
+            model_dir = (
+                paths.PRETRAINED_PARENT if from_pretrained else paths.MODEL_PARENT
+            ) / model_name
             model_file = model_dir / f"parameters_{model_name}.pt"
             config_file = model_dir / f"config_{model_name}.json"
 
