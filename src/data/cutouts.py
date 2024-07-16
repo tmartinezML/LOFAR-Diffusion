@@ -53,6 +53,11 @@ def single_cutout(
             )
             cutout.data[np.isnan(cutout.data)] = np.nanmin(cutout.data)
 
+    # TODO:
+    # - Pass through segmentation model
+    # - Get mask circle 
+    # - Re-center image
+
     # Export cutout as .fits file if export_dir is passed
     if export_dir is not None:
         header.update(cutout.wcs.to_header())
@@ -100,7 +105,7 @@ def cutout_from_catalog(catalog, ind, mask_nan=False, size_px=None, opt_c=True):
 
 def get_cutouts(
     size_px=80,
-    f=1.5,
+    f=None,
     opt_c=True,
     fname_comment="",
     catalog=None,
@@ -362,4 +367,4 @@ def download_mosaics(
 
 
 if __name__ == "__main__":
-    get_cutouts()
+    get_cutouts(size_px=200)
