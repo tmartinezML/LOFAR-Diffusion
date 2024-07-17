@@ -32,7 +32,7 @@ def single_cutout(
     """
 
     # Set size of cutout in pixels
-    pixel_size = 1.5  # arcsec
+    pixel_size = 1.5  # arcsec / pixel
     assert (size_px is not None) or (las is not None)
     if size_px is None:
         if las == 0.0:
@@ -55,7 +55,7 @@ def single_cutout(
 
     # TODO:
     # - Pass through segmentation model
-    # - Get mask circle 
+    # - Get mask circle
     # - Re-center image
 
     # Export cutout as .fits file if export_dir is passed
@@ -220,7 +220,7 @@ def get_cutouts(
         src_names=None,
         attributes={
             "size_px": size_px,
-            "f_las": f,
+            "f_las": f or "None",
             "opt_c": opt_c,
             "comment": fname_comment,
         },

@@ -90,6 +90,23 @@ def broken_image_mask(images):
     return (images_collapsed == np.expand_dims(minvals, 1)).sum(axis=1) > 1
 
 
+def problem_mask(
+    catalog: pd.DataFrame,
+):
+    """
+    Combine all boolean flags in the catalog that contain 'Problem' in the column name.
+
+    Parameters
+    ----------
+    catalog : pd.DataFrame
+        Catalog to use.
+    """
+    problem_columns = [col for col in catalog.columns if "Problem" in col]
+    mask = catalog[problem_columns].any(axis=1)
+
+    return mask
+
+
 def threshold_mask(
     catalog: pd.DataFrame,
     label: str,

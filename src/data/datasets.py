@@ -14,6 +14,7 @@ from sklearn.preprocessing import PowerTransformer
 
 import utils.logging
 import utils.paths as paths
+import data.image_utils as imgutil
 from data.firstgalaxydata import FIRSTGalaxyData
 from plotting.image_plots import plot_image_grid
 from data.transforms import EvalTransform, ToTensor, TrainTransform
@@ -116,12 +117,18 @@ class ImagePathDataset(torch.utils.data.Dataset):
                 and isinstance(a := getattr(self, attr), Iterable)
                 and len(a) == len(self.data)
             ):
-                setattr(self, attr, getattr(self, attr)[idx])
+                if isinstance(a, pd.DataFrame) and idx.dtype != bool:
+                    setattr(self, attr, a.loc[idx])
+
+                else:
+                    setattr(self, attr, a[idx])
 
         self.data = self.data[idx]
 
     def index_sliced(self, idx):
-        return copy.deepcopy(self).index_slice(idx)
+        subset = copy.deepcopy(self)
+        subset.index_slice(idx)
+        return subset
 
     def sort_by_names(self):
         idxs = np.argsort(self.names)
@@ -238,9 +245,13 @@ class ImagePathDataset(torch.utils.data.Dataset):
         self.data = samples_itr[idxs]
         self.names = np.arange(n_tot)[idxs]
 
-    def plot_image_grid(self, n_imgs=64, **kwargs):
+    def plot_image_grid(self, idxs=None, n_imgs=64, **kwargs):
         # pick n_imgs random images
-        idxs = np.random.choice(len(self), n_imgs, replace=False)
+        idxs = (
+            idxs
+            if idxs is not None
+            else np.random.choice(len(self), n_imgs, replace=False)
+        )
 
         # Plot
         return plot_image_grid(
@@ -287,3 +298,26 @@ class TrainDatasetFIRST(FIRSTGalaxyData):
     def set_context(self, *args):
         logger.warn("FIRSTGalaxyData has class labels as fixed context.")
         return
+
+
+class CutoutsDataset(EvaluationDataset):
+    def __init__(self, path, img_size=80, **kwargs):
+        super().__init__(path, img_size=img_size, key="cutouts", **kwargs)
+
+        # Add catalog
+        logger.info("Adding catalog...")
+        cat = pd.read_hdf(path, key="catalog")
+        self.catalog = cat
+
+        # Remove problem sources: Flagged by all columns that contain 'Problem'
+        problem_flag = cat["Problem_cutout"]
+        # Only attributes will contain problematic sources.
+        for attr in self.__dict__.keys():
+            if (
+                hasattr(self, attr)
+                and attr not in ["data", "catalog"]
+                and isinstance(a := getattr(self, attr), Iterable)
+                and len(a) == len(cat)
+            ):
+                setattr(self, attr, getattr(self, attr)[~problem_flag])
+        self.catalog = cat[~problem_flag].reset_index(drop=True)
