@@ -65,7 +65,10 @@ class ImagePathDataset(torch.utils.data.Dataset):
         # If the path is a hdf5 file, load the images from the file
         elif self.path.suffix in [".hdf5", ".h5"]:
             self.load_images_h5py(
-                n_subset, key=key, labels=labels, catalog_keys=catalog_keys,
+                n_subset,
+                key=key,
+                labels=labels,
+                catalog_keys=catalog_keys,
             )
 
         # If the path is a .pt file, load the images from the file
@@ -165,7 +168,11 @@ class ImagePathDataset(torch.utils.data.Dataset):
         self.names = [f.stem for f in files]
 
     def load_images_h5py(
-        self, n_subset=None, key="images", labels=None, catalog_keys=[],
+        self,
+        n_subset=None,
+        key="images",
+        labels=None,
+        catalog_keys=[],
     ):
 
         with h5py.File(self.path, "r") as f:
@@ -263,7 +270,13 @@ class ImagePathDataset(torch.utils.data.Dataset):
         )
 
     def set_max_values(self):
-        self.max_values = torch.stack([torch.max(img) for img in self.data])
+        self.max_values = torch.amax(
+            self.data,
+            dim=(
+                -1,
+                -2,
+            ),
+        )
 
     def transform_max_vals(self):
         if not hasattr(self, "max_values"):
@@ -275,7 +288,9 @@ class ImagePathDataset(torch.utils.data.Dataset):
 
         self.max_values_tr = max_values_tr.reshape(self.max_values.shape)
         self.box_cox_lambda = pt.lambdas_
-        print(f"Max values transformed with Box-Cox transformation ({pt.lambdas_}).")
+        logger.info(
+            f"Max values transformed with Box-Cox transformation ({pt.lambdas_})."
+        )
 
 
 class EvaluationDataset(ImagePathDataset):
