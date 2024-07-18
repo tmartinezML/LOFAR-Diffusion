@@ -195,6 +195,7 @@ class ImagePathDataset(torch.utils.data.Dataset):
 
             # See if names are available
             if "names" in f:
+                logger.info("Loading names...")
                 self.names = np.array(f["names"].asstr()[idxs])
 
             # Add variable attributes depending on keys in file
@@ -203,7 +204,8 @@ class ImagePathDataset(torch.utils.data.Dataset):
                     setattr(self, key, torch.tensor(f[key][idxs], dtype=torch.float32))
 
             # Load selected attributes if catalog is available
-            if "catalog" in f.keys():
+            if "catalog" in f.keys() and len(catalog_keys):
+                logger.info("Loading catalog entries...")
                 catalog = pd.read_hdf(self.path, key="catalog")
                 self.names = catalog["Source_Name"].values[idxs]
                 for key in catalog_keys:

@@ -269,6 +269,7 @@ def bdsf_worker_func(img, image_id, q, bdsf_kwargs):
         for k in [
             "model_gaus_arr",
             "total_flux_gaus",
+            "island_labels",
             "ngaus",
             "nsrc",
         ]
@@ -508,9 +509,7 @@ if __name__ == "__main__":
     )
     arguments = parser.parse_args()
 
-    data_path = Path(
-        "/hs/fs08/data/group-brueggen/tmartinez/diffusion/analysis_results/LOFAR_QKV-Corr/LOFAR_QKV-Corr_samples_10000_guidance_strength=1.00e-01.pt"
-    )
+    data_path = paths.LOFAR_SUBSETS["0-clip"]
     out_folder = data_path.parent
 
     # Load the dataset
