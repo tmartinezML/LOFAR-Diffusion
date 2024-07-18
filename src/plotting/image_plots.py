@@ -91,6 +91,7 @@ def plot_image_grid_from_file(path, save=False, **kwargs):
 
 def metric_peek(metric, edges, images, names=None, n_examples=10, metric_name="Metric"):
     # Find indices of the bins to which each value in input array belongs.
+    print("Digitizing...")
     binned_idxs = np.digitize(metric, edges)
 
     # Go through each bin
@@ -133,6 +134,7 @@ def metric_peek(metric, edges, images, names=None, n_examples=10, metric_name="M
         )
         if len(img_idxs) == 1:
             axes = np.array([axes])
+            
         for i, img in enumerate(images[img_idxs]):
             ax = axes.flatten()[i]
             ax.imshow(img)

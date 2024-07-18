@@ -65,7 +65,7 @@ class ImagePathDataset(torch.utils.data.Dataset):
         # If the path is a hdf5 file, load the images from the file
         elif self.path.suffix in [".hdf5", ".h5"]:
             self.load_images_h5py(
-                n_subset, key=key, labels=labels, catalog_keys=catalog_keys
+                n_subset, key=key, labels=labels, catalog_keys=catalog_keys,
             )
 
         # If the path is a .pt file, load the images from the file
@@ -165,7 +165,7 @@ class ImagePathDataset(torch.utils.data.Dataset):
         self.names = [f.stem for f in files]
 
     def load_images_h5py(
-        self, n_subset=None, key="images", labels=None, catalog_keys=[]
+        self, n_subset=None, key="images", labels=None, catalog_keys=[],
     ):
 
         with h5py.File(self.path, "r") as f:
