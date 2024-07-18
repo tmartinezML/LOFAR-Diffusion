@@ -509,7 +509,7 @@ if __name__ == "__main__":
     )
     arguments = parser.parse_args()
 
-    data_path = paths.LOFAR_SUBSETS["0-clip"]
+    data_path = paths.LOFAR_SUBSETS["200p"]
     out_folder = data_path.parent
 
     # Load the dataset

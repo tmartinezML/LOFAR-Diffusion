@@ -39,6 +39,7 @@ LOFAR_SUBSETS = IndexedOrderedDict(
     {
         k: (LOFAR_DATA_PARENT / "subsets") / v
         for k, v in {
+            '200p': "200p-SNR5-unclipped.hdf5",
             "0-clip": "0-clip.hdf5",
             "1.5-clip": "1p5sigma-clip.hdf5",
             "2-clip": "2sigma-clip.hdf5",
