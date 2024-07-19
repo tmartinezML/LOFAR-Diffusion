@@ -510,13 +510,21 @@ if __name__ == "__main__":
     arguments = parser.parse_args()
 
     data_path = paths.LOFAR_SUBSETS["200p"]
-    out_folder = data_path.parent
+    out_folder = paths.ANALYSIS_PARENT / data_path.stem
+    out_folder.mkdir(exist_ok=True)
 
     # Load the dataset
-    dataset = EvaluationDataset(data_path)
+    dataset = EvaluationDataset(data_path, img_size=200)
 
     # For testing: deterministic subset (use None for all images)
     n = None
+
+    bdsf_kwargs = {
+    'thresh_isl': 3.5,
+    'thresh_pix': 1,
+    # 'shapelet_do': True,
+    # 'atrous_do': True,
+}
 
     # Run bdsf on the images
     bdsf_out = bdsf_run(
@@ -527,4 +535,5 @@ if __name__ == "__main__":
         override=arguments.override,
         max_workers=96,
         ang_size=120,
+        **bdsf_kwargs,
     )
