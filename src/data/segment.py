@@ -59,14 +59,17 @@ def smooth_masks_parallel(masks, max_workers=None, **kwargs):
             as_completed(future_to_index), total=len(masks), desc="Smoothing Masks"
         )
 
-        # Collect results as they complete
-        for future in progress:
-            index = future_to_index[future]
-            try:
-                result = future.result()  # Get the result
-                results[index] = result  # Place result in correct order
-            except Exception as exc:
-                print(f"Mask processing generated an exception: {exc}")
+        try:
+            # Collect results as they complete
+            for future in progress:
+                index = future_to_index[future]
+                try:
+                    result = future.result()  # Get the result
+                    results[index] = result  # Place result in correct order
+                except Exception as exc:
+                    print(f"Mask processing generated an exception: {exc}")
+        finally:
+            progress.close()
 
     return np.array(results)
 
@@ -99,7 +102,9 @@ def refine_mask(img, mask, n=20, step=0.1, sigma_threshold=5):
         local_bg_mask = ell_mask * (1 - mask_dilated)
 
         # Local background stats
-        _, med, std = sigma_clipped_stats(img[local_bg_mask == 1], sigma=3, maxiters=5)
+        local_bg = img[local_bg_mask == 1]
+        med, std = np.median(local_bg), local_bg.std()
+        #_, med, std = sigma_clipped_stats(img[local_bg_mask == 1], sigma=3, maxiters=5)
 
         # Local sigma mask
         local_sigma_mask = ((img > med + sigma_threshold * std) * ell_mask).astype(int)
@@ -144,17 +149,19 @@ def refine_masks_iterative_parallel(imgs, masks, max_workers=None, **kwargs):
 
         # Initialize tqdm progress bar
         progress = tqdm(
-            as_completed(future_to_index), total=len(imgs), desc="Refining Masks:"
+            as_completed(future_to_index), total=len(imgs), desc="Refining Masks"
         )
-
-        # As tasks complete, update the results list and the progress bar
-        for future in progress:
-            index = future_to_index[future]
-            try:
-                result = future.result()
-                results[index] = result
-            except Exception as exc:
-                print(f"Image {index} generated an exception: {exc}")
+        try:
+            # As tasks complete, update the results list and the progress bar
+            for future in progress:
+                index = future_to_index[future]
+                try:
+                    result = future.result()
+                    results[index] = result
+                except Exception as exc:
+                    print(f"Image {index} generated an exception: {exc}")
+        finally:
+            progress.close()
 
     return np.array(results)
 
