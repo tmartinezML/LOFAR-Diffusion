@@ -61,5 +61,11 @@ def minmax_scale(img):
     return (img - img.min()) / (img.max() - img.min())
 
 
+def minmax_scale_batch(batch):
+    mx = batch.amax(dim=(-1, -2), keepdim=True)
+    mn = batch.amin(dim=(-1, -2), keepdim=True)
+    return (batch - mn) / (mx - mn)
+
+
 def random_rotate_90(img):
     return TF.rotate(img, random.choice([0, 90, 180, 270]))

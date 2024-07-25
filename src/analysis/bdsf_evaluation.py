@@ -189,7 +189,8 @@ def load_bdsf_metric_dict(bdsf_pkl_dir):
 
     # Merge them to one single dict with arrays as values
     out_dict = {
-        k: elements_from_dict(bdsf_dicts, k) for k in tqdm(bdsf_dicts[0].keys())
+        k: elements_from_dict(bdsf_dicts, k)
+        for k in tqdm(bdsf_dicts[0].keys(), desc="Merging dicts...")
     }
     return out_dict
 

@@ -20,6 +20,7 @@ def random_image_grid(dset, n_img=25, idx_titles=False, **kwargs):
 
 def plot_image_grid(
     imgs,
+    masks=None,
     suptitle=None,
     vmin=0,
     vmax=1,
@@ -59,6 +60,11 @@ def plot_image_grid(
     for i, (ax, img) in enumerate(zip(flat_axs, imgs)):
         ax.axis("off")
         ax.imshow(img.squeeze(), vmin=vmin, vmax=vmax, **imshow_kwargs)
+
+        # Plot mask contours if masks are passed
+        if masks is not None:
+            mask = masks[i]
+            ax.contour(mask, colors="cyan", levels=[0.5], alpha=0.5, linewidths=0.3)
 
         # Set axis title if titles are passed
         if titles is not None:
@@ -134,14 +140,14 @@ def metric_peek(metric, edges, images, names=None, n_examples=10, metric_name="M
         )
         if len(img_idxs) == 1:
             axes = np.array([axes])
-            
+
         for i, img in enumerate(images[img_idxs]):
             ax = axes.flatten()[i]
             ax.imshow(img)
             value = metric[img_idxs[i]]
             ax.set_title(
                 f"{names[img_idxs[i]] if names is not None else img_idxs[i]}\n"
-                f"{metric_name} = {value:.2f}"
+                f"{metric_name} = {value:.2g}"
             )
             ax.axis("off")
         fig.suptitle(suptitle, fontsize="xx-large")

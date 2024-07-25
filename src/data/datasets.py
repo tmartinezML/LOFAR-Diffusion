@@ -204,17 +204,22 @@ class ImagePathDataset(torch.utils.data.Dataset):
             if "names" in f:
                 logger.info("Loading names...")
                 self.names = np.array(f["names"].asstr()[idxs])
+                catalog = None
+            elif "catalog" in f.keys():
+                logger.info("Loading names from catalog...")
+                catalog = pd.read_hdf(self.path, key="catalog")
+                self.names = catalog["Source_Name"].values[idxs]
 
             # Add variable attributes depending on keys in file
             for key in f.keys():
                 if key not in ["images", "names", "catalog"]:
+                    logger.info(f"Loading '{key}'...")
                     setattr(self, key, torch.tensor(f[key][idxs], dtype=torch.float32))
 
             # Load selected attributes if catalog is available
             if "catalog" in f.keys() and len(catalog_keys):
                 logger.info("Loading catalog entries...")
-                catalog = pd.read_hdf(self.path, key="catalog")
-                self.names = catalog["Source_Name"].values[idxs]
+                catalog = catalog if catalog is not None else pd.read_hdf(self.path, key="catalog")
                 for key in catalog_keys:
                     setattr(
                         self,
@@ -254,18 +259,20 @@ class ImagePathDataset(torch.utils.data.Dataset):
         self.data = samples_itr[idxs]
         self.names = np.arange(n_tot)[idxs]
 
-    def plot_image_grid(self, idxs=None, n_imgs=64, **kwargs):
+    def plot_image_grid(self, idxs=None, n_imgs=64, plot_masks=True, **kwargs):
         # pick n_imgs random images
         idxs = (
             idxs
             if idxs is not None
             else np.random.choice(len(self), n_imgs, replace=False)
         )
+        masks = self.masks[idxs] if plot_masks and hasattr(self, "masks") else None
 
         # Plot
         return plot_image_grid(
             [self.transforms(self.data[i]) for i in idxs],
             titles=[f"{self.names[i]}\n({i})" for i in idxs],
+            masks=masks,
             **kwargs,
         )
 
