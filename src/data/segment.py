@@ -9,10 +9,15 @@ from scipy.ndimage import (
     binary_closing,
     binary_opening,
     binary_dilation,
+    binary_erosion,
 )
 from astropy.stats import sigma_clipped_stats
 
 import data.smallest_circle as sc
+
+
+def mask_edge(mask):
+    return mask - binary_erosion(mask)
 
 
 def remove_small_islands(mask, min_pixels):
@@ -32,7 +37,7 @@ def remove_small_islands(mask, min_pixels):
     return new_mask
 
 
-def smooth_mask(mask, closing_kernel=3, opening_kernel=1, min_px=5):
+def smooth_mask(mask, closing_kernel=3, opening_kernel=1, min_px=8):
     mask = binary_fill_holes(mask)
     mask = binary_closing(mask, structure=np.ones((closing_kernel,) * 2))
     mask = binary_opening(mask, structure=np.ones((opening_kernel,) * 2))
@@ -45,7 +50,7 @@ def smooth_masks_parallel(masks, max_workers=None, **kwargs):
 
     # If max_workers is not specified, default to the number of CPUs available
     if max_workers is None:
-        max_workers = os.cpu_count()
+        max_workers = os.cpu_count() * 2
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Map of future to mask index for result placement
@@ -104,7 +109,7 @@ def refine_mask(img, mask, n=20, step=0.1, sigma_threshold=5):
         # Local background stats
         local_bg = img[local_bg_mask == 1]
         med, std = np.median(local_bg), local_bg.std()
-        #_, med, std = sigma_clipped_stats(img[local_bg_mask == 1], sigma=3, maxiters=5)
+        # _, med, std = sigma_clipped_stats(img[local_bg_mask == 1], sigma=3, maxiters=5)
 
         # Local sigma mask
         local_sigma_mask = ((img > med + sigma_threshold * std) * ell_mask).astype(int)
@@ -134,7 +139,7 @@ def refine_masks_iterative_parallel(imgs, masks, max_workers=None, **kwargs):
         return refine_mask_iterative(img, mask, **kwargs)[0]
 
     if max_workers is None:
-        max_workers = os.cpu_count()
+        max_workers = os.cpu_count() * 2
 
     # List to hold the results
     results = [None] * len(imgs)
@@ -202,6 +207,7 @@ def get_circle(island_mask):
 
     x, y, r = sc.make_circle(signal_points)
     circle = np.round(np.array([x, y, np.ceil(r)])).astype(int)
+    return circle
 
 
 def elliptic_mask(region, scaling=1, shape=(200,) * 2):
