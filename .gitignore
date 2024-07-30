@@ -10,3 +10,4 @@ model_results
 *.out
 wandb/
 **/__pycache__/
+*.simg
