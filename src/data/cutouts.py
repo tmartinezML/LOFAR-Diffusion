@@ -53,11 +53,6 @@ def single_cutout(
             )
             cutout.data[np.isnan(cutout.data)] = np.nanmin(cutout.data)
 
-    # TODO:
-    # - Pass through segmentation model
-    # - Get mask circle
-    # - Re-center image
-
     # Export cutout as .fits file if export_dir is passed
     if export_dir is not None:
         header.update(cutout.wcs.to_header())

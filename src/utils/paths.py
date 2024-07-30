@@ -39,7 +39,7 @@ LOFAR_SUBSETS = IndexedOrderedDict(
     {
         k: (LOFAR_DATA_PARENT / "subsets") / v
         for k, v in {
-            '200p': "200p-SNR5-unclipped.hdf5",
+            "200p": "200p-SNR5-unclipped.hdf5",
             "0-clip": "0-clip.hdf5",
             "1.5-clip": "1p5sigma-clip.hdf5",
             "2-clip": "2sigma-clip.hdf5",
@@ -49,7 +49,9 @@ LOFAR_SUBSETS = IndexedOrderedDict(
 )
 
 # Paths for training data processing
-MOSAIC_DIR = "/hs/fs05/data/AG_Brueggen/nicolasbp/RadioGalaxyImage/data/mosaics_public"
+MOSAIC_DIR = Path(
+    "/hs/fs05/data/AG_Brueggen/nicolasbp/RadioGalaxyImage/data/mosaics_public"
+)
 CUTOUTS_DIR = LOFAR_DATA_PARENT / "cutouts"
 LOFAR_RES_CAT = LOFAR_DATA_PARENT / "6-LoTSS_DR2-public-resolved_sources.csv"
 
