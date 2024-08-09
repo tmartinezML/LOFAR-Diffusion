@@ -15,7 +15,7 @@ from plotting.metric_plots import (
     pixel_metrics_plot,
     shape_metrics_plot,
 )
-from data.datasets import EvaluationDataset
+from data.datasets import LOFARDataset
 from plotting.plot_utils import plot_collection
 from utils.device_utils import visible_gpus_by_space
 from develop.fid_score import calculate_fid_given_paths, save_fid_stats
@@ -44,9 +44,9 @@ def metrics_dict_from_data(
         # Dataset .h5 (or .hdf5) file, or image directory with .png files:
         case Path() if img_data.is_dir() or img_data.suffix in [".h5", ".hdf5"]:
             # The behavior for directory or .hdf5 file is handled within the
-            # EvaluationDataset class.
+            # LOFARDataset class.
             samples_itr = DataLoader(
-                EvaluationDataset(img_data, **h5_kwargs),
+                LOFARDataset(img_data, **h5_kwargs),
                 batch_size=None,
                 shuffle=False,
                 num_workers=1,

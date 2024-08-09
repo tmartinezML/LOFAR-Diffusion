@@ -20,6 +20,15 @@ def mask_edge(mask):
     return mask - binary_erosion(mask)
 
 
+def image_edge_mask(shape):
+    edge_mask = np.zeros(shape, dtype=bool)
+    edge_mask[0, :] = True
+    edge_mask[-1, :] = True
+    edge_mask[:, 0] = True
+    edge_mask[:, -1] = True
+    return edge_mask
+
+
 def remove_small_islands(mask, min_pixels):
     # Label the islands in the mask
     labels = label(mask)

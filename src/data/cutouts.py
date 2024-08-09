@@ -72,7 +72,7 @@ def cutout_from_catalog(catalog, ind, mask_nan=False, size_px=None, opt_c=True):
     """
     # Get mosaic data and WCS from fits file
     mosaic = catalog["Mosaic_ID"].iloc[ind]
-    file_name = f"../data/mosaics_public/{mosaic}/mosaic-blanked.fits"
+    file_name = MOSAIC_DIR / f"{mosaic}/mosaic-blanked.fits"
     with fits.open(file_name) as hdul:
         data, header = hdul[0].data, hdul[0].header
         wcs = WCS(header)
@@ -126,6 +126,9 @@ def get_cutouts(
 
     # Read catalog
     catalog = catalog if catalog is not None else pd.read_csv(catalog_file)
+    assert catalog[
+        "Source_Name"
+    ].is_monotonic_increasing, "Catalog must be sorted by Source_Name."
 
     # Create columns in catalog for problems,
     # will be set to True if there is a problem
@@ -136,6 +139,8 @@ def get_cutouts(
     mosaic_ids = catalog["Mosaic_ID"].unique()
     catalog.set_index("Mosaic_ID", inplace=True)
     images = []
+    # Keep track of names to later restore order
+    names_list = []
     for mosaic in tqdm(mosaic_ids, desc="Looping through mosaics..."):
 
         # Filter catalogue for sources in mosaic
@@ -152,6 +157,7 @@ def get_cutouts(
         # Assign variables from catalogue:
         # Names
         names = catalog_mosaic["Source_Name"].values
+
         # Coordinates
         if opt_c:
             ras_opt = catalog_mosaic["optRA"].values
@@ -193,6 +199,7 @@ def get_cutouts(
                     export_dir=None,
                 )
                 images.append(img_data)
+                names_list.append(name)
 
                 # Set Nans_cutout to True if there are NaNs
                 nans_cutouts[source_mask] = contain_nan
@@ -206,6 +213,10 @@ def get_cutouts(
     catalog.reset_index(inplace=True)
     catalog["Problem_cutout"] = problem_cutouts
     catalog["Nans_cutout"] = nans_cutouts
+
+    # Restore order of the images such that names are in ascending order
+    order = np.argsort(names_list)
+    images = [images[i] for i in order]
 
     print("Saving images...")
     save_images_hpy5(

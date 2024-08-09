@@ -47,8 +47,8 @@ def plot_image_grid(
     fig, axs = fig_axs or plt.subplots(
         nrows=n_rows,
         ncols=n_cols,
-        constrained_layout=True,
-        figsize=(3 * n_cols, 3 * n_rows),
+        tight_layout=True,
+        figsize=(5 * n_cols, 5 * n_rows),
     )
     flat_axs = axs.flat if isinstance(axs, np.ndarray) else [axs]
 
@@ -64,7 +64,7 @@ def plot_image_grid(
         # Plot mask contours if masks are passed
         if masks is not None:
             mask = masks[i]
-            ax.contour(mask, colors="cyan", levels=[0.5], alpha=0.5, linewidths=0.3)
+            ax.contour(mask, colors="white", levels=[0.5], alpha=0.75, linewidths=0.3)
 
         # Set axis title if titles are passed
         if titles is not None:
@@ -95,7 +95,9 @@ def plot_image_grid_from_file(path, save=False, **kwargs):
     return random_image_grid(imgs, savefig=savefig, **kwargs)
 
 
-def metric_peek(metric, edges, images, names=None, n_examples=10, metric_name="Metric"):
+def metric_peek(
+    metric, edges, images, masks=None, names=None, n_examples=10, metric_name="Metric"
+):
     # Find indices of the bins to which each value in input array belongs.
     print("Digitizing...")
     binned_idxs = np.digitize(metric, edges)
@@ -144,6 +146,14 @@ def metric_peek(metric, edges, images, names=None, n_examples=10, metric_name="M
         for i, img in enumerate(images[img_idxs]):
             ax = axes.flatten()[i]
             ax.imshow(img)
+            if masks is not None:
+                ax.contour(
+                    masks[img_idxs[i]],
+                    colors="cyan",
+                    levels=[0.5],
+                    alpha=0.5,
+                    linewidths=0.5,
+                )
             value = metric[img_idxs[i]]
             ax.set_title(
                 f"{names[img_idxs[i]] if names is not None else img_idxs[i]}\n"

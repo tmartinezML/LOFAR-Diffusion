@@ -1,25 +1,33 @@
 import wandb
 
 import utils.paths as paths
+import data.datasets as datasets
 from model.config import modelConfig
 from training.trainer import DiffusionTrainer
-from data.datasets import TrainDataset, TrainDatasetFIRST
 from utils.device_utils import set_visible_devices
 
 
 if __name__ == "__main__":
     # Limit visible GPUs
-    set_visible_devices(1)
+    set_visible_devices(2)
 
     # Hyperparameters
-    conf = modelConfig.from_preset("FIRST_Model")
-    conf.model_name = f"FIRST_Test"
+    conf = modelConfig.from_preset("LOFAR_Model")
+    conf.model_name = f"Prototypes_Model"
+    conf.iterations = 100_000
+    conf.context = []
 
-    dataset = TrainDatasetFIRST()
+    dataset = datasets.LOFARPrototypesDataset(
+        paths.LOFAR_SUBSETS["prototypes"],
+        img_size=conf.image_size,
+        train_mode=True,
+        attributes=[],
+    )
 
     trainer = DiffusionTrainer(
         config=conf,
         dataset=dataset,
+        # pickup=True,
     )
 
     wandb.init(
@@ -27,7 +35,7 @@ if __name__ == "__main__":
         config=conf.param_dict,
         dir=paths.ANALYSIS_PARENT / "wandb",
         # Use this for pickup:
-        # id="wdh8djaz",
+        # id="mm5hsmh2",
         # resume="must",
     )
     trainer.training_loop()

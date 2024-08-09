@@ -121,6 +121,7 @@ def edm_sampling(
         )
         if type(context_batch) != torch.Tensor:
             context_batch = torch.tensor(context_batch)
+        context_batch = context_batch.to(device)
 
     if label_batch is not None:
         assert label_batch.shape[0] == batch_size, (
@@ -129,11 +130,10 @@ def edm_sampling(
         )
         if type(label_batch) != torch.Tensor:
             label_batch = torch.tensor(label_batch)
+        label_batch = label_batch.to(device)
 
-    # Move all tensors to gpu
+    # Move sigmas to gpu
     sigma_steps = sigma_steps.to(device)
-    context_batch = context_batch.to(device)
-    label_batch = label_batch.to(device)
 
     # Prepare sampling loop.
     imgs = []

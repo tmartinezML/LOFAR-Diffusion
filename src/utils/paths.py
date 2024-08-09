@@ -39,6 +39,7 @@ LOFAR_SUBSETS = IndexedOrderedDict(
     {
         k: (LOFAR_DATA_PARENT / "subsets") / v
         for k, v in {
+            "prototypes": "LOFAR_prototypes.hdf5",
             "200p": "200p-SNR5-unclipped.hdf5",
             "0-clip": "0-clip.hdf5",
             "1.5-clip": "1p5sigma-clip.hdf5",
@@ -112,6 +113,43 @@ def rename_files(path, model_name_new, model_name_old=None):
             file.rename(path / f"{name}{file.suffix}")
         elif file.is_dir():
             rename_files(file, model_name_new, model_name_old)
+
+
+def rename_model(*, model_name_new, model_name_old=None, path=None):
+    """
+    Rename all files in the given directory and its subdirectories that contain
+    the old model name to the new model name.
+
+    Parameters
+    ----------
+    path : Path
+        The directory containing the files to be renamed.
+    model_name_new : str
+        The new model name to replace the old model name.
+    model_name_old : str, optional
+        The old model name to be replaced, by default None.
+        If None, the directory name is used as the old model name.
+    """
+    assert (
+        path is not None or model_name_old is not None
+    ), "Either path or model_name_old must be provided. "
+
+    if model_name_old is None:
+        model_name_old = path.name
+
+    else:
+        path = MODEL_PARENT / model_name_old
+
+    assert not (path.parent / model_name_new).exists(), (
+        f"Model {model_name_new} already exists. "
+        "Please remove it first or choose a different model name."
+    )
+
+    # Rename all files
+    rename_files(path, model_name_new, model_name_old)
+
+    # Rename the directory
+    path.rename(path.parent / model_name_new)
 
 
 if __name__ == "__main__":

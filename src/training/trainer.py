@@ -255,6 +255,12 @@ class DiffusionTrainer:
             self.logger.info(
                 f"Picking up model, EMA, optimizer and PowerEMA from {self.OM.model_name}."
             )
+            self.ema_model = torch.optim.swa_utils.AveragedModel(
+                self.inner_model,
+                multi_avg_fn=torch.optim.swa_utils.get_ema_multi_avg_fn(
+                    self.config.ema_rate
+                ),
+            )
             self.load_state()
 
     @classmethod
