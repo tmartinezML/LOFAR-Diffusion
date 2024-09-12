@@ -2,8 +2,10 @@ import os
 import numpy as np
 import skimage.draw as sk_draw
 from tqdm import tqdm
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from skimage.draw import disk
+from astropy.stats import sigma_clipped_stats
 from skimage.measure import label, regionprops
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from scipy.ndimage import (
     binary_fill_holes,
     binary_closing,
@@ -11,7 +13,6 @@ from scipy.ndimage import (
     binary_dilation,
     binary_erosion,
 )
-from astropy.stats import sigma_clipped_stats
 
 import data.smallest_circle as sc
 
@@ -232,3 +233,38 @@ def elliptic_mask(region, scaling=1, shape=(200,) * 2):
     )
     ell_mask[rr, cc] = 1
     return ell_mask
+
+
+def circular_mask(shape, center=None, radius=None):
+    if center is None:
+        center = np.array(shape) // 2
+    if radius is None:
+        radius = min(center)
+    mask = np.zeros(shape, dtype=bool)
+    rr, cc = disk(center, radius, shape=shape)
+    mask[rr, cc] = True
+    return mask
+
+
+def get_sample_mask(img, expand=False, dilate=0):
+    cmask = circular_mask(img.shape)
+    safe_background = img[~cmask].flatten()
+    source_mask = img > np.mean(safe_background) + 3 * safe_background.std()
+
+    # Iteratively expand to 1 sigma
+    if expand:
+        i = 0
+        while i < 10:
+            background = img[~source_mask].flatten()
+            exp_mask = img > np.mean(background) + 1.5 * background.std()
+            if np.all(exp_mask == source_mask):
+                break
+            source_mask = expand_islands(source_mask, exp_mask)
+            i += 1
+
+    source_mask = smooth_mask(source_mask)
+
+    if dilate:
+        source_mask = binary_dilation(source_mask, iterations=dilate)
+
+    return source_mask

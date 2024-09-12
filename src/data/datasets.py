@@ -15,13 +15,9 @@ from torchvision.transforms.v2 import CenterCrop
 
 import utils.logging
 import utils.paths as paths
-import data.image_utils as imgutil
 from data.firstgalaxydata import FIRSTGalaxyData
 from plotting.image_plots import plot_image_grid
 import data.transforms as T
-
-# from data.transforms import EvalTransform, ToTensor, TrainTransform
-
 
 # Assuming this is in datasets.datasets or a similar module
 logger = utils.logging.get_logger(__name__)
@@ -286,6 +282,7 @@ class ImagePathDataset(torch.utils.data.Dataset):
                         if catalog is not None
                         else pd.read_hdf(self.path, key="catalog")
                     )
+
                     if load_catalog:
                         self.catalog = catalog.iloc[idxs]
 
@@ -466,13 +463,13 @@ class LOFARPrototypesDataset(ImagePathDataset):
 
         # Load mask metadata
         logger.info("Loading mask metadata...")
-        self.mask_metadata = pd.read_hdf(path, key="mask_metadata")
+        self.mask_metadata = pd.read_hdf(self.path, key="mask_metadata")
 
         # Filter out sources with radius > 0.5 * img_size
         logger.info(
             f"Image size {img_size}: Removing sources with model_radius > {0.5 * img_size}..."
         )
-        filter_flag = self.mask_metadata["Model_Radius"] <= 0.5 * img_size
+        filter_flag = (self.mask_metadata["Model_Radius"] <= 0.5 * img_size).values
         self.index_slice(filter_flag)
         logger.info(
             f"Removed {(s := (~filter_flag).sum()):_} of {(l := len(filter_flag)):_} sources ({s/l*100:.1f}%)."
@@ -480,14 +477,12 @@ class LOFARPrototypesDataset(ImagePathDataset):
 
         # Center crop images
         logger.info("Reshaping images...")
-        self.data = torch.stack([CenterCrop(img_size)(img) for img in self.data])
+        self.data = CenterCrop(img_size)(self.data)
 
         # Bring masks to the same shape as images
         if hasattr(self, "masks"):
             logger.info("Reshaping masks...")
-            self.masks = torch.stack(
-                [CenterCrop(img_size)(mask) for mask in self.masks]
-            )
+            self.masks = CenterCrop(img_size)(self.masks)
 
 
 class TrainDatasetFIRST(FIRSTGalaxyData):

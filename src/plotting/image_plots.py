@@ -96,26 +96,35 @@ def plot_image_grid_from_file(path, save=False, **kwargs):
 
 
 def metric_peek(
-    metric, edges, images, masks=None, names=None, n_examples=10, metric_name="Metric"
+    metric,
+    edges,
+    images,
+    masks=None,
+    names=None,
+    n_examples=10,
+    metric_name="Metric",
+    fmt_str="{:.2g}",
 ):
     # Find indices of the bins to which each value in input array belongs.
     print("Digitizing...")
     binned_idxs = np.digitize(metric, edges)
+
+    formatter = lambda x: fmt_str.format(x)
 
     # Go through each bin
     for i_bin in np.unique(binned_idxs):
 
         # Print the bin range
         if i_bin == 0:
-            suptitle = f"Bin {i_bin} - {metric_name} <= {edges[i_bin]:.2g}"
+            suptitle = f"Bin {i_bin} - {metric_name} <= {formatter(edges[i_bin])}"
 
         elif i_bin == len(edges):
-            suptitle = f"Bin {i_bin} - {edges[i_bin-1]:.2g} <= {metric_name}"
+            suptitle = f"Bin {i_bin} - {formatter(edges[i_bin-1])} <= {metric_name}"
 
         else:
             suptitle = (
                 f"Bin {i_bin} - "
-                f"{metric_name} in [{edges[i_bin-1]:.2g}, {edges[i_bin]:.2g})"
+                f"{metric_name} in [{formatter(edges[i_bin-1])}, {formatter(edges[i_bin])})"
             )
 
         # Get the indices of the images in the bin
@@ -157,7 +166,7 @@ def metric_peek(
             value = metric[img_idxs[i]]
             ax.set_title(
                 f"{names[img_idxs[i]] if names is not None else img_idxs[i]}\n"
-                f"{metric_name} = {value:.2g}"
+                f"{metric_name} = {formatter(value)}"
             )
             ax.axis("off")
         fig.suptitle(suptitle, fontsize="xx-large")
