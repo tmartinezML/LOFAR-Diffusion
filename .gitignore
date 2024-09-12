@@ -11,3 +11,4 @@ model_results
 wandb/
 **/__pycache__/
 *.simg
+launch_singularity
