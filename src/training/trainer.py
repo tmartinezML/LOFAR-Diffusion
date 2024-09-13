@@ -150,8 +150,6 @@ class DiffusionTrainer:
         will start from the beginning. The output directory will be created in the parent
         directory specified by parent_dir. The training data path will be added to the
         config and the training data will be split into training and validation sets.
-
-        The EMA model will be initialized after 500 iterations in the training loop.
         """
         # Initialize config & class attributes
         if config is None:
@@ -216,8 +214,13 @@ class DiffusionTrainer:
             self.model = DataParallel(self.model, device_ids=dev_ids)
             self.inner_model = self.model.module
 
-        # EMA Model is initialized after 500 iterations in the training loop
-        self.ema_model = None
+        # Initialize EMA model
+        self.ema_model = torch.optim.swa_utils.AveragedModel(
+            self.inner_model,
+            multi_avg_fn=torch.optim.swa_utils.get_ema_multi_avg_fn(
+                self.config.ema_rate
+            ),
+        )
 
         # Initialize power-ema models
         # see Karras+23, arXiv:2312.02696
@@ -589,20 +592,8 @@ class DiffusionTrainer:
         scaler.step(self.optimizer)
         scaler.update()
 
-        # Start updating EMA model after 500 it or at first val. interval.
-        if (it + 1) >= min(self.val_every, 500):
-
-            # Initialize EMA model at first update
-            if self.ema_model is None:
-                self.ema_model = torch.optim.swa_utils.AveragedModel(
-                    self.inner_model,
-                    multi_avg_fn=torch.optim.swa_utils.get_ema_multi_avg_fn(
-                        self.config.ema_rate
-                    ),
-                )
-            # Update EMA model if it exists
-            else:
-                self.ema_model.update_parameters(self.inner_model)
+        # Update EMA model
+        self.ema_model.update_parameters(self.inner_model)
 
         # Update power ema models
         if self.power_ema:

@@ -97,6 +97,9 @@ class ImagePathDataset(torch.utils.data.Dataset):
             logger.info("Sorting data set by names...")
             self.sort_by_names()
 
+        # Initialize dict for box-cox lambdas
+        self.box_cox_lambdas = {}
+
         logger.info("Data set initialized.")
 
     def __len__(self):
@@ -391,6 +394,7 @@ class ImagePathDataset(torch.utils.data.Dataset):
         )
 
     def transform_max_vals(self):
+        # Backwards compatibility
         if not hasattr(self, "max_values"):
             self.set_max_values()
 
@@ -399,9 +403,24 @@ class ImagePathDataset(torch.utils.data.Dataset):
         max_values_tr = pt.transform(self.max_values.view(-1, 1))
 
         self.max_values_tr = max_values_tr.reshape(self.max_values.shape)
-        self.box_cox_lambda = pt.lambdas_
+        self.box_cox_lambdas["max_values"] = pt.lambdas_
         logger.info(
             f"Max values transformed with Box-Cox transformation ({pt.lambdas_})."
+        )
+
+    def box_cox_transform(self, attr):
+        if not hasattr(self, attr):
+            logger.error(f"Attribute '{attr}' not found.")
+            return
+
+        pt = PowerTransformer(method="box-cox")
+        pt.fit(getattr(self, attr).view(-1, 1))
+        values_tr = pt.transform(getattr(self, attr).view(-1, 1))
+
+        setattr(self, f"{attr}_tr", values_tr.reshape(getattr(self, attr).shape))
+        self.box_cox_lambdas[attr] = pt.lambdas_
+        logger.info(
+            f"Attribute '{attr}' transformed with Box-Cox transformation ({pt.lambdas_})."
         )
 
 
@@ -483,6 +502,10 @@ class LOFARPrototypesDataset(ImagePathDataset):
         if hasattr(self, "masks"):
             logger.info("Reshaping masks...")
             self.masks = CenterCrop(img_size)(self.masks)
+
+        # Box-Cox transform mask sizes
+        self.mask_sizes = self.mask_metadata["feret_diameter_max"].values
+        self.box_cox_transform("mask_sizes")
 
 
 class TrainDatasetFIRST(FIRSTGalaxyData):
