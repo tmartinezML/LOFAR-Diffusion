@@ -123,6 +123,26 @@ def distribute_model(model, n_devices=1, device_ids=None):
     return model, device_ids
 
 
+def collect_model(model):
+    """
+    Collect a model distributed across multiple GPUs back to the CPU.
+
+    Parameters
+    ----------
+    model : nn.Module or DataParallel
+        The model to collect.
+
+    Returns
+    -------
+    model : nn.Module
+        The collected model.
+    """
+    if isinstance(model, DataParallel):
+        model = model.module
+    model.to(torch.device("cpu"))
+    return model
+
+
 def set_visible_devices(gpu_spec):
     """
     Set the visible CUDA devices using the CUDA_VISIBLE_DEVICES environment variable.

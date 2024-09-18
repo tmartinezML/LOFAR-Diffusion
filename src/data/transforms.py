@@ -76,6 +76,17 @@ def minmax_scale(img):
     return (img - img.min()) / (img.max() - img.min())
 
 
+def minmax_scale_masked(img, mask):
+    """
+    Scale the image to [0, 1] using the min and max values of the masked region.
+    Everything outsitde is set to 0.
+    """
+    mx = img[mask].max()
+    mn = img[mask].min()
+    if mx == mn:
+        return torch.zeros_like(img)
+    return ((img - mn) / (mx - mn)) * mask
+
 
 def train_scale_present(transform):
     # Check if minmax_scale is part of the composed transform.
@@ -86,8 +97,16 @@ def train_scale_present(transform):
 
 
 def minmax_scale_batch(batch):
-    mx = batch.amax(dim=(-1, -2), keepdim=True)
-    mn = batch.amin(dim=(-1, -2), keepdim=True)
+    match batch:
+        case torch.Tensor():
+            mx = batch.amax(dim=(-1, -2), keepdim=True)
+            mn = batch.amin(dim=(-1, -2), keepdim=True)
+        case np.ndarray():
+            mx = batch.max(axis=(-1, -2), keepdims=True)
+            mn = batch.min(axis=(-1, -2), keepdims=True)
+        case _:
+            raise TypeError(f"Unsupported type: {type(batch)}")
+
     return (batch - mn) / (mx - mn)
 
 

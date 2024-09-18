@@ -267,4 +267,4 @@ def get_sample_mask(img, expand=False, dilate=0):
     if dilate:
         source_mask = binary_dilation(source_mask, iterations=dilate)
 
-    return source_mask
+    return source_mask.astype(int)

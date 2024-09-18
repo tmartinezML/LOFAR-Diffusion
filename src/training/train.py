@@ -14,7 +14,7 @@ if __name__ == "__main__":
     # Hyperparameters
     conf = modelConfig.from_preset("LOFAR_Model")
     conf.model_name = f"Prototypes_Model_SizeCond"
-    conf.iterations = 100_000
+    conf.iterations = 150_000
     conf.context = ['mask_sizes_tr']
 
     dataset = datasets.LOFARPrototypesDataset(

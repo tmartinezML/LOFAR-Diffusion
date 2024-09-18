@@ -97,8 +97,8 @@ class ImagePathDataset(torch.utils.data.Dataset):
             logger.info("Sorting data set by names...")
             self.sort_by_names()
 
-        # Initialize dict for box-cox lambdas
-        self.box_cox_lambdas = {}
+        # Initialize dict for box-cox transformers
+        self.box_cox_transformers = {}
 
         logger.info("Data set initialized.")
 
@@ -403,7 +403,7 @@ class ImagePathDataset(torch.utils.data.Dataset):
         max_values_tr = pt.transform(self.max_values.view(-1, 1))
 
         self.max_values_tr = max_values_tr.reshape(self.max_values.shape)
-        self.box_cox_lambdas["max_values"] = pt.lambdas_
+        self.box_cox_transformers["max_values"] = pt
         logger.info(
             f"Max values transformed with Box-Cox transformation ({pt.lambdas_})."
         )
@@ -418,7 +418,7 @@ class ImagePathDataset(torch.utils.data.Dataset):
         values_tr = pt.transform(getattr(self, attr).view(-1, 1))
 
         setattr(self, f"{attr}_tr", values_tr.reshape(getattr(self, attr).shape))
-        self.box_cox_lambdas[attr] = pt.lambdas_
+        self.box_cox_transformers[attr] = pt
         logger.info(
             f"Attribute '{attr}' transformed with Box-Cox transformation ({pt.lambdas_})."
         )
@@ -504,7 +504,7 @@ class LOFARPrototypesDataset(ImagePathDataset):
             self.masks = CenterCrop(img_size)(self.masks)
 
         # Box-Cox transform mask sizes
-        self.mask_sizes = self.mask_metadata["feret_diameter_max"].values
+        self.mask_sizes = torch.Tensor(self.mask_metadata["feret_diameter_max"].values)
         self.box_cox_transform("mask_sizes")
 
 

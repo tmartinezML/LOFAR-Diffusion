@@ -196,7 +196,7 @@ class Sampler:
 
     def quick_sample(
         self,
-        model_name,
+        model_name=None,
         model=None,
         context=None,
         context_fn=None,
@@ -255,6 +255,10 @@ class Sampler:
         - The output images are scaled from the range [-1, 1] to [0, 1].
 
         """
+        # Make sure any model is passed
+        assert (
+            model_name is not None or model is not None
+        ), "Model name or model must be provided."
         # Update settings with user input
         for key, val in settings_kwargs.items():
             if key in self.settings:
@@ -283,6 +287,9 @@ class Sampler:
             self.settings["n_samples"],
         )
         n_batches = max(int(self.settings["n_samples"] / batch_size), 1)
+        self.logger.info(
+            f"Sampling {self.settings['n_samples']} images in {n_batches} batches of size {batch_size}."
+        )
 
         # Bring inputs into right shape:
         # Labels
@@ -361,6 +368,8 @@ class Sampler:
         # Release GPU memory
         del model, batch_list
         torch.cuda.empty_cache()
+
+        self.logger.info("Sampling complete.")
 
         return imgs
 
