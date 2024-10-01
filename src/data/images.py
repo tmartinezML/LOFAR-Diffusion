@@ -7,7 +7,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from utils.paths import cast_to_Path
-from data.cutouts import save_images_hpy5
+from data.cutouts import save_images_h5py
 from data.image_utils import clip_image, threshold_mask
 
 
@@ -53,7 +53,7 @@ def clip_cutouts(
 
         # Save clipped images to same file as new dataset
         print("Saving images...")
-        save_images_hpy5(
+        save_images_h5py(
             images_clipped,
             cutout_file,
             dset_name=f"cutouts_{clip}sigma",

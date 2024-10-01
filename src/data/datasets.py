@@ -22,6 +22,24 @@ import data.transforms as T
 # Assuming this is in datasets.datasets or a similar module
 logger = utils.logging.get_logger(__name__)
 
+def parse_dset_path(dset):
+    match dset:
+        case Path():
+            return dset
+
+        case str():
+            if dset in paths.LOFAR_SUBSETS:
+                return paths.LOFAR_SUBSETS[dset]
+
+            elif Path(dset).exists():
+                return Path(dset)
+
+            else:
+                raise FileNotFoundError(f"File {dset} not found.")
+
+        case _:
+            raise ValueError(f"Invalid argument type: {dset}")
+
 
 class ImagePathDataset(torch.utils.data.Dataset):
     def __init__(
@@ -39,23 +57,7 @@ class ImagePathDataset(torch.utils.data.Dataset):
         sorted=False,
     ):
         # Set the path for the dataset
-        match dset:
-            case Path():
-                # Path object passed:
-                self.path = dset
-
-            case str():
-                # Name of subset:
-                if dset in paths.LOFAR_SUBSETS:
-                    self.path = paths.LOFAR_SUBSETS[dset]
-
-                # Directory passed as string:
-                elif Path(dset).exists():
-                    self.path = Path(dset)
-
-                # Anything else should raise an error
-                else:
-                    raise FileNotFoundError(f"File {dset} not found.")
+        self.path = parse_dset_path(dset)
 
         self.mode_transforms = mode_transforms
         self.transforms = (
@@ -98,7 +100,7 @@ class ImagePathDataset(torch.utils.data.Dataset):
             self.sort_by_names()
 
         # Initialize dict for box-cox transformers
-        self.box_cox_transformers = {}
+        self.data_transforms = {}
 
         logger.info("Data set initialized.")
 
@@ -403,7 +405,7 @@ class ImagePathDataset(torch.utils.data.Dataset):
         max_values_tr = pt.transform(self.max_values.view(-1, 1))
 
         self.max_values_tr = max_values_tr.reshape(self.max_values.shape)
-        self.box_cox_transformers["max_values"] = pt
+        self.data_transforms["max_values"] = pt
         logger.info(
             f"Max values transformed with Box-Cox transformation ({pt.lambdas_})."
         )
@@ -418,7 +420,7 @@ class ImagePathDataset(torch.utils.data.Dataset):
         values_tr = pt.transform(getattr(self, attr).view(-1, 1))
 
         setattr(self, f"{attr}_tr", values_tr.reshape(getattr(self, attr).shape))
-        self.box_cox_transformers[attr] = pt
+        self.data_transforms[attr] = pt
         logger.info(
             f"Attribute '{attr}' transformed with Box-Cox transformation ({pt.lambdas_})."
         )

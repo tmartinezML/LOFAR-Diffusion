@@ -152,7 +152,8 @@ def metric_peek(
         if len(img_idxs) == 1:
             axes = np.array([axes])
 
-        for i, img in enumerate(images[img_idxs]):
+        for i in range(len(img_idxs)):
+            img = images[img_idxs[i]]
             ax = axes.flatten()[i]
             ax.imshow(img)
             if masks is not None:

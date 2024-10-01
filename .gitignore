@@ -5,6 +5,9 @@ jobs/
 analysis_results
 image_data
 model_results
+losito
+sky_maps
+trecs_output
 .*
 *.log
 *.out

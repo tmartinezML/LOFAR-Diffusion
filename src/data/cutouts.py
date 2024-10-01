@@ -219,7 +219,7 @@ def get_cutouts(
     images = [images[i] for i in order]
 
     print("Saving images...")
-    save_images_hpy5(
+    save_images_h5py(
         np.array(images) if size_px is not None else images,
         out_file,
         dset_name="cutouts",
@@ -284,10 +284,15 @@ def scan_cutouts(cutout_file):
     )
 
 
-def save_images_hpy5(
+def save_images_h5py(
     img_array, save_path, dset_name="images", src_names=None, attributes={}, dtype=None
 ):
     out_file = h5py.File(save_path, "a")
+
+    if "/" in dset_name:
+        group_name = str(Path(dset_name).parent)
+        if not group_name in out_file:
+            out_file.create_group(group_name)
 
     # Variable length
     if h5py.check_vlen_dtype(dtype) is not None:

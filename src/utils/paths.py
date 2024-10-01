@@ -9,6 +9,7 @@ STORAGE_PARENT = Path("/hs/fs08/data/group-brueggen/tmartinez")
 MODEL_PARENT = STORAGE_PARENT / "model_results"
 ANALYSIS_PARENT = STORAGE_PARENT / "analysis_results"
 IMG_DATA_PARENT = STORAGE_PARENT / "image_data"
+SKY_MAP_PARENT = STORAGE_PARENT / "sky_maps"
 
 # Create symlinks to the code base
 for p in [MODEL_PARENT, ANALYSIS_PARENT, IMG_DATA_PARENT]:

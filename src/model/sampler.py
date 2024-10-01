@@ -340,11 +340,7 @@ class Sampler:
 
         # Return model to cpu to free up gpu memory
         if distribute_model:
-            model = (
-                model.module.to("cpu")
-                if isinstance(model, torch.nn.DataParallel)
-                else model.to("cpu")
-            )
+            model = device_utils.collect_model(model)
 
         self.logger.info("Reshaping output array...")
         # Output of sample_batch is list with T+1 entries of shape

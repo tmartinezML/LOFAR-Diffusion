@@ -11,6 +11,61 @@ from model.config import modelConfig
 logger = utils.logging.get_logger(__name__)
 
 
+def parse_model_specifier(source: str | Path):
+    """
+    Parse a model specifier to return the model name and paths, as well as path
+    to config file.
+
+    Parameters
+    ----------
+    source : str or Path
+        The model specifier.
+
+    Returns
+    -------
+    model_name : str
+        The name of the model.
+    model_dir : Path
+        The directory containing the model files.
+    model_file : Path
+        The path to the model weights file.
+    config_file : Path
+        The path to the model configuration file.
+    """
+    # Set paths according to source, which can be a file, a directory, or a model name.
+    match source:
+
+        # If source is a file, it is assumed to be the config file.
+        case Path() if source.is_file():
+            assert (
+                source.suffix == ".json"
+            ), f"This does not look like a config file: {source}"
+            model_dir = source.parent
+            config_file = source
+            model_name = model_dir.name
+            model_file = model_dir / f"parameters_{model_name}.pt"
+
+        # If source is a directory, it is assumed to be the model directory.
+        case Path() if source.is_dir():
+            model_name = source.name
+            model_dir = source
+            model_file = source / f"parameters_{model_name}.pt"
+            config_file = source / f"config_{model_name}.json"
+
+        # If source is a string, it is assumed to be the model name.
+        case str():
+            model_name = source
+            model_dir = paths.MODEL_PARENT / model_name
+            model_file = model_dir / f"parameters_{model_name}.pt"
+            config_file = model_dir / f"config_{model_name}.json"
+
+        # Anything else is invalid.
+        case _:
+            raise ValueError(f"Invalid model identifier: {source}")
+
+    return model_name, model_dir, model_file, config_file
+
+
 def load_model(
     source: str | Path,
     load_weights: bool = True,
@@ -51,34 +106,8 @@ def load_model(
 
     """
 
-    # Set paths according to source, which can be a file, a directory, or a model name.
-    match source:
-
-        # If source is a file, it is assumed to be the config file.
-        case Path() if source.is_file():
-            assert (
-                source.suffix == ".json"
-            ), f"This does not look like a config file: {source}"
-            model_dir = source.parent
-            config_file = source
-
-        # If source is a directory, it is assumed to be the model directory.
-        case Path() if source.is_dir():
-            model_name = source.name
-            model_dir = source
-            model_file = source / f"parameters_{model_name}.pt"
-            config_file = source / f"config_{model_name}.json"
-
-        # If source is a string, it is assumed to be the model name.
-        case str():
-            model_name = source
-            model_dir = paths.MODEL_PARENT / model_name
-            model_file = model_dir / f"parameters_{model_name}.pt"
-            config_file = model_dir / f"config_{model_name}.json"
-
-        # Anything else is invalid.
-        case _:
-            raise ValueError(f"Invalid model identifier: {source}")
+    # Parse model specifier
+    _, model_dir, model_file, config_file = parse_model_specifier(source)
 
     # Load config and construct model
     logger.info(f"Loading model from {config_file}")
@@ -165,3 +194,26 @@ def isModel(model: nn.Module, modelClass: type) -> bool:
     if isinstance(model, nn.DataParallel):
         return isinstance(model.module, modelClass)
     return isinstance(model, modelClass)
+
+
+def load_data_transforms(source: str | Path):
+    """
+    Load data transforms from a file.
+
+    Parameters
+    ----------
+    source : str or Path
+        The source of the transforms. It can be a file or a directory if Path,
+        or a model name if str.
+
+    Returns
+    -------
+    transforms : dict
+        The loaded data transforms.
+    """
+    # Parse model specifier
+    model_name, model_dir, _, _ = parse_model_specifier(source)
+
+    # Load transforms
+    transforms_file = model_dir / f"data_transforms_{model_name}.pt"
+    return torch.load(transforms_file)

@@ -127,12 +127,16 @@ class OutputManager:
         self.power_ema_file = self.results_folder.joinpath(
             f"power_ema_{self.model_name}.pt"
         )
+        self.data_transforms_file = self.results_folder.joinpath(
+            f"data_transforms_{self.model_name}.pt"
+        )
         self.out_files = [
             self.train_loss_file,
             self.val_loss_file,
             self.parameters_file,
             self.config_file,
             self.power_ema_file,
+            self.data_transforms_file,
         ]
 
         # Add log file handler to logger. Must happen here because log file has
@@ -440,6 +444,18 @@ class OutputManager:
             param_dict["iterations"] = iterations
         with open(self.config_file, "w") as f:
             json.dump(param_dict, f, indent=4)
+
+    def save_data_transforms(self, data_transforms):
+        """
+        Save the data transforms to a .pt file.
+
+        Parameters
+        ----------
+        data_transforms : dict
+            A dictionary containing the data transforms information.
+            Can be arbitrary objects.
+        """
+        torch.save(data_transforms, self.data_transforms_file)
 
     def read_iter_count(self):
         """

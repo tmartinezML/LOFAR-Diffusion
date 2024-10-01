@@ -249,6 +249,7 @@ class DiffusionTrainer:
             else self.config.log_interval
         )
         self.init_data_sets(split=bool(self.val_every))
+        self.OM.save_data_transforms(self.dataset.data_transforms)
 
         # Initialize optimizer
         self.optimizer = None
