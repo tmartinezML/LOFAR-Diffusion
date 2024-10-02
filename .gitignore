@@ -5,6 +5,7 @@ jobs/
 analysis_results
 image_data
 model_results
+sky_maps
 .*
 *.log
 *.out
