@@ -17,7 +17,11 @@ pip install -r src/requirements.txt
 
 3. By default, data will be stored in the repository directory. You can change this by setting the STORAGE_PARENT path in  src/utils/paths.py
 
-4. Access to training data and model weights will be made available soon.
+4. Run src/utils/paths.py:
+```bash
+python -m src.utils.paths
+```
+This will set up the correct folder structure and download trained model weights, as well as the LOFAR training set. The FIRST dataset will be downloaded when it is first initialized.
 
 # Usage
 
