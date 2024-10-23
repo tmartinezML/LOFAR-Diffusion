@@ -5,7 +5,7 @@ from indexed import IndexedOrderedDict
 BASE_PARENT = Path(__file__).parent.parent.parent
 
 # CHANGE THIS IF DESIRED:
-STORAGE_PARENT = BASE_PARENT
+STORAGE_PARENT = BASE_PARENT  # Alternatively: Path("/your/desired/folder")
 
 # Three main storage folders.
 MODEL_PARENT = STORAGE_PARENT / "model_results"

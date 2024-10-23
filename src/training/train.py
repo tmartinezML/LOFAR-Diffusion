@@ -6,7 +6,7 @@ from training.trainer import DiffusionTrainer
 
 
 if __name__ == "__main__":
-    # Limit visible GPUs
+    # Limit visible GPUs if you want:
     device_utils.set_visible_devices(1)
 
     # Set model preset:
