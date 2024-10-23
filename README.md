@@ -21,4 +21,4 @@ pip install -r src/requirements.txt
 
 # Usage
 
-Training is executed with the script training/train.py. Settings are set with a config file that has to be specified inside the script. Example configs are given in model/configs. Also, the training dataset is specified in the script. Different options are defined in data/datasets.py
+Training is executed with the script training/train.py. Settings are defined with a json configuration file that has to be specified inside the script. Example configs are given in model/configs. Also, the training dataset is specified in the script. Different options are defined in data/datasets.py
