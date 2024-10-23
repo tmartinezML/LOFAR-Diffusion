@@ -1,3 +1,4 @@
+import urllib
 from pathlib import Path
 from indexed import IndexedOrderedDict
 
@@ -31,17 +32,16 @@ LOFAR_DATA_PARENT = IMG_DATA_PARENT / "LOFAR"
 FIRST_DATA_PARENT = IMG_DATA_PARENT / "FIRST"
 
 # Pretrained models
-PRETRAINED_PARENT = BASE_PARENT / "pretrained"
+PRETRAINED_PARENT = MODEL_PARENT / "pretrained"
+if not PRETRAINED_PARENT.exists():
+    PRETRAINED_PARENT.mkdir()
 
 # Train data subsets
 LOFAR_SUBSETS = IndexedOrderedDict(
     {
-        k: (LOFAR_DATA_PARENT / "subsets") / v
+        k: LOFAR_DATA_PARENT / v
         for k, v in {
             "0-clip": "0-clip.hdf5",
-            "1.5-clip": "1p5sigma-clip.hdf5",
-            "2-clip": "2sigma-clip.hdf5",
-            "unclipped": "unclipped.hdf5",
         }.items()
     }
 )
@@ -50,6 +50,21 @@ LOFAR_SUBSETS = IndexedOrderedDict(
 MOSAIC_DIR = "/hs/fs05/data/AG_Brueggen/nicolasbp/RadioGalaxyImage/data/mosaics_public"
 CUTOUTS_DIR = LOFAR_DATA_PARENT / "cutouts"
 LOFAR_RES_CAT = LOFAR_DATA_PARENT / "6-LoTSS_DR2-public-resolved_sources.csv"
+
+# Check if files are present, if not download:
+files = {
+    PRETRAINED_PARENT
+    / "parameters_LOFAR_model.pt": "https://cloud.hs.uni-hamburg.de/s/KTAFWFnLByMgNRn",
+    PRETRAINED_PARENT
+    / "parameters_FIRST_model.pt": "https://cloud.hs.uni-hamburg.de/s/xs7bbt99AMFf8gP",
+    LOFAR_DATA_PARENT
+    / "LOFAR_Dataset.h5": "https://cloud.hs.uni-hamburg.de/s/jPZdExPPmcZ48o5",
+}
+for file, link in files.items():
+    if not file.exists():
+        print("Downloading: ", file)
+        urllib.request.urlretrieve(f"{link}/download", file)
+        print("Done.")
 
 
 def cast_to_Path(path):
