@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import shutil
+import logging
 import itertools
 import subprocess
 from io import StringIO
@@ -48,6 +49,21 @@ class TelescopeSimulator:
                     shutil.rmtree(dir)
 
             dir.mkdir()
+
+    def run_command_with_logging(self, cmd, log_file):
+        with open(log_file, "w") as f:
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                shell=True,
+                executable="/bin/bash",
+            )
+            with subprocess.Popen(
+                ["tee", log_file], stdin=process.stdout, stdout=subprocess.PIPE
+            ) as tee_process:
+                for line in tee_process.stdout:
+                    print(line.decode(), end="")
 
     def prepare_losito(self):
 
@@ -119,12 +135,16 @@ class TelescopeSimulator:
         ddf_config.read(self.defualt_file_dir / "ddf_config.cfg")
 
         # Update config
-        ddf_config['Data']['MS'] = str(self.synthms_dir.glob("*.MS")[0])
-        ddf_config['Output']['Name'] = str(self.ddf_dir / self.parent.name)
+        ddf_config["Data"]["MS"] = str(self.synthms_dir.glob("*.MS")[0])
+        ddf_config["Output"]["Name"] = str(self.ddf_dir / self.parent.name)
 
         # Write config
         with open(self.ddf_dir / "ddf_config.cfg", "w") as f:
             ddf_config.write(f)
+
+    def prepare_ddfpipeline(self):
+        # TODO
+        pass
 
     def run_synthms(self):
         cmd = [
@@ -132,7 +152,8 @@ class TelescopeSimulator:
             str(self.shell_script_dir / "container_exec.sh"),
             str(self.synthms_dir / "synthms_run.sh"),
         ]
-        subprocess.call(cmd)
+        log_file = self.synthms_dir / "TelSim_synthms.log"
+        self.run_command_with_logging(cmd, log_file)
 
     def run_losito(self):
         cmd = [
@@ -140,7 +161,27 @@ class TelescopeSimulator:
             str(self.shell_script_dir / "container_exec.sh"),
             str(self.losito_dir / "losito_run.sh"),
         ]
-        subprocess.call(cmd)
+        log_file = self.losito_dir / "TelSim_losito.log"
+        self.run_command_with_logging(cmd, log_file)
 
     def run_ddf(self):
+        cmd = f"""
+            source /hsopt/anaconda3/base.env
+            conda activate cenv_ddf
+            cd /tmartinez/sky_maps/{self.parent.name}/{self.ddf_dir.name}
+            DDF.py ddf_config.cfg
+        """
+        subprocess.call(cmd, shell=True, executable="/bin/bash")
+        log_file = self.ddf_dir / "TelSim_ddf.log"
+        self.run_command_with_logging(cmd, log_file)
 
+    def run(self, synthms=True, losito=True, ddf=True):
+        if synthms:
+            self.prepare_synthms()
+            self.run_synthms()
+        if losito:
+            self.prepare_losito()
+            self.run_losito()
+        if ddf:
+            self.prepare_ddf()
+            self.run_ddf()
