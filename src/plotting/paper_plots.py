@@ -235,7 +235,7 @@ def SNR_example_plot(SNR, edges, images, n_row=5):
         n_row, n_col, subplot_spec=gs[1], wspace=0.05, hspace=0.05
     )
 
-    # Make 2d grid with axes
+    # Make 2D grid with axes
     grid_axs = []
     for i in range(n_row):
         for j in range(n_col):
@@ -257,7 +257,7 @@ def SNR_example_plot(SNR, edges, images, n_row=5):
         label_count=False,
     )
     ax0.axvline(5, color="grey", linestyle="--", label="Sel. cut")
-    ax0.set_xlabel(r"$\mathit{SNR}_\sigma$")
+    ax0.set_xlabel(r"$\mathit{S/N}_\sigma$")
     ax0.set_ylabel("Count")
     # Set ticks format to abbreviate thousands
     ax0.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x/1e3:.0f}k"))

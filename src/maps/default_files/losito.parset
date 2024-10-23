@@ -1,0 +1,26 @@
+#LoSiTo parset
+
+##### global #######
+msin = ../synthms/test_map_80_t201811301514_SBH225.MS
+skymodel = ../test_map_80.fits
+regions = single_region_lotssms.ds9
+ncpu = 96
+maxThreads = 96
+
+# Add beam effects (array_factor+element)
+[beam]
+operation = BEAM
+predictType = idgpredict
+
+# Do the predict
+[predict]
+operation = PREDICT
+outputColumn = DATA
+resetWeights = True
+predictType = idgpredict
+
+# Add noise to the predicted visibilities
+[noise]
+operation = NOISE
+outputColumn = DATA
+factor = 0.045  # 1/sqrt(488)

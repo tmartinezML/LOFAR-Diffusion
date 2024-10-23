@@ -87,7 +87,7 @@ class MapMaker:
         self.logger.info("MapMaker initialized.")
 
     def from_hdf(file_name):
-        in_file = paths.SKY_MAP_PARENT / f"{file_name}.h5"
+        in_file = paths.SKY_MAP_PARENT / f"{file_name}/{file_name}.h5"
 
         # Read data arrays and attributes first
         with h5py.File(in_file, "r") as f:
@@ -136,7 +136,7 @@ class MapMaker:
         # Plot map
         fig, ax = plt.subplots(figsize=(9, 9))
         plt.colorbar(
-            ax.imshow(scale_fn(scaled_map), origin="lower"), fraction=0.046, pad=0.04
+            ax.imshow(scaled_map, origin="lower"), fraction=0.046, pad=0.04
         )
         ax.axis("off")
         fig.show()
