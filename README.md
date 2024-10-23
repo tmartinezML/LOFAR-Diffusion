@@ -5,15 +5,15 @@ This repository holds the software implementation of the paper [Simulating image
 # Installation
 
 1. Clone the repository to your local machine:
-'''bash
+```bash
 git clone https://github.com/tmartinezML/LOFAR-Diffusion.git
 cd LOFAR-Diffusion
-'''
+```
 
 2. If desired, create a new virtual environment. Install the required packages to your environment:
-'''bash
+```bash
 pip install -r src/requirements.txt
-'''
+```
 
 3. By default, data will be stored in the repository directory. You can change this by setting the STORAGE_PARENT path in  src/utils/paths.py
 
