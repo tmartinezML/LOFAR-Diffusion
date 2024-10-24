@@ -14,7 +14,8 @@ cd LOFAR-Diffusion
 ```bash
 pip install -r src/requirements.txt
 ```
-__Important__: If you use a python version >= 3.12, you will run into compatibility issues with the required packages. 
+__Important__: If you use a python version >= 3.12, you will run into compatibility issues with the required packages!
+
 3. By default, data will be stored in the repository directory. You can change this by setting the STORAGE_PARENT path in  src/utils/paths.py
 
 4. Run src/utils/paths.py:
