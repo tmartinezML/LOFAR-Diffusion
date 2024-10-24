@@ -1,5 +1,4 @@
 import urllib.request
-from tqdm import tqdm
 from pathlib import Path
 from indexed import IndexedOrderedDict
 
@@ -73,7 +72,7 @@ files = {
     LOFAR_DATA_PARENT
     / "LOFAR_Dataset.h5": "https://cloud.hs.uni-hamburg.de/s/jPZdExPPmcZ48o5",
 }
-pbar, last_loaded = None, 0
+
 for file, link in files.items():
     if not file.exists():
         print("Downloading: ", file)

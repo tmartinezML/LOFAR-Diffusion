@@ -1,4 +1,5 @@
 import logging
+from tqdm import tqdm
 
 
 def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
@@ -27,6 +28,10 @@ def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     return logger
+
+
+pbar, last_loaded = None, 0
+
 
 def show_dl_progress(block_num, block_size, total_size):
     global pbar, last_loaded
