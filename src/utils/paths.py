@@ -10,7 +10,7 @@ pbar, last_loaded = None, 0
 def show_dl_progress(block_num, block_size, total_size):
     global pbar, last_loaded
     if pbar is None:
-        pbar = tqdm(total=total_size)
+        pbar = tqdm(total=total_size, unit="Bytes", unit_scale=True)
 
     downloaded = block_num * block_size
     increment = downloaded - last_loaded
