@@ -10,11 +10,11 @@ git clone https://github.com/tmartinezML/LOFAR-Diffusion.git
 cd LOFAR-Diffusion
 ```
 
-2. If desired, create a new virtual environment. Install the required packages to your environment:
+2. If desired, create a new virtual environment. Make sure to use python 3.11. Install the required packages to your environment:
 ```bash
 pip install -r src/requirements.txt
 ```
-
+__Important__: If you use a python version >= 3.12, you will run into compatibility issues with the required packages. 
 3. By default, data will be stored in the repository directory. You can change this by setting the STORAGE_PARENT path in  src/utils/paths.py
 
 4. Run src/utils/paths.py:
