@@ -4,20 +4,22 @@ from pathlib import Path
 from indexed import IndexedOrderedDict
 
 
-pbar = None
+pbar, last_loaded = None, 0
 
 
 def show_dl_progress(block_num, block_size, total_size):
-    global pbar
+    global pbar, last_loaded
     if pbar is None:
         pbar = tqdm(total=total_size)
 
     downloaded = block_num * block_size
+    increment = downloaded - last_loaded
+    last_loaded = downloaded
     if downloaded < total_size:
-        pbar.update(downloaded)
+        pbar.update(increment)
     else:
         pbar.close()
-        pbar = None
+        pbar, last_loaded = None, 0
 
 
 # Base directories for code base & storage
