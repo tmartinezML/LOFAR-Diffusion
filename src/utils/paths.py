@@ -25,7 +25,7 @@ for p in [MODEL_PARENT, ANALYSIS_PARENT, IMG_DATA_PARENT]:
 
 # Model configuration presets
 CONFIG_PARENT = BASE_PARENT / "src/model/configs"
-MODEL_CONFIGS = IndexedOrderedDict({f.stem: f for f in [CONFIG_PARENT.glob("*.json")]})
+MODEL_CONFIGS = IndexedOrderedDict({f.stem: f for f in CONFIG_PARENT.glob("*.json")})
 
 # Folders for different kinds of image data
 LOFAR_DATA_PARENT = IMG_DATA_PARENT / "LOFAR"
