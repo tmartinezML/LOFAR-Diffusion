@@ -73,7 +73,7 @@ files = {
 for file, link in files.items():
     if not file.exists():
         print("Downloading: ", file)
-        urllib.request.urlretrieve(f"{link}/download", file)
+        urllib.request.urlretrieve(f"{link}/download", file, show_dl_progress)
         print("Done.")
 
 
