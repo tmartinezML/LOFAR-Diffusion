@@ -1,4 +1,5 @@
 import urllib.request
+from tqdm import tqdm
 from pathlib import Path
 from indexed import IndexedOrderedDict
 
@@ -129,6 +130,22 @@ def rename_files(path, model_name_new, model_name_old=None):
             file.rename(path / f"{name}{file.suffix}")
         elif file.is_dir():
             rename_files(file, model_name_new, model_name_old)
+
+
+pbar = None
+
+
+def show_dl_progress(block_num, block_size, total_size):
+    global pbar
+    if pbar is None:
+        pbar = tqdm(total=total_size)
+
+    downloaded = block_num * block_size
+    if downloaded < total_size:
+        pbar.update(downloaded)
+    else:
+        pbar.close()
+        pbar = None
 
 
 if __name__ == "__main__":
