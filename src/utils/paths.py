@@ -2,7 +2,7 @@ import urllib.request
 from pathlib import Path
 from indexed import IndexedOrderedDict
 
-from src.utils.logging import show_dl_progress
+from utils.logging import show_dl_progress
 
 
 # Base directories for code base & storage
