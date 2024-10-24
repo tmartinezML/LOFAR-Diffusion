@@ -3,23 +3,7 @@ from tqdm import tqdm
 from pathlib import Path
 from indexed import IndexedOrderedDict
 
-
-pbar, last_loaded = None, 0
-
-
-def show_dl_progress(block_num, block_size, total_size):
-    global pbar, last_loaded
-    if pbar is None:
-        pbar = tqdm(total=total_size, unit="Bytes", unit_scale=True)
-
-    downloaded = block_num * block_size
-    increment = downloaded - last_loaded
-    last_loaded = downloaded
-    if downloaded < total_size:
-        pbar.update(increment)
-    else:
-        pbar.close()
-        pbar, last_loaded = None, 0
+from src.utils.logging import show_dl_progress
 
 
 # Base directories for code base & storage
@@ -89,6 +73,7 @@ files = {
     LOFAR_DATA_PARENT
     / "LOFAR_Dataset.h5": "https://cloud.hs.uni-hamburg.de/s/jPZdExPPmcZ48o5",
 }
+pbar, last_loaded = None, 0
 for file, link in files.items():
     if not file.exists():
         print("Downloading: ", file)

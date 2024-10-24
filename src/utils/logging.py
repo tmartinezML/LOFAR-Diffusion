@@ -27,3 +27,17 @@ def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     return logger
+
+def show_dl_progress(block_num, block_size, total_size):
+    global pbar, last_loaded
+    if pbar is None:
+        pbar = tqdm(total=total_size, unit="Bytes", unit_scale=True)
+
+    downloaded = block_num * block_size
+    increment = downloaded - last_loaded
+    last_loaded = downloaded
+    if downloaded < total_size:
+        pbar.update(increment)
+    else:
+        pbar.close()
+        pbar, last_loaded = None, 0
