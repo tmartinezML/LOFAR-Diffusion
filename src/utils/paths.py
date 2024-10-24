@@ -36,6 +36,9 @@ MODEL_CONFIGS = IndexedOrderedDict({f.stem: f for f in CONFIG_PARENT.glob("*.jso
 # Folders for different kinds of image data
 LOFAR_DATA_PARENT = IMG_DATA_PARENT / "LOFAR"
 FIRST_DATA_PARENT = IMG_DATA_PARENT / "FIRST"
+for f in [LOFAR_DATA_PARENT, FIRST_DATA_PARENT]:
+    if not f.exists():
+        f.mkdir()
 
 # Pretrained models
 PRETRAINED_PARENT = MODEL_PARENT / "pretrained"
