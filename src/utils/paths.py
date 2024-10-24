@@ -13,15 +13,21 @@ MODEL_PARENT = STORAGE_PARENT / "model_results"
 ANALYSIS_PARENT = STORAGE_PARENT / "analysis_results"
 IMG_DATA_PARENT = STORAGE_PARENT / "image_data"
 
-# Create symlinks to the code base
+# Create folders and symlinks
 for p in [MODEL_PARENT, ANALYSIS_PARENT, IMG_DATA_PARENT]:
-    symlink = BASE_PARENT / p.name
-    if not symlink.exists():
-        symlink.symlink_to(p)
-    else:
-        assert (
-            symlink.resolve() == p
-        ), f"Broken folder structure: Symlink {symlink} points to {symlink.resolve()}."
+    # Make folder if it doesn't exist
+    if not p.exists():
+        p.mkdir()
+
+    # Create symlink if necessary
+    if not STORAGE_PARENT == BASE_PARENT:
+        symlink = BASE_PARENT / p.name
+        if not symlink.exists():
+            symlink.symlink_to(p)
+        else:
+            assert (
+                symlink.resolve() == p
+            ), f"Broken folder structure: Symlink {symlink} points to {symlink.resolve()}."
 
 # Model configuration presets
 CONFIG_PARENT = BASE_PARENT / "src/model/configs"
