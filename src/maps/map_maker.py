@@ -9,6 +9,7 @@ from tqdm import tqdm
 from astropy.io import fits
 from astropy.table import Table
 from scipy.stats import rv_histogram
+from skimage.draw import disk
 from skimage.measure import regionprops_table
 
 import utils.logging
@@ -17,7 +18,7 @@ import maps.map_utils as mputil
 import model.model_utils as mdutil
 import model.sampler as smplr
 from data.cutouts import save_images_h5py
-from data.segment import get_sample_mask
+from data.segment import get_sample_mask, circular_mask
 from data.datasets import parse_dset_path
 
 # TODO:
@@ -99,6 +100,8 @@ class MapMaker:
                 model_name=model_name,
             )
 
+            mm.file_name = file_name
+
             mm.logger.info(f"Reading MapMaker instance from\n\t{in_file}...")
             mm.img_size = f.attrs["img_size"]
             mm.max_sampling_size = f.attrs["max_sampling_size"]
@@ -135,16 +138,26 @@ class MapMaker:
 
         # Plot map
         fig, ax = plt.subplots(figsize=(9, 9))
-        plt.colorbar(
-            ax.imshow(scaled_map, origin="lower"), fraction=0.046, pad=0.04
-        )
+        plt.colorbar(ax.imshow(scaled_map, origin="lower"), fraction=0.046, pad=0.04)
         ax.axis("off")
         fig.show()
         return
 
-    def save(self, file_name):
+    def save(self, file_name=None):
+        if file_name is None:
+            if not hasattr(self, "file_name"):
+                raise ValueError("No file name provided.")
+            file_name = self.file_name
+
         self.save_to_hdf(file_name)
         self.save_to_fits(file_name)
+
+    def give_name(self, file_name):
+        if hasattr(self, "file_name"):
+            self.logger.warning(
+                f"Overwriting file name {self.file_name} with {file_name}."
+            )
+        self.file_name = file_name
 
     def _check_override(self, out_file, override):
         if out_file.exists():
@@ -277,6 +290,58 @@ class MapMaker:
         self.logger.info("Model size distribution extracted.")
         return
 
+    def make_mask(self, flux_threshold=0.3, mask_size=None, save=True):
+        # Select compact sources
+        comp_flag = self.comp_df["flux"] > flux_threshold
+        comp_df = self.comp_df[comp_flag]
+        # For every compact source, circular mask with 2* beam size radius,
+        # i.e. 8 px for 1.5 arcsec/px
+        comp_mask = circular_mask(shape=(self.img_size,) * 2, radius=8)
+
+        # Select extended sources
+        ext_flag = self.ext_df["flux"] > flux_threshold
+        ext_df = self.ext_df[ext_flag]
+        ext_masks = [self.ext_data["masks"][i] for i in np.where(ext_flag)[0]]
+
+        # Create new all-sky mask
+        mask_size = mask_size or self.map_size_px
+        all_sky_mask = np.zeros((mask_size,) * 2)  # +1 bc. of ddf-pipeline
+
+        # Add compact sources to mask
+        for _, source in comp_df.iterrows():
+            coords = source.x_coord, source.y_coord
+            all_sky_mask = mputil.add_source_image(
+                all_sky_mask, self.map_size_deg, comp_mask, coords
+            )
+
+        # Add extended sources to mask
+        for mask, (_, source) in zip(ext_masks, ext_df.iterrows()):
+            coords = source.x_coord, source.y_coord
+            centroid = int(source["centroid-1"]), int(source["centroid-0"])
+            all_sky_mask = mputil.add_source_image(
+                all_sky_mask, self.map_size_deg, mask, coords, centroid=centroid
+            )
+
+        # Bring back to 0 or 1 values, since there might be overlap
+        all_sky_mask = (all_sky_mask > 0).astype(int)
+
+        # Bring dimensions to standard format
+        all_sky_mask = np.expand_dims(all_sky_mask, axis=(0, 1))
+
+        if save:
+            if not hasattr(self, "file_name"):
+                self.logger.warning("No file name set. Mask will not be saved.")
+            out_file = (
+                paths.SKY_MAP_PARENT
+                / f"{self.file_name}_mask_{str(flux_threshold).replace('.', 'p')}.fits"
+            )
+            self.logger.info(f"Saving map data to\n\t{out_file}...")
+            hdu = fits.PrimaryHDU(all_sky_mask)
+            hdu.writeto(out_file, overwrite=True)
+            self.logger.info("Map data saved.")
+
+        return all_sky_mask
+
     def make_map(self):
         self.logger.info("Generating map...")
 
@@ -393,38 +458,10 @@ class MapMaker:
 
     # Function for adding images to the map
     def add_source_image(self, source_arr, coords, centroid=None):
-        # Convert coords to pixel coords
-        x, y = coords
-        x_px, y_px = int((x + 0.5 * self.map_size_deg) * self.map_size_px), int(
-            (y + 0.5 * self.map_size_deg) * self.map_size_px
+        return mputil.add_source_image(
+            self.map_array,
+            self.map_size_deg,
+            source_arr,
+            coords,
+            centroid=centroid,
         )
-
-        # Set centroid coords
-        x_c, y_c = (
-            centroid
-            if centroid is not None
-            else (source_arr.shape[0] // 2, source_arr.shape[1] // 2)
-        )
-
-        # Determine slices for adding source to map
-        x_slice = slice(x_px - x_c, x_px - x_c + source_arr.shape[0])
-        y_slice = slice(y_px - y_c, y_px - y_c + source_arr.shape[1])
-
-        # Check if source is within map, otherwise correct slice to fit
-        # and reduce source_arr accordingly
-        if x_slice.start < 0:
-            source_arr = source_arr[-x_slice.start :, :]
-            x_slice = slice(0, x_slice.stop)
-        if x_slice.stop > self.map_size_px:
-            source_arr = source_arr[: self.map_size_px - x_slice.stop, :]
-            x_slice = slice(x_slice.start, self.map_size_px)
-        if y_slice.start < 0:
-            source_arr = source_arr[:, -y_slice.start :]
-            y_slice = slice(0, y_slice.stop)
-        if y_slice.stop > self.map_size_px:
-            source_arr = source_arr[:, : self.map_size_px - y_slice.stop]
-            y_slice = slice(y_slice.start, self.map_size_px)
-
-        # Add source to map
-        self.map_array[x_slice, y_slice] += source_arr
-        return self.map_array
