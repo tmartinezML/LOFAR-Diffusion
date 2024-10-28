@@ -496,7 +496,6 @@ def bdsf_plot(img, keys=["ch0_arr", "resid_gaus_arr", "model_gaus_arr"]):
         ax.set_axis_off()
     fig.show()
 
-
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()

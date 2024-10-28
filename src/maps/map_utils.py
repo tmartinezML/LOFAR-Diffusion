@@ -1,4 +1,5 @@
 import numpy as np
+from astropy.io import fits
 from skimage.transform import rescale
 from scipy.stats import multivariate_normal
 from scipy.ndimage import gaussian_filter, rotate
@@ -106,3 +107,39 @@ def add_source_image(map_array, map_size_deg, source_arr, coords, centroid=None)
     # Add source to map
     map_array[x_slice, y_slice] += source_arr
     return map_array
+
+
+def make_fits_header(
+    arcsec_per_px,
+    map_size_px,
+):
+    header_cards = {
+        # These are always the same
+        "BUNIT": "Jy",
+        "WCSAXES": 2,
+        "CTYPE1": "RA---SIN",
+        "CTYPE2": "DEC--SIN",
+        "CUNIT1": "deg",
+        "CUNIT2": "deg",
+        "RADESYS": "ICRS",
+        "EQUINOX": 2000.0,
+        "LONPOLE": 180.0,
+        "LATPOLE": 0.0,
+        # For now, these will also be the same. Might make them variable later.
+        "CTYPE3": "FREQ",
+        "CUNIT3": "Hz",
+        "CRVAL3": 143650000.0,
+        "CDELT3": 48000000.0,
+        "CRVAL1": 0.031250,
+        "CRVAL2": 23.395251,
+        # Those depend on the map
+        "CDELT1": -arcsec_per_px / 3600,
+        "CDELT2": arcsec_per_px / 3600,
+        "NAXIS1": map_size_px,
+        "NAXIS2": map_size_px,
+        "CRPIX1": map_size_px // 2,
+        "CRPIX2": map_size_px // 2,
+    }
+    header = fits.Header()
+    header.update(header_cards)
+    return header

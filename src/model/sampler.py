@@ -1,4 +1,5 @@
 import inspect
+import datetime
 
 import h5py
 import torch
@@ -268,46 +269,83 @@ class Sampler:
 
         # If inputs are passed, they determine the number of samples
         if context is not None or labels is not None:
-            self.logger.info(
-                "Inferring number of samples from input shapes. Sampler settings will be changed."
-            )
+
+            # Assert only one of context or context_fn is passed
+            assert not (
+                context is not None and context_fn is not None
+            ), "Choose either context or context_fn."
 
             # Assert equal shapes if both are passed
             if context is not None and labels is not None:
                 assert (cs := self.context.shape) == (
                     ls := labels.shape
                 ), f"Number of samples must match! Got shapes: {cs} (context) and {ls} (labels)."
+
+            # Infer number of samples from input shapes
+            self.logger.info(
+                "Inferring number of samples from input shapes. Sampler settings will be changed."
+            )
             self.settings["n_samples"] = (
                 context.shape[0] if context is not None else labels.shape[0]
             )
 
         # Determine number of batches
+        do_extra_batch = False
         batch_size = min(
             self.settings["samples_per_device"] * self.settings["n_devices"],
             self.settings["n_samples"],
         )
         n_batches = max(int(self.settings["n_samples"] / batch_size), 1)
         self.logger.info(
-            f"Sampling {self.settings['n_samples']} images in {n_batches} batches of size {batch_size}."
+            f"Sampling {n_batches * batch_size} images in {n_batches} batches of size {batch_size}."
         )
+
+        # Prepare extra batch if needed
+        if self.settings["n_samples"] > n_batches * batch_size:
+            do_extra_batch = True
+            extra_batch_size = self.settings["n_samples"] % batch_size
+            self.logger.info(
+                f"An additional batch of size {self.settings['n_samples'] % batch_size} will be sampled."
+            )
+            if labels is not None:
+                labels_extra = labels[-extra_batch_size:]
+                labels = labels[:-extra_batch_size]
+
+            if context is not None:
+                context_extra = context[-extra_batch_size:]
+                context = context[:-extra_batch_size]
+
+            if latents is not None:
+                latents_extra = latents[-extra_batch_size:]
+                latents = latents[:-extra_batch_size]
 
         # Bring inputs into right shape:
         # Labels
         if labels is not None:
             labels = labels.reshape(n_batches, -1)
         # Context
-        assert not (
-            context is not None and context_fn is not None
-        ), "Choose either context or context_fn."
         if context is not None:
             context = context.reshape(n_batches, batch_size, -1)
         elif context_fn is not None:
-            context = context_fn(self.settings["n_samples"]).reshape(
+            context = context_fn(n_batches * batch_size).reshape(
                 n_batches, batch_size, -1
             )
         # Latents
         if latents is not None:
             latents = latents.reshape(n_batches, -1)
+
+        # Prepare extra batch if needed
+        if do_extra_batch:
+            if labels is not None:
+                labels_extra = labels_extra.reshape(extra_batch_size, -1)
+            if context is not None:
+                context_extra = context_extra.reshape(extra_batch_size, -1)
+            elif context_fn is not None:
+                context_extra = context_fn(extra_batch_size).reshape(
+                    extra_batch_size, -1
+                )
+            if latents is not None:
+                latents_extra = latents_extra.reshape(-1)
 
         # Extract solver parameters from settings by matching call signature
         solver_params = inspect.signature(diffusion.edm_sampling).parameters.keys()
@@ -326,14 +364,49 @@ class Sampler:
 
         # Sampling
         batch_list = []
+        t0 = datetime.datetime.now()
+        dt = datetime.timedelta(seconds=0)
         for i in range(n_batches):
-            self.logger.info(f"Sampling batch {i+1}/{n_batches}...")
+            
+            # Construct the log message
+            log = f"Sampling batch {i+1}/{n_batches}"
+            
+            # That's already enough for the first batch
+            if i == 0:
+                log += "..."
+            # For the next batches, we do some time logging
+            else:
+                # At this point, i is the number of processed batches
+                t_per_batch = dt / i
+                eta = t_per_batch * (n_batches - i)
+                log += f" -- ETA: {eta} -- {t_per_batch}/batch..."
+            
+            # Gotta log the log 
+            self.logger.info(log)
+
+            # Now let's get that yummy batch
             batch = diffusion.edm_sampling(
                 model,
                 context_batch=context[i] if context is not None else None,
                 label_batch=labels[i] if labels is not None else None,
                 latents=latents[i] if latents is not None else None,
                 batch_size=batch_size,
+                **solver_settings,
+            )
+            batch_list.append(batch if self.settings["return_steps"] else batch[-1])
+            
+            # Update time for time logging
+            dt = datetime.datetime.now() - t0
+
+        # If an extra batch is sampled, append it to the list
+        if do_extra_batch:
+            self.logger.info(f"Sampling additional batch of size {extra_batch_size}...")
+            batch = diffusion.edm_sampling(
+                model,
+                context_batch=context_extra if context is not None else None,
+                label_batch=labels_extra if labels is not None else None,
+                latents=latents_extra if latents is not None else None,
+                batch_size=extra_batch_size,
                 **solver_settings,
             )
             batch_list.append(batch if self.settings["return_steps"] else batch[-1])
@@ -347,8 +420,8 @@ class Sampler:
         # (bsize, 1, 80, 80).
         # Batch_list is a list of such lists with n_batches entries,
         # i.e. n_batches x (T+1) x (bsize, 1, 80, 80).
-        # We want it as a single tensor of shape
-        # (n_batches * bsize, T+1, 1, 80, 80).
+        # If return_steps is True, want it as a single tensor of shape
+        # (n_batches * bsize = n_samples, T+1, 1, 80, 80).
         if self.settings["return_steps"]:
             imgs = (
                 torch.concat([torch.stack(b, dim=1) for b in batch_list]).cpu().numpy()

@@ -9,7 +9,7 @@ from utils.logging import show_dl_progress
 BASE_PARENT = Path(__file__).parent.parent.parent
 
 # CHANGE THIS IF DESIRED:
-STORAGE_PARENT = BASE_PARENT  # Alternatively: Path("/your/desired/folder")
+STORAGE_PARENT = Path("/hs/fs08/data/group-brueggen/tmartinez")
 
 # Three main storage folders.
 MODEL_PARENT = STORAGE_PARENT / "model_results"
@@ -42,6 +42,7 @@ FIRST_DATA_PARENT = IMG_DATA_PARENT / "FIRST"
 for f in [LOFAR_DATA_PARENT, FIRST_DATA_PARENT]:
     if not f.exists():
         f.mkdir()
+SKY_MAP_PARENT = STORAGE_PARENT / "sky_maps"
 
 # Pretrained models
 PRETRAINED_PARENT = MODEL_PARENT / "pretrained"
@@ -51,15 +52,18 @@ if not PRETRAINED_PARENT.exists():
 # Train data subsets
 LOFAR_SUBSETS = IndexedOrderedDict(
     {
-        k: LOFAR_DATA_PARENT / v
+        k: LOFAR_DATA_PARENT / f"subsets/{v}"
         for k, v in {
+            "prototypes": "LOFAR_prototypes.hdf5",
             "0-clip": "0-clip.hdf5",
         }.items()
     }
 )
 
 # Paths for training data processing
-MOSAIC_DIR = "/hs/fs05/data/AG_Brueggen/nicolasbp/RadioGalaxyImage/data/mosaics_public"
+MOSAIC_DIR = Path(
+    "/hs/fs05/data/AG_Brueggen/nicolasbp/RadioGalaxyImage/data/mosaics_public"
+)
 CUTOUTS_DIR = LOFAR_DATA_PARENT / "cutouts"
 LOFAR_RES_CAT = LOFAR_DATA_PARENT / "6-LoTSS_DR2-public-resolved_sources.csv"
 
@@ -75,6 +79,7 @@ files = {
 
 for file, link in files.items():
     if not file.exists():
+        continue  # This part of the code is for the master branch.
         print("Downloading: ", file)
         urllib.request.urlretrieve(f"{link}/download", file, show_dl_progress)
         print("Done.")

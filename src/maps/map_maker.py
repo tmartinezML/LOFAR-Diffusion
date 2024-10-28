@@ -1,3 +1,4 @@
+import ast
 import warnings
 
 import h5py
@@ -35,14 +36,16 @@ class MapMaker:
         trecs_cat_file=None,
         dset=None,
         img_size=80,
+        arcsec_per_px=1.5,
         max_sampling_size=80,
+        sampler_settings={},
     ):
         # Logger
         self.logger = utils.logging.get_logger(self.__class__.__name__)
 
         # Map parameters
         self.map_size_deg = map_size_deg
-        self.map_size_px = int(map_size_deg * 3600 / 1.5)  # 1.5 arcsec per pixel
+        self.map_size_px = int(map_size_deg * 3600 / arcsec_per_px)
         self.map_array = np.zeros((self.map_size_px,) * 2)
         self.img_size = img_size
         self.max_sampling_size = max_sampling_size
@@ -73,17 +76,21 @@ class MapMaker:
             columns=["x_coord", "y_coord", "flux", "size", "angle"]
         )
 
+        # This will store TRACS catalog path and dataset path
         self.input_data = {}
 
         # Read in T-RECS catalog if passed
         if trecs_cat_file is not None:
-            self.input_data["trecs_cat_file"] = trecs_cat_file
+            self.input_data["trecs_cat_file"] = str(trecs_cat_file)
             self.read_TRECS(trecs_cat_file)
 
         # Get model size distribution if dataset is passed
         if dset is not None:
-            self.input_data["dset"] = dset
+            self.input_data["dset"] = str(dset)
             self.get_model_size_distribution(dset)
+
+        # Settings
+        self.sampler_settings = sampler_settings
 
         self.logger.info("MapMaker initialized.")
 
@@ -100,12 +107,14 @@ class MapMaker:
                 model_name=model_name,
             )
 
-            mm.file_name = file_name
+            mm.give_name(file_name)
 
             mm.logger.info(f"Reading MapMaker instance from\n\t{in_file}...")
             mm.img_size = f.attrs["img_size"]
+            mm.arcsec_per_px = f.attrs["arcsec_per_px"]
             mm.max_sampling_size = f.attrs["max_sampling_size"]
-            mm.input_data = f.attrs["input_data"]
+            mm.input_data = ast.literal_eval(f.attrs["input_data"])
+            mm.sampler_settings = ast.literal_eval(f.attrs["sampler_settings"])
 
             # Data arrays
             mm.map_array = f["sky_map"][:]
@@ -143,21 +152,24 @@ class MapMaker:
         fig.show()
         return
 
-    def save(self, file_name=None):
+    def save(self, file_name=None, override=False):
+        # Set and check: file name, out file, override
         if file_name is None:
-            if not hasattr(self, "file_name"):
-                raise ValueError("No file name provided.")
-            file_name = self.file_name
+            if not self._check_hasname():
+                return
+        else:
+            self.give_name(file_name)
 
-        self.save_to_hdf(file_name)
-        self.save_to_fits(file_name)
+        self.save_to_hdf(override=override)
+        self.save_to_fits(override=override)
 
     def give_name(self, file_name):
         if hasattr(self, "file_name"):
             self.logger.warning(
-                f"Overwriting file name {self.file_name} with {file_name}."
+                f"Changing file name {self.file_name} with {file_name}."
             )
         self.file_name = file_name
+        self.out_dir = paths.SKY_MAP_PARENT / file_name
 
     def _check_override(self, out_file, override):
         if out_file.exists():
@@ -171,12 +183,24 @@ class MapMaker:
                 )
                 return True
 
-    def save_to_hdf(self, file_name, override=False):
-        out_file = paths.SKY_MAP_PARENT / f"{file_name}.h5"
+    def _check_hasname(self):
+        if not hasattr(self, "file_name"):
+            self.logger.warning("No file name set - aborting. Use give_name() first.")
+            return False
+        return True
+
+    def save_to_hdf(self, file_name=None, override=False):
+        # Set and check: file name, out file, override
+        if file_name is None:
+            if not self._check_hasname():
+                return
+        else:
+            self.give_name(file_name)
+        out_file = self.out_dir / f"{self.file_name}.h5"
         if self._check_override(out_file, override):
             return
 
-        self.logger.info(f"Saving MapMaker instance to\n\t{out_file}...")
+        self.logger.info(f"Saving MapMaker instance to\n\t{out_file}")
 
         # Save map
         save_images_h5py(
@@ -228,20 +252,34 @@ class MapMaker:
         with h5py.File(out_file, "a") as f:
             f.attrs["map_size_deg"] = self.map_size_deg
             f.attrs["map_size_px"] = self.map_size_px
+            f.attrs["arcsec_per_px"] = self.arcsec_per_px
             f.attrs["img_size"] = self.img_size
             f.attrs["max_sampling_size"] = self.max_sampling_size
             f.attrs["model_name"] = self.model_name
             f.attrs["input_data"] = str(self.input_data)
+            f.attrs["sampler_settings"] = str(self.sampler_settings)
 
         self.logger.info("MapMaker saved.")
 
-    def save_to_fits(self, file_name, override=False):
-        out_file = paths.SKY_MAP_PARENT / f"{file_name}.fits"
+    def save_to_fits(self, file_name=None, override=False):
+        # Set and check: file name, out file, override
+        # Set and check: file name, out file, override
+        if file_name is None:
+            if not self._check_hasname():
+                return
+        else:
+            self.give_name(file_name)
+        out_file = self.out_dir / f"{self.file_name}.fits"
         if self._check_override(out_file, override):
             return
-        self.logger.info(f"Saving map data to\n\t{out_file}...")
-        hdu = fits.PrimaryHDU(self.map_array)
-        hdu.writeto(out_file, overwrite=True)
+
+        self.logger.info(f"Saving map data to\n\t{out_file}")
+        header = mputil.make_fits_header(
+            arcsec_per_px=self.arcsec_per_px,
+            map_size_px=self.map_size_px,
+        )
+        hdu = fits.PrimaryHDU(header=header, data=self.map_array)
+        hdu.writeto(out_file, overwrite=True, output_verify="fix")
         self.logger.info("Map data saved.")
 
     def read_TRECS(self, trecs_cat_file):
@@ -328,14 +366,12 @@ class MapMaker:
         # Bring dimensions to standard format
         all_sky_mask = np.expand_dims(all_sky_mask, axis=(0, 1))
 
-        if save:
-            if not hasattr(self, "file_name"):
-                self.logger.warning("No file name set. Mask will not be saved.")
+        if save and self._check_hasname():
             out_file = (
-                paths.SKY_MAP_PARENT
+                self.out_dir
                 / f"{self.file_name}_mask_{str(flux_threshold).replace('.', 'p')}.fits"
             )
-            self.logger.info(f"Saving map data to\n\t{out_file}...")
+            self.logger.info(f"Saving map data to\n\t{out_file}")
             hdu = fits.PrimaryHDU(all_sky_mask)
             hdu.writeto(out_file, overwrite=True)
             self.logger.info("Map data saved.")
@@ -421,7 +457,7 @@ class MapMaker:
         context_tr = torch.Tensor(size_transform.transform(context))
 
         # Sample source images
-        sampler = smplr.Sampler(return_steps=False)
+        sampler = smplr.Sampler(return_steps=False, **self.sampler_settings)
         samples = sampler.quick_sample(
             model_name=self.model_name,
             context=context_tr,

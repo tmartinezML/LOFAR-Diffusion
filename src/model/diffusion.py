@@ -72,9 +72,13 @@ def edm_sampling(
 
     """
 
-    # Set device
+    # Set device and log
     device = next(model.parameters()).device
-    logger.info(f"Sampling on device: {device}")
+    do_parallel_sampling = isinstance(model, torch.nn.DataParallel)
+    if do_parallel_sampling:
+        logger.info(f"Parallel sampling on devices: {model.device_ids}")
+    else:
+        logger.info(f"Sampling on device: {device}")
 
     # If passed, prepare latents
     if latents is not None:
@@ -94,14 +98,10 @@ def edm_sampling(
 
     # Get noise level limits from model, which may be more restrictive
     model_sigma_min = (
-        model.module.sigma_min
-        if isinstance(model, torch.nn.DataParallel)
-        else model.sigma_min
+        model.module.sigma_min if do_parallel_sampling else model.sigma_min
     )
     model_sigma_max = (
-        model.module.sigma_max
-        if isinstance(model, torch.nn.DataParallel)
-        else model.sigma_max
+        model.module.sigma_max if do_parallel_sampling else model.sigma_max
     )
 
     # Update noise level limits
