@@ -18,5 +18,5 @@ cd /hs/fs08/data/group-brueggen/tmartinez
 singularity exec --pid --writable-tmpfs --containall --cleanenv --no-home\
  --bind /hs/fs08/data/group-brueggen/tmartinez:/tmartinez,/hsopt/anaconda3:/hsopt/anaconda3\
  --workdir /hs/fs08/data/group-brueggen/tmartinez\
- singularity_pills/ddf-pipeline.sif bash /tmartinez/losito_scripts/ddf-pipeline_run.sh &
+ singularity_pills/ddf-pipeline.sif bash $1
  
