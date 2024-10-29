@@ -1,8 +1,19 @@
 import numpy as np
 from astropy.io import fits
+from astropy.wcs import WCS
 from skimage.transform import rescale
 from scipy.stats import multivariate_normal
 from scipy.ndimage import gaussian_filter, rotate
+
+
+def get_image(file, get_wcs=True):
+    hdul = fits.open(file)
+    image = hdul[0].data
+    if get_wcs:
+        wcs = WCS(hdul[0].header, naxis=2)
+        return image, wcs
+    else:
+        return image
 
 
 def scale_to_flux(img, flux):

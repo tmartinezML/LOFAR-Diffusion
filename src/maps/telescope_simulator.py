@@ -232,6 +232,8 @@ class TelescopeSimulator:
             ]
         )
         ddf_config["Output"]["Name"] = str(self.ddf_dir / self.parent.name)
+        ddf_config["Image"]["Npix"] = str(self.map_size_px)
+        ddf_config["Image"]["Cell"] = str(abs(self.fits_header["CDELT1"]))
 
         # Write config
         with open(self.ddf_dir / "ddf_config.cfg", "w") as f:
