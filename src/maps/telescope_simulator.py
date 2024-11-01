@@ -7,6 +7,7 @@ import itertools
 import subprocess
 from io import StringIO
 from pathlib import Path
+from ast import literal_eval
 from configparser import ConfigParser
 
 from astropy.io import fits
@@ -154,21 +155,36 @@ class TelescopeSimulator:
         config_in.seek(0, os.SEEK_SET)
         parser.read_file(config_in)
 
-        # Update settings
+        # Update general settings
         parser["_global"]["skymodel"] = f"../{self.sky_model_file}"
-        parser["_global"]["msin"] = f"../{self.synthms_dir.name}/*.MS"
         parser["_global"]["regions"] = "single_region.ds9"
 
-        # Write settings to losito.parset with first line removed
-        config_out = StringIO()
-        parser.write(config_out)
-        config_out.seek(0, os.SEEK_SET)
-        config_out = "\n".join(config_out.readlines()[1:])
-        with open(self.losito_dir / "losito.parset", "w") as f:
-            f.write(config_out)
+        # Check if independent run for every MS is required
+        run_indep = self.config.getboolean("losito", "run_independent")
+        # If independent run is required, we will create one parset for every MS.
+        # Otherwise, we will have a list with only one element, representing
+        # all MS with a wildcard.
+        if run_indep:
+            MSList = [f.name for f in self.synthms_dir.glob("*.MS")]
+        else:
+            MSList = "*.MS"
+
+        for i, MS in enumerate(MSList):
+            parser["_global"]["msin"] = f"../{self.synthms_dir.name}/{MS}"
+            # Write settings to losito.parset with first line removed
+            config_out = StringIO()
+            parser.write(config_out)
+            config_out.seek(0, os.SEEK_SET)
+            config_out = "".join(config_out.readlines()[1:])
+            with open(self.losito_dir / f"losito.parset{i}", "w") as f:
+                f.write(config_out)
 
         # Write region file based on sky model file header
-        map_size_deg = self.fits_header["CDELT1"] * self.map_size_px
+        if (s := literal_eval(self.config["losito"]["region_size"])) is not None:
+            self.logger.info(f"LoSiTo: Using region size {s} deg from config file.")
+            map_size_deg = float(s)
+        else:
+            map_size_deg = self.fits_header["CDELT1"] * self.map_size_px
         plus = lambda x: x + map_size_deg / 2
         minus = lambda x: x - map_size_deg / 2
         ra, dec = self.center_radec.ra.deg, self.center_radec.dec.deg
@@ -181,6 +197,9 @@ class TelescopeSimulator:
         with open(self.losito_dir / "single_region.ds9", "w") as f:
             f.write(out_str)
 
+        # The losito run command depends on whether we need independent runs
+        losito_cmd = "\n".join([f"losito losito.parset{i}" for i in range(len(MSList))])
+
         # Prepare shell script
         with open(self.losito_dir / "losito_run.sh", "w") as f:
             f.write(
@@ -188,7 +207,7 @@ class TelescopeSimulator:
                 f"cd /tmartinez\n"
                 f"source envs/losito_venv/bin/activate\n"
                 f"cd {self.mount_parent / self.losito_dir.name}\n"
-                f"losito losito.parset"
+                f"{losito_cmd}"
             )
 
     def prepare_synthms(self):
@@ -222,6 +241,8 @@ class TelescopeSimulator:
 
         # Read default config
         ddf_config = ConfigParser()
+        # Preserve case
+        ddf_config.optionxform = str
         ddf_config.read(self.defualt_file_dir / "ddf_config.cfg")
 
         # Update config
@@ -233,11 +254,24 @@ class TelescopeSimulator:
         )
         ddf_config["Output"]["Name"] = str(self.ddf_dir / self.parent.name)
         ddf_config["Image"]["Npix"] = str(self.map_size_px)
-        ddf_config["Image"]["Cell"] = str(abs(self.fits_header["CDELT1"]))
+        if self.config["ddf-pipeline"]["Npix"] is not None:
+            ddf_config["Image"]["Npix"] = self.config["ddf-pipeline"]["Npix"]
+        # For DDF we need cell size in arcsec
+        ddf_config["Image"]["Cell"] = str(abs(self.fits_header["CDELT1"]) * 3600)
 
         # Write config
         with open(self.ddf_dir / "ddf_config.cfg", "w") as f:
             ddf_config.write(f)
+
+        # Prepare shell script
+        with open(self.ddf_dir / "ddf_run.sh", "w") as f:
+            f.write(
+                f"#!/bin/bash\n"
+                f"source /hsopt/anaconda3/base.env\n"
+                f"conda activate cenv_ddf\n"
+                f"cd {self.ddf_dir}\n"
+                f"DDF.py ddf_config.cfg"
+            )
 
     def prepare_ddfpipeline(self):
         # Prepare directories
@@ -298,12 +332,10 @@ class TelescopeSimulator:
         return p
 
     def run_ddf(self):
-        cmd = f"""
-            source /hsopt/anaconda3/base.env
-            conda activate cenv_ddf
-            cd {self.mount_parent / self.ddf_dir.name}
-            DDF.py ddf_config.cfg
-        """
+        cmd = [
+            "bash",
+            str(self.ddf_dir / "ddf_run.sh"),
+        ]
         log_file = self.ddf_dir / "TelSim_ddf.log"
         p = self._run_command_with_logging(cmd, log_file)
         return p

@@ -23,4 +23,4 @@ predictType = idgpredict
 [noise]
 operation = NOISE
 outputColumn = DATA
-factor = 0.045  # 1/sqrt(488)
+factor = 0.064  # sqrt(2)/sqrt(488)
