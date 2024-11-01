@@ -18,6 +18,7 @@ import utils.paths as paths
 import maps.map_utils as mputil
 import model.model_utils as mdutil
 import model.sampler as smplr
+from maps.estimate_npix import EstimateNpix
 from data.cutouts import save_images_h5py
 from data.segment import get_sample_mask, circular_mask
 from data.datasets import parse_dset_path
@@ -346,7 +347,7 @@ class MapMaker:
         ext_masks = [self.ext_data["masks"][i] for i in np.where(ext_flag)[0]]
 
         # Create new all-sky mask
-        mask_size = mask_size or self.map_size_px
+        mask_size = mask_size or EstimateNpix(self.map_size_px)[0]
         all_sky_mask = np.zeros((mask_size,) * 2)  # +1 bc. of ddf-pipeline
 
         # Add compact sources to mask
