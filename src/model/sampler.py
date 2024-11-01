@@ -288,6 +288,7 @@ class Sampler:
             self.settings["n_samples"] = (
                 context.shape[0] if context is not None else labels.shape[0]
             )
+        self.logger.info(f"Sampling {self.settings['n_samples']} images in total.")
 
         # Determine number of batches
         do_extra_batch = False
@@ -367,10 +368,10 @@ class Sampler:
         t0 = datetime.datetime.now()
         dt = datetime.timedelta(seconds=0)
         for i in range(n_batches):
-            
+
             # Construct the log message
             log = f"Sampling batch {i+1}/{n_batches}"
-            
+
             # That's already enough for the first batch
             if i == 0:
                 log += "..."
@@ -379,9 +380,9 @@ class Sampler:
                 # At this point, i is the number of processed batches
                 t_per_batch = dt / i
                 eta = t_per_batch * (n_batches - i)
-                log += f" -- ETA: {eta} -- {t_per_batch}/batch..."
-            
-            # Gotta log the log 
+                log += f" -- ETA: {utils.logging.format_timedelta(eta)} -- {utils.logging.format_timedelta(t_per_batch)}/batch..."
+
+            # Gotta log the log
             self.logger.info(log)
 
             # Now let's get that yummy batch
@@ -394,7 +395,7 @@ class Sampler:
                 **solver_settings,
             )
             batch_list.append(batch if self.settings["return_steps"] else batch[-1])
-            
+
             # Update time for time logging
             dt = datetime.datetime.now() - t0
 
@@ -410,6 +411,9 @@ class Sampler:
                 **solver_settings,
             )
             batch_list.append(batch if self.settings["return_steps"] else batch[-1])
+
+        dt = datetime.datetime.now() - t0
+        self.logger.info(f"Sampling complete in {utils.logging.format_timedelta(dt)}.")
 
         # Return model to cpu to free up gpu memory
         if distribute_model:

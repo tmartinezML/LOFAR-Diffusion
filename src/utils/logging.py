@@ -1,4 +1,5 @@
 import logging
+import datetime
 from tqdm import tqdm
 
 
@@ -64,3 +65,9 @@ def show_dl_progress(block_num, block_size, total_size):
     else:
         pbar.close()
         pbar, last_loaded = None, 0
+
+
+def format_timedelta(dt):
+    if dt.microseconds % 1000 >= 500:  # check if there will be rounding up
+        dt = dt + datetime.timedelta(milliseconds=1)  # manually round up
+    return str(dt).split(".")[0]

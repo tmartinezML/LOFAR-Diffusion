@@ -30,7 +30,9 @@ def plot_sky_map(
 
     # Plot map
     fig, ax = fig_ax or plt.subplots(
-        figsize=size, subplot_kw={"projection": wcs}, constrained_layout=True
+        figsize=size,
+        subplot_kw={"projection": wcs},
+        constrained_layout=True,
     )
 
     im = ax.imshow(scaled_map.squeeze(), origin="lower", norm=norm)
@@ -38,7 +40,7 @@ def plot_sky_map(
     if cbar:
         fig.colorbar(im, ax=ax, fraction=0.046, pad=0.05)
 
-    if wcs is not None:
+    if wcs is None:
         ax.axis("off")
     else:
         ax.grid(alpha=0.1)
@@ -59,7 +61,7 @@ def double_map_plot(
         gridspec_kw={"hspace": 0.01, "wspace": (0.03 if minmax else 0.15)},
         sharex=True,
         sharey=True,
-        #constrained_layout=True,
+        # constrained_layout=True,
     )
 
     match wcs:

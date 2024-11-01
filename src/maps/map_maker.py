@@ -38,13 +38,14 @@ class MapMaker:
         img_size=80,
         arcsec_per_px=1.5,
         max_sampling_size=80,
-        sampler_settings={},
+        sampler_settings={"n_devices": 2},
     ):
         # Logger
         self.logger = utils.logging.get_logger(self.__class__.__name__)
 
         # Map parameters
         self.map_size_deg = map_size_deg
+        self.arcsec_per_px = arcsec_per_px
         self.map_size_px = int(map_size_deg * 3600 / arcsec_per_px)
         self.map_array = np.zeros((self.map_size_px,) * 2)
         self.img_size = img_size
@@ -201,6 +202,9 @@ class MapMaker:
             return
 
         self.logger.info(f"Saving MapMaker instance to\n\t{out_file}")
+        if not out_file.parent.exists():
+            self.logger.info(f"Creating directory\n\t{out_file.parent}")
+            out_file.parent.mkdir(parents=True)
 
         # Save map
         save_images_h5py(
@@ -501,3 +505,32 @@ class MapMaker:
             coords,
             centroid=centroid,
         )
+
+
+if __name__ == "__main__":
+
+    # Settings
+    map_size_deg = 3
+    model_name = "Prototypes_Model_SizeCond"
+    trecs_cat_file = (
+        paths.STORAGE_PARENT
+        / "diffusion/trecs_output/3deg/catalogue_continuum_wrapped.fits"
+    )
+    dset = "prototypes"
+
+    # Initialize MapMaker
+    mm = MapMaker(
+        map_size_deg=map_size_deg,
+        model_name=model_name,
+        trecs_cat_file=trecs_cat_file,
+        dset=dset,
+    )
+
+    # Make map
+    mm.make_map()
+
+    # Save map
+    mm.save("map_3deg_max80", override=True)
+
+    # Make mask
+    mm.make_mask(flux_threshold=0.3, mask_size=80, save=True)

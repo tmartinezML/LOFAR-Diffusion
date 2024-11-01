@@ -16,6 +16,7 @@ MODEL_PARENT = STORAGE_PARENT / "model_results"
 ANALYSIS_PARENT = STORAGE_PARENT / "analysis_results"
 IMG_DATA_PARENT = STORAGE_PARENT / "image_data"
 
+
 # Create folders and symlinks
 for p in [MODEL_PARENT, ANALYSIS_PARENT, IMG_DATA_PARENT]:
     # Make folder if it doesn't exist
