@@ -291,7 +291,7 @@ class TelescopeSimulator:
         ddfpipeline_config["data"]["full_mslist"] = "mslist.txt"
         ddfpipeline_config["image"]["imsize"] = str(self.map_size_px)
         if (npix := literal_eval(self.config["ddf-pipeline"]["Npix"])) is not None:
-            ddf_config["Image"]["Npix"] = npix
+            ddfpipeline_config["Image"]["Npix"] = npix
         # TODO: Possibly set [solutions][ndir] depending on imsize
 
         # TODO: Not sure if relative path will work, but should be fine
