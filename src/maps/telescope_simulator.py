@@ -254,8 +254,7 @@ class TelescopeSimulator:
         )
         ddf_config["Output"]["Name"] = str(self.ddf_dir / self.parent.name)
         ddf_config["Image"]["Npix"] = str(self.map_size_px)
-        if self.config["ddf-pipeline"]["Npix"] is not None:
-            ddf_config["Image"]["Npix"] = self.config["ddf-pipeline"]["Npix"]
+        
         # For DDF we need cell size in arcsec
         ddf_config["Image"]["Cell"] = str(abs(self.fits_header["CDELT1"]) * 3600)
 
@@ -291,6 +290,8 @@ class TelescopeSimulator:
         ddfpipeline_config["data"]["mslist"] = "mslist.txt"
         ddfpipeline_config["data"]["full_mslist"] = "mslist.txt"
         ddfpipeline_config["image"]["imsize"] = str(self.map_size_px)
+        if (npix := literal_eval(self.config["ddf-pipeline"]["Npix"])) is not None:
+            ddf_config["Image"]["Npix"] = npix
         # TODO: Possibly set [solutions][ndir] depending on imsize
 
         # TODO: Not sure if relative path will work, but should be fine
