@@ -347,7 +347,14 @@ class MapMaker:
         ext_masks = [self.ext_data["masks"][i] for i in np.where(ext_flag)[0]]
 
         # Create new all-sky mask
+        if mask_size is not None:
+            mask_size = mask_size
+        else:
+            self.logger.info("Estimating mask size for DDF...")
         mask_size = mask_size or EstimateNpix(self.map_size_px)[0]
+        self.logger.info(
+            f"Creating mask with {mask_size} px (from map with {self.map_size_px} px)."
+        )
         all_sky_mask = np.zeros((mask_size,) * 2)  # +1 bc. of ddf-pipeline
 
         # Add compact sources to mask
@@ -511,11 +518,11 @@ class MapMaker:
 if __name__ == "__main__":
 
     # Settings
-    map_size_deg = 3
+    map_size_deg = 2.5
     model_name = "Prototypes_Model_SizeCond"
     trecs_cat_file = (
         paths.STORAGE_PARENT
-        / "diffusion/trecs_output/3deg/catalogue_continuum_wrapped.fits"
+        / "diffusion/trecs_output/2.5deg/catalogue_continuum_wrapped.fits"
     )
     dset = "prototypes"
 
@@ -531,7 +538,7 @@ if __name__ == "__main__":
     mm.make_map()
 
     # Save map
-    mm.save("map_3deg_max80", override=True)
+    mm.save("map_2.5deg_max80", override=True)
 
     # Make mask
-    mm.make_mask(flux_threshold=0.3, mask_size=80, save=True)
+    mm.make_mask(flux_threshold=0.3, save=True)
