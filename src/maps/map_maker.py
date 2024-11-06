@@ -525,6 +525,7 @@ if __name__ == "__main__":
         / "diffusion/trecs_output/1deg_1/catalogue_continuum_wrapped.fits"
     )
     dset = "prototypes"
+    sampler_settings = {"n_devices": 1}
 
     # Initialize MapMaker
     mm = MapMaker(
@@ -532,6 +533,7 @@ if __name__ == "__main__":
         model_name=model_name,
         trecs_cat_file=trecs_cat_file,
         dset=dset,
+        sampler_settings=sampler_settings,
     )
 
     # Make map

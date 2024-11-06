@@ -22,6 +22,7 @@ import data.transforms as T
 # Assuming this is in datasets.datasets or a similar module
 logger = utils.logging.get_logger(__name__)
 
+
 def parse_dset_path(dset):
     match dset:
         case Path():
@@ -411,18 +412,37 @@ class ImagePathDataset(torch.utils.data.Dataset):
         )
 
     def box_cox_transform(self, attr):
+        """
+        Apply Box-Cox transformation to attribute of the dataset.
+
+        Parameters
+        ----------
+        attr : str
+            Name of the attribute to transform.
+        """
+        # Check if this instanca actually has the attribute
         if not hasattr(self, attr):
-            logger.error(f"Attribute '{attr}' not found.")
+            logger.error(
+                f"{self.__class__.__name__} instance has no attribute '{attr}'."
+            )
             return
 
+        # Initialize PowerTransformer, Fit to data & apply transformation.
         pt = PowerTransformer(method="box-cox")
-        pt.fit(getattr(self, attr).view(-1, 1))
-        values_tr = pt.transform(getattr(self, attr).view(-1, 1))
+        # NOTE: fit() and transform() expect input of shape (n_samples, n_features),
+        # so we need to reshape the data to 2D. We're assuming that n_samples
+        # is equal to the number of images, otherwise something probably went wrong.
+        values = getattr(self, attr).view(len(self.data), -1)
+        values_tr = pt.fit_transform(values)
 
+        # Reshape transformed values to original shape and store in new attribute,
+        # with '_tr' suffix to indicate that the values are transformed.
         setattr(self, f"{attr}_tr", values_tr.reshape(getattr(self, attr).shape))
+
+        # Store PowerTransformer object in data_transforms dict for later reference.
         self.data_transforms[attr] = pt
         logger.info(
-            f"Attribute '{attr}' transformed with Box-Cox transformation ({pt.lambdas_})."
+            f"Attribute '{attr}' transformed with Box-Cox transformation.\nLambdas: {pt.lambdas_}."
         )
 
 
