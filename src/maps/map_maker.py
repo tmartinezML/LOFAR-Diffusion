@@ -308,12 +308,12 @@ class MapMaker:
         # Fill extended sources df
         self.ext_df["x_coord"] = ext_df["x_coord"].values
         self.ext_df["y_coord"] = ext_df["y_coord"].values
-        self.ext_df["flux"] = ext_df["I144"].values
+        self.ext_df["flux"] = ext_df["I144"].values * 1e-3  # mJy to Jy
 
         # Fill compact sources df
         self.comp_df["x_coord"] = comp_df["x_coord"].values
         self.comp_df["y_coord"] = comp_df["y_coord"].values
-        self.comp_df["flux"] = comp_df["I144"].values
+        self.comp_df["flux"] = comp_df["I144"].values * 1e-3  # mJy to Jy
         self.comp_df["size"] = comp_df["size"].values
         b_maj_min = np.array(list(zip(comp_df["bmaj"], comp_df["bmin"])), dtype="f,f")
         sfg_flag = comp_df["RadioClass"].values < 4
@@ -518,11 +518,11 @@ class MapMaker:
 if __name__ == "__main__":
 
     # Settings
-    map_size_deg = 2.5
+    map_size_deg = 1
     model_name = "Prototypes_Model_SizeCond"
     trecs_cat_file = (
         paths.STORAGE_PARENT
-        / "diffusion/trecs_output/2.5deg/catalogue_continuum_wrapped.fits"
+        / "diffusion/trecs_output/1deg_1/catalogue_continuum_wrapped.fits"
     )
     dset = "prototypes"
 
@@ -538,7 +538,7 @@ if __name__ == "__main__":
     mm.make_map()
 
     # Save map
-    mm.save("map_2.5deg_max80", override=True)
+    mm.save("map_1deg_max80", override=True)
 
     # Make mask
     mm.make_mask(flux_threshold=0.3, save=True)
