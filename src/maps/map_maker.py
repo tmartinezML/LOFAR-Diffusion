@@ -1,5 +1,6 @@
 import ast
 import warnings
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 
 import h5py
 import torch
@@ -26,7 +27,19 @@ from data.datasets import parse_dset_path
 # TODO:
 # - Add type hints & docstrings
 # - Review variable names
+def process_compact_source(i, source, img_size):
+    try:
+        # Generate source array & scale to flux
+        source_arr = mputil.gaussian_signal(
+            size=source.size,
+            angle=source.angle,
+            convolve=True,
+            img_size=img_size,
+        )
+        return i, source_arr, False
 
+    except Exception as e:
+        return i, None, str(e)
 
 class MapMaker:
     def __init__(
@@ -49,7 +62,8 @@ class MapMaker:
         self.map_size_deg = map_size_deg
         self.arcsec_per_px = arcsec_per_px
         self.map_size_px = int(map_size_deg * 3600 / arcsec_per_px)
-        self.map_array = self.reset_map_array()
+        self.map_array = None
+        self.reset_map_array()
         self.img_size = img_size
         self.max_sampling_size = max_sampling_size
         self.model_name = model_name
@@ -399,9 +413,9 @@ class MapMaker:
         return
 
     def make_map(self, make_sources=True):
-        self.logger.info("Generating map...")
+        self.logger.info("Starting map generation...")
 
-        if self.map_array.any():
+        if (a := self.map_array) is not None and a.any():
             self.logger.warning("Map array is not empty. Resetting...")
             self.reset_map_array
 
@@ -413,7 +427,8 @@ class MapMaker:
 
         # Add compact & extended sources
         if make_sources:
-            self.make_compact_sources()
+            # TODO: Implement decision on whether to run parallel
+            self.make_compact_sources_parallel()
         self.add_compact_sources()
 
         if make_sources:
@@ -427,6 +442,7 @@ class MapMaker:
         nsrc = len(self.comp_df)
 
         # Place compact sources on map
+
         self.comp_images = np.zeros((nsrc, self.img_size, self.img_size))
         for i, (_, source) in tqdm(
             enumerate(self.comp_df.iterrows()),
@@ -441,6 +457,37 @@ class MapMaker:
                 img_size=self.img_size,
             )
             self.comp_images[i] = source_arr
+
+    def make_compact_sources_parallel(self):
+        self.logger.info("Generating compact sources in parallel...")
+        nsrc = len(self.comp_df)
+
+        # Place compact sources on map
+        self.comp_images = np.zeros((nsrc, self.img_size, self.img_size))
+
+
+        with ProcessPoolExecutor(max_workers=16) as executor:
+            futures = [
+                executor.submit(process_compact_source, i, source, self.img_size)
+                for i, (_, source) in tqdm(
+                    enumerate(self.comp_df.iterrows()),
+                    total=nsrc,
+                    desc="Submitting jobs",
+                )
+            ]
+
+            with tqdm(total=nsrc, desc="Making compact sources") as pbar:
+                for future in as_completed(futures):
+                    try:
+                        i, source_arr, error = future.result()
+                        if error:
+                            self.logger.error(f"Error processing source {i}: {error}")
+                        if source_arr is not None:
+                            self.comp_images[i] = source_arr
+                        pbar.update(1)
+                    except Exception as e:
+                        self.logger.error(f"Error in future result: {e}")
+
 
     def add_compact_sources(self):
         if self.comp_images is None:
@@ -579,7 +626,7 @@ if __name__ == "__main__":
         / "diffusion/trecs_output/1deg_1e-7JyLimit/catalogue_continuum_wrapped.fits"
     )
     dset = "prototypes"
-    sampler_settings = {"n_devices": 1}
+    sampler_settings = {"n_devices": 2}
 
     # Initialize MapMaker
     mm = MapMaker(
