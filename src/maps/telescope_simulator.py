@@ -231,7 +231,7 @@ class TelescopeSimulator:
                 f"source ./envs/losito_venv/bin/activate\n"
                 f"cd {self.mount_parent / self.synthms_dir.name}\n"
                 f"synthms  --name {self.parent.name} --start {tstart}"
-                f" --tobs 8 --ra {ra} --dec {dec} --station HBA --minfreq {minfreq}"
+                f" --tobs 8 --tres 8 --ra {ra} --dec {dec} --station HBA --minfreq {minfreq}"
                 f" --maxfreq {maxfreq} --chanpersb 2"
             )
 

@@ -39,6 +39,7 @@ class MapMaker:
         img_size=80,
         arcsec_per_px=1.5,
         max_sampling_size=80,
+        min_flux=0,
         sampler_settings={"n_devices": 2},
     ):
         # Logger
@@ -48,10 +49,11 @@ class MapMaker:
         self.map_size_deg = map_size_deg
         self.arcsec_per_px = arcsec_per_px
         self.map_size_px = int(map_size_deg * 3600 / arcsec_per_px)
-        self.map_array = np.zeros((self.map_size_px,) * 2)
+        self.map_array = self.reset_map_array()
         self.img_size = img_size
         self.max_sampling_size = max_sampling_size
         self.model_name = model_name
+        self.min_flux = min_flux
 
         # Extended sources, stored in lists because of different sizes
         self.ext_data = {
@@ -117,6 +119,7 @@ class MapMaker:
             mm.max_sampling_size = f.attrs["max_sampling_size"]
             mm.input_data = ast.literal_eval(f.attrs["input_data"])
             mm.sampler_settings = ast.literal_eval(f.attrs["sampler_settings"])
+            mm.min_flux = f.attrs.get("min_flux", 0)
 
             # Data arrays
             mm.map_array = f["sky_map"][:]
@@ -263,6 +266,7 @@ class MapMaker:
             f.attrs["model_name"] = self.model_name
             f.attrs["input_data"] = str(self.input_data)
             f.attrs["sampler_settings"] = str(self.sampler_settings)
+            f.attrs["min_flux"] = self.min_flux
 
         self.logger.info("MapMaker saved.")
 
@@ -390,29 +394,45 @@ class MapMaker:
 
         return all_sky_mask
 
-    def make_map(self):
+    def reset_map_array(self):
+        self.map_array = np.zeros((self.map_size_px,) * 2)
+        return
+
+    def make_map(self, make_sources=True):
         self.logger.info("Generating map...")
 
+        if self.map_array.any():
+            self.logger.warning("Map array is not empty. Resetting...")
+            self.reset_map_array
+
+        if not make_sources:
+            self.logger.info(
+                "Skipping generation of sources. If no sources are present in the MapMaker instance, this will raise an error."
+            )
+            return
+
         # Add compact & extended sources
+        if make_sources:
+            self.make_compact_sources()
         self.add_compact_sources()
-        self.make_extended_sources()
+
+        if make_sources:
+            self.make_extended_sources()
         self.add_extended_sources()
 
         self.logger.info("Map generated.")
         return
 
-    def add_compact_sources(self):
+    def make_compact_sources(self):
+        nsrc = len(self.comp_df)
+
         # Place compact sources on map
-        self.comp_images = np.zeros((len(self.comp_df), self.img_size, self.img_size))
+        self.comp_images = np.zeros((nsrc, self.img_size, self.img_size))
         for i, (_, source) in tqdm(
             enumerate(self.comp_df.iterrows()),
-            desc="Adding compact sources",
-            total=len(self.comp_df),
+            desc="Making compact sources",
+            total=nsrc,
         ):
-
-            # Get pixel coordinates
-            coords = source.x_coord, source.y_coord
-
             # Generate source array & scale to flux
             source_arr = mputil.gaussian_signal(
                 size=source.size,
@@ -421,6 +441,28 @@ class MapMaker:
                 img_size=self.img_size,
             )
             self.comp_images[i] = source_arr
+
+    def add_compact_sources(self):
+        if self.comp_images is None:
+            self.logger.warning("No compact sources found.")
+            return
+
+        nsrc = len(self.comp_df)
+
+        # Place compact sources on map
+        self.comp_images = np.zeros((nsrc, self.img_size, self.img_size))
+        for i, (_, source) in tqdm(
+            enumerate(self.comp_df.iterrows()),
+            desc="Adding compact sources",
+            total=nsrc,
+        ):
+            if source.flux < self.min_flux:
+                continue
+
+            # Get pixel coordinates
+            coords = source.x_coord, source.y_coord
+
+            source_arr = self.comp_images[i]
             source_arr *= source.flux  # Gaussian signal is normalized already
 
             # Add source array to map
@@ -432,11 +474,15 @@ class MapMaker:
             print("No image data found for extended sources.")
             return
 
+        nsrc = len(self.ext_df)
+
         for i, (_, source) in tqdm(
             enumerate(self.ext_df.iterrows()),
             desc="Adding extended sources",
-            total=len(self.ext_df),
+            total=nsrc,
         ):
+            if source.flux < self.min_flux:
+                continue
 
             # Get pixel coordinates & centroid
             coords = source.x_coord, source.y_coord
@@ -460,8 +506,16 @@ class MapMaker:
             return
         size_rvs = rv_histogram(self.model_size_distribution)
 
+        # Filter sources by flux
+        # EDIT: For now, we filter by flux only when adding the sources,
+        # we will generate all sources in the trecs cat then filter them.
+        # self.logger.info(f"Filtering for minimum flux {self.min_flux} Jy...")
+        # ext_df_filtered = self.ext_df[self.ext_df["flux"] >= self.min_flux]
+        ext_df_filtered = self.ext_df
+        nsrc = len(ext_df_filtered)
+
         # Get sizes from distribution, will be used as sampling context
-        sizes = size_rvs.rvs(size=len(self.ext_df))
+        sizes = size_rvs.rvs(size=nsrc)
         context = np.clip(sizes, 0, self.max_sampling_size).reshape(-1, 1)
 
         # Apply box-cox transform to sizes

@@ -16,3 +16,4 @@ wandb/
 **/__pycache__/
 *.simg
 launch_singularity
+src/notebooks/media/
