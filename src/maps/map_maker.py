@@ -576,7 +576,7 @@ if __name__ == "__main__":
     model_name = "Prototypes_Model_SizeCond"
     trecs_cat_file = (
         paths.STORAGE_PARENT
-        / "diffusion/trecs_output/1deg_1/catalogue_continuum_wrapped.fits"
+        / "diffusion/trecs_output/1deg_1e-7JyLimit/catalogue_continuum_wrapped.fits"
     )
     dset = "prototypes"
     sampler_settings = {"n_devices": 1}
@@ -594,7 +594,7 @@ if __name__ == "__main__":
     mm.make_map()
 
     # Save map
-    mm.save("map_1deg_max80", override=True)
+    mm.save("map_1deg_max80_1e-7JyLimit", override=True)
 
     # Make mask
     mm.make_mask(flux_threshold=0.3, save=True)
