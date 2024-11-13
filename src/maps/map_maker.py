@@ -47,6 +47,7 @@ def process_compact_source(i, source, img_size):
     except Exception as e:
         return i, None, str(e)
 
+
 class MapMaker:
     def __init__(
         self,
@@ -453,7 +454,7 @@ class MapMaker:
             hdu.writeto(out_file, overwrite=True)
             self.logger.info("Map data saved.")
 
-        return mask
+        return mask, out_file
 
     def make_object_mask(self, flux_threshold=None, mask_size=None, save=True):
         # Select compact sources
@@ -721,14 +722,15 @@ class MapMaker:
 if __name__ == "__main__":
 
     # Settings
-    map_size_deg = 1
+    trecs_name = "2.5deg_1e-7JyLimit"
+    map_size_deg = 2.5
     model_name = "Prototypes_Model_SizeCond"
     trecs_cat_file = (
         paths.STORAGE_PARENT
-        / "diffusion/trecs_output/1deg_1e-7JyLimit/catalogue_continuum_wrapped.fits"
+        / f"diffusion/trecs_output/{trecs_name}/catalogue_continuum_wrapped.fits"
     )
     dset = "prototypes"
-    sampler_settings = {"n_devices": 2}
+    sampler_settings = {"n_devices": 4}
 
     # Initialize MapMaker
     mm = MapMaker(
@@ -743,7 +745,10 @@ if __name__ == "__main__":
     mm.make_map()
 
     # Save map
-    mm.save("map_1deg_max80_1e-7JyLimit", override=True)
+    mm.save("map_2.5deg_max80_1e-7JyLimit", override=True)
 
     # Make mask
-    mm.make_mask(flux_threshold=0.3, save=True)
+    _, mask_file = mm.make_threshold_mask(sensitivity=1e-4, save=True)
+
+    # Save masked map
+    mm.save_masked_map(mask_file)
