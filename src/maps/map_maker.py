@@ -44,6 +44,8 @@ def process_compact_source(i, source, img_size):
     except Exception as e:
         return i, None, str(e)
 
+    except Exception as e:
+        return i, None, str(e)
 
 class MapMaker:
     def __init__(
