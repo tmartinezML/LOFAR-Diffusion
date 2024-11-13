@@ -6,6 +6,31 @@ from scipy.stats import multivariate_normal
 from scipy.ndimage import gaussian_filter, rotate
 
 
+def beam_solid_angle(beam_size):
+    """
+    Calculate the solid angle of a beam, given its size, in squared input units.
+
+    Parameters
+    ----------
+    beam_size : int | float | tuple | list
+        Size of the beam in arcseconds. If a tuple or list is given, the
+        first two elements are used as the major and minor axis of the beam.
+        Otherwise, the beam is assumed to be circular.
+
+    Returns
+    -------
+    float
+        Solid angle of the beam in same unit (squared tho) as the input.
+    """
+    match beam_size:
+        case int() | float():
+            bb = beam_size**2
+        case tuple() | list():
+            bb = beam_size[0] * beam_size[1]
+
+    return np.pi / (4 * np.log(2)) * bb
+
+
 def get_image(file, get_wcs=True):
     hdul = fits.open(file)
     image = hdul[0].data

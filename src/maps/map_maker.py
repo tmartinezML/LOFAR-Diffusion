@@ -1,5 +1,7 @@
 import ast
 import warnings
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
+from pathlib import Path
 
 import h5py
 import torch
@@ -11,6 +13,7 @@ from astropy.io import fits
 from astropy.table import Table
 from scipy.stats import rv_histogram
 from skimage.draw import disk
+from skimage.transform import resize
 from skimage.measure import regionprops_table
 
 import utils.logging
@@ -23,9 +26,23 @@ from data.cutouts import save_images_h5py
 from data.segment import get_sample_mask, circular_mask
 from data.datasets import parse_dset_path
 
+
 # TODO:
 # - Add type hints & docstrings
 # - Review variable names
+def process_compact_source(i, source, img_size):
+    try:
+        # Generate source array & scale to flux
+        source_arr = mputil.gaussian_signal(
+            size=source.size,
+            angle=source.angle,
+            convolve=True,
+            img_size=img_size,
+        )
+        return i, source_arr, False
+
+    except Exception as e:
+        return i, None, str(e)
 
 
 class MapMaker:
@@ -49,7 +66,8 @@ class MapMaker:
         self.map_size_deg = map_size_deg
         self.arcsec_per_px = arcsec_per_px
         self.map_size_px = int(map_size_deg * 3600 / arcsec_per_px)
-        self.map_array = self.reset_map_array()
+        self.map_array = None
+        self.reset_map_array()
         self.img_size = img_size
         self.max_sampling_size = max_sampling_size
         self.model_name = model_name
@@ -98,8 +116,17 @@ class MapMaker:
 
         self.logger.info("MapMaker initialized.")
 
-    def from_hdf(file_name):
-        in_file = paths.SKY_MAP_PARENT / f"{file_name}/{file_name}.h5"
+    def from_hdf(in_file):
+        match in_file:
+            case str():
+                # Assume file name
+                file_name = in_file
+                in_file = paths.SKY_MAP_PARENT / f"{file_name}/{file_name}.h5"
+            case Path():
+                # Assume file object
+                file_name = in_file.stem
+            case _:
+                raise ValueError(f"Invalid data type for input file: {type(in_file)}")
 
         # Read data arrays and attributes first
         with h5py.File(in_file, "r") as f:
@@ -270,7 +297,7 @@ class MapMaker:
 
         self.logger.info("MapMaker saved.")
 
-    def save_to_fits(self, file_name=None, override=False):
+    def save_to_fits(self, data=None, file_name=None, override=False):
         # Set and check: file name, out file, override
         # Set and check: file name, out file, override
         if file_name is None:
@@ -337,7 +364,96 @@ class MapMaker:
         self.logger.info("Model size distribution extracted.")
         return
 
-    def make_mask(self, flux_threshold=0.3, mask_size=None, save=True):
+    def save_masked_map(self, mask_file):
+        if not self._check_hasname():
+            return
+
+        mask = fits.getdata(mask_file).squeeze()
+        assert (
+            mask.shape == self.map_array.shape
+        ), "Mask shape does not match map shape."
+        masked_map = self.map_array * mask
+
+        out_file = self.out_dir / f"{self.file_name}_masked.fits"
+        self.logger.info(f"Saving masked map data to\n\t{out_file}")
+        header = mputil.make_fits_header(
+            arcsec_per_px=self.arcsec_per_px,
+            map_size_px=self.map_size_px,
+        )
+        header["MASKFILE"] = str(mask_file)
+        hdu = fits.PrimaryHDU(header=header, data=masked_map)
+        hdu.writeto(out_file, overwrite=True, output_verify="fix")
+        self.logger.info("Masked map data saved.")
+        return
+
+    def make_threshold_mask(
+        self,
+        sensitivity=1e-4,  # Jy/beam
+        peak_flux_threshold=None,
+        save=True,
+        mask_size=None,
+    ):
+        if sensitivity is not None and peak_flux_threshold is None:
+            beam_size = 6  # arcsec (fixed for now)
+            beam_angle = mputil.beam_solid_angle(beam_size)
+            peak_flux_threshold = (
+                sensitivity * self.arcsec_per_px**2 / beam_angle
+            )  # Jy/pixel
+            self.logger.info(
+                f"Creating mask with sensitivity {sensitivity} Jy/beam = {peak_flux_threshold} Jy/pixel..."
+            )
+            file_suffix = f"{sensitivity:.2e}JyBeam^-1"
+
+        elif peak_flux_threshold is not None:
+            self.logger.info(
+                f"Creating mask with peak flux threshold {peak_flux_threshold} Jy/pixel..."
+            )
+            file_suffix = f"{peak_flux_threshold:.2e}JyPx^-1"
+
+        else:
+            msg = "No sensitivity or peak flux threshold provided. Aborting."
+            self.logger.error(msg)
+            raise ValueError(msg)
+
+        mask = self.map_array >= peak_flux_threshold
+
+        match mask_size:
+            case None | "ddf":
+                self.logger.info("Estimating mask size for DDF...")
+                mask_size = EstimateNpix(self.map_size_px)[0]
+                file_suffix += "_ddfSize"
+
+            case "model":
+                mask_size = self.map_size_px
+                file_suffix += "_modelSize"
+
+            case int():
+                file_suffix += f"_{mask_size}px"
+
+            case _:
+                msg = f"Invalid keyword argument for mask size: {mask_size} (of type {type(mask_size)}). Aborting."
+                self.logger.error(msg)
+                raise ValueError(msg)
+
+        self.logger.info(
+            f"Creating mask with {mask_size} px (from map with {self.map_size_px} px)."
+        )
+        mask = resize(mask, output_shape=(mask_size,) * 2).astype(bool).astype(int)
+        # Bring dimensions to standard format
+        mask = np.expand_dims(mask, axis=(0, 1))
+
+        if save and self._check_hasname():
+            out_file = (
+                self.out_dir / f"{self.file_name}_thresholdMask_{file_suffix}.fits"
+            )
+            self.logger.info(f"Saving map data to\n\t{out_file}")
+            hdu = fits.PrimaryHDU(mask)
+            hdu.writeto(out_file, overwrite=True)
+            self.logger.info("Map data saved.")
+
+        return mask
+
+    def make_object_mask(self, flux_threshold=None, mask_size=None, save=True):
         # Select compact sources
         comp_flag = self.comp_df["flux"] > flux_threshold
         comp_df = self.comp_df[comp_flag]
@@ -359,7 +475,7 @@ class MapMaker:
         self.logger.info(
             f"Creating mask with {mask_size} px (from map with {self.map_size_px} px)."
         )
-        all_sky_mask = np.zeros((mask_size,) * 2)  # +1 bc. of ddf-pipeline
+        all_sky_mask = np.zeros((mask_size,) * 2)
 
         # Add compact sources to mask
         for _, source in comp_df.iterrows():
@@ -385,7 +501,7 @@ class MapMaker:
         if save and self._check_hasname():
             out_file = (
                 self.out_dir
-                / f"{self.file_name}_mask_{str(flux_threshold).replace('.', 'p')}.fits"
+                / f"{self.file_name}_objectMask_{str(flux_threshold).replace('.', 'p')}.fits"
             )
             self.logger.info(f"Saving map data to\n\t{out_file}")
             hdu = fits.PrimaryHDU(all_sky_mask)
@@ -399,9 +515,9 @@ class MapMaker:
         return
 
     def make_map(self, make_sources=True):
-        self.logger.info("Generating map...")
+        self.logger.info("Starting map generation...")
 
-        if self.map_array.any():
+        if (a := self.map_array) is not None and a.any():
             self.logger.warning("Map array is not empty. Resetting...")
             self.reset_map_array
 
@@ -413,7 +529,8 @@ class MapMaker:
 
         # Add compact & extended sources
         if make_sources:
-            self.make_compact_sources()
+            # TODO: Implement decision on whether to run parallel
+            self.make_compact_sources_parallel()
         self.add_compact_sources()
 
         if make_sources:
@@ -427,6 +544,7 @@ class MapMaker:
         nsrc = len(self.comp_df)
 
         # Place compact sources on map
+
         self.comp_images = np.zeros((nsrc, self.img_size, self.img_size))
         for i, (_, source) in tqdm(
             enumerate(self.comp_df.iterrows()),
@@ -441,6 +559,35 @@ class MapMaker:
                 img_size=self.img_size,
             )
             self.comp_images[i] = source_arr
+
+    def make_compact_sources_parallel(self):
+        self.logger.info("Generating compact sources in parallel...")
+        nsrc = len(self.comp_df)
+
+        # Place compact sources on map
+        self.comp_images = np.zeros((nsrc, self.img_size, self.img_size))
+
+        with ProcessPoolExecutor(max_workers=16) as executor:
+            futures = [
+                executor.submit(process_compact_source, i, source, self.img_size)
+                for i, (_, source) in tqdm(
+                    enumerate(self.comp_df.iterrows()),
+                    total=nsrc,
+                    desc="Submitting jobs",
+                )
+            ]
+
+            with tqdm(total=nsrc, desc="Making compact sources") as pbar:
+                for future in as_completed(futures):
+                    try:
+                        i, source_arr, error = future.result()
+                        if error:
+                            self.logger.error(f"Error processing source {i}: {error}")
+                        if source_arr is not None:
+                            self.comp_images[i] = source_arr
+                        pbar.update(1)
+                    except Exception as e:
+                        self.logger.error(f"Error in future result: {e}")
 
     def add_compact_sources(self):
         if self.comp_images is None:
@@ -579,7 +726,7 @@ if __name__ == "__main__":
         / "diffusion/trecs_output/1deg_1e-7JyLimit/catalogue_continuum_wrapped.fits"
     )
     dset = "prototypes"
-    sampler_settings = {"n_devices": 1}
+    sampler_settings = {"n_devices": 2}
 
     # Initialize MapMaker
     mm = MapMaker(

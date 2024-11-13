@@ -167,7 +167,7 @@ class TelescopeSimulator:
         if run_indep:
             MSList = [f.name for f in self.synthms_dir.glob("*.MS")]
         else:
-            MSList = "*.MS"
+            MSList = ["*.MS"]
 
         for i, MS in enumerate(MSList):
             parser["_global"]["msin"] = f"../{self.synthms_dir.name}/{MS}"
@@ -235,15 +235,25 @@ class TelescopeSimulator:
                 f" --maxfreq {maxfreq} --chanpersb 2"
             )
 
+    def import_synthms_files(self):
+        # Prepare directories
+        self._prepare_dir(self.synthms_dir)
+
+        # Copy synthms files from default files
+        self.logger.info("Copying synthms files from default files.")
+        for dir in (self.defualt_file_dir / "synthms").glob("/*.MS"):
+            shutil.copytree(dir, self.synthms_dir / f"{self.parent.name}_{dir.name}")
+        return
+
     def prepare_ddf(self):
         # Prepare directories
         self._prepare_dir(self.ddf_dir)
 
         # Read default config
         ddf_config = ConfigParser()
-        # Preserve case
-        ddf_config.optionxform = str
-        ddf_config.read(self.defualt_file_dir / "ddf_config.cfg")
+        ddf_config.optionxform = str  # Preserve case
+        ddf_preset = str(self.config.get("ddf", "preset", fallback="SSD"))
+        ddf_config.read(self.defualt_file_dir / f"ddf_config-{ddf_preset}.cfg")
 
         # Update config
         ddf_config["Data"]["MS"] = str(
@@ -254,6 +264,7 @@ class TelescopeSimulator:
         )
         ddf_config["Output"]["Name"] = str(self.ddf_dir / self.parent.name)
         ddf_config["Image"]["Npix"] = str(self.map_size_px)
+        ddf_config["Mask"]["External"] = f"../{self.mask_file.name}"
 
         # For DDF we need cell size in arcsec
         ddf_config["Image"]["Cell"] = str(abs(self.fits_header["CDELT1"]) * 3600)
@@ -361,6 +372,10 @@ class TelescopeSimulator:
             self.prepare_synthms()
             p = self.run_synthms()
             p.wait()
+        else:
+            if not self.synthms_dir.exists():
+                self.import_synthms_files()
+
         if self.do_losito:
             self.prepare_losito()
             p = self.run_losito()

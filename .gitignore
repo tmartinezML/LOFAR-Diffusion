@@ -8,7 +8,9 @@ model_results
 losito
 sky_maps
 trecs_output
+trecs
 sky_maps
+misc
 .*
 *.log
 *.out
@@ -17,3 +19,4 @@ wandb/
 *.simg
 launch_singularity
 src/notebooks/media/
+src/maps/default_files/synthms/
