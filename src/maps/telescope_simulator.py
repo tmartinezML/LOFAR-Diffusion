@@ -3,6 +3,7 @@ import sys
 import json
 import shutil
 import logging
+import tempfile
 import itertools
 import subprocess
 from io import StringIO
@@ -10,17 +11,78 @@ from pathlib import Path
 from ast import literal_eval
 from configparser import ConfigParser
 
+import numpy as np
 from astropy.io import fits
 from astropy.time import Time
 from astropy.coordinates import SkyCoord
 
+import bdsf
 import utils.paths as paths
 import utils.logging as logging
+from maps.map_utils import beam_solid_angle, lofar_num2nu
 
 
 # To do:
 # - Maybe copy ddf-pipeline extract/image file from output jungle
 # - Document options for config file
+
+
+def bdsf_on_model(
+    img_file,
+    out_dir=None,
+    **bdsf_kwargs,
+):
+    """
+    Run bdsf on a single image.
+    """
+    if out_dir is None:
+        out_dir = img_file.parent
+
+    # Load image and header
+    with fits.open(img_file) as hdul:
+        img = hdul[0].data.squeeze()
+        header = hdul[0].header
+
+    # Add small amount of noise, otherwise sigma-clipping algorithm called
+    # within bdsf.process_image (functions.bstat) might not converge
+    noise_scale = img[img > 0].min() * 1e-1
+    z = np.random.normal(0, scale=noise_scale, size=img.shape)
+    img += z
+
+    beam_size = 0.001667  # 6 arcsec in deg
+
+    # Multiply to get to Jy / beam
+    img *= beam_solid_angle(6) / 1.5**2
+
+    hdu = fits.PrimaryHDU(data=img, header=header)
+
+    # Create a temporary file
+    with tempfile.NamedTemporaryFile(
+        prefix="tmp_model", suffix=".fits", dir=out_dir
+    ) as f:
+
+        # Write the hdu to tmp fits file
+        fits.HDUList([hdu]).writeto(f.name, overwrite=True)
+
+        kwargs = {
+            "thresh_isl": 10,
+            "thresh_pix": 10,
+            "mean_map": "const",
+            "rms_map": False,
+            "thresh": "hard",
+            "quiet": False,
+            "debug": True,
+        }
+        kwargs.update(bdsf_kwargs)
+
+        img = bdsf.process_image(
+            f.name,
+            beam=(beam_size, beam_size, 0),
+            **kwargs,
+        )
+
+    # Return bdsf image object
+    return img
 
 
 class TelescopeSimulator:
@@ -70,9 +132,9 @@ class TelescopeSimulator:
         self.logger = logging.get_logger("TelSim")
 
         # Read config
-        config_file = TelescopeSimulator.parse_config_name(config_name)
+        self.config_file = TelescopeSimulator.parse_config_name(config_name)
         self.config = ConfigParser()
-        self.config.read(config_file)
+        self.config.read(self.config_file)
 
         # Set paths and data attributes
         # TODO: At the moment, local paths are hard-coded into the generation
@@ -81,22 +143,34 @@ class TelescopeSimulator:
         self.sky_model_file = paths.Path(self.config["data"]["sky_model"])
         self.mask_file = paths.Path(self.config["data"]["fits_mask"])
         self.override = self.config.getboolean("data", "override")
-        self.parent = config_file.parent
+        self.parent = self.config_file.parent
         # In singularity, the storage parent folder is mounted as root directory
         # (See singularity command in shell scripts)
         self.mount_parent = Path(
             f"/{paths.STORAGE_PARENT.name}"
         ) / self.parent.relative_to(paths.STORAGE_PARENT)
 
-        # Define directories for each step
-        self.synthms_dir = self.parent / "synthms"
+        # Define directories & files for each step
+        if (
+            self.config.has_option("data", "ms_dir")
+            and (dir_name := self.config["data"]["ms_dir"]) is not None
+        ):
+            self.ms_dir = self.parent / dir_name
+        else:
+            self.ms_dir = self.parent / "ms"
+        self.DP3_dir = self.parent / "DP3"
         self.losito_dir = self.parent / "losito"
+        self.predict_dir = self.parent / "predict"
         self.ddf_dir = self.parent / "ddf"
         self.ddfpipeline_dir = self.parent / "ddf-pipeline"
+        self.ClusterCat_dir = self.parent / "ClusterCat"
 
         # Set control flags, indicating which steps to run
         self.do_synthms = self.config.getboolean("control", "synthms")
+        self.do_DP3 = self.config.getboolean("control", "DP3")
         self.do_losito = self.config.getboolean("control", "losito")
+        self.do_predict = self.config.getboolean("control", "predict")
+        self.do_ClusterCat = self.config.getboolean("control", "ClusterCat")
         self.do_ddf = self.config.getboolean("control", "ddf")
         self.do_ddfpipeline = self.config.getboolean("control", "ddf-pipeline")
 
@@ -165,12 +239,12 @@ class TelescopeSimulator:
         # Otherwise, we will have a list with only one element, representing
         # all MS with a wildcard.
         if run_indep:
-            MSList = [f.name for f in self.synthms_dir.glob("*.MS")]
+            MSList = [f.name for f in self.ms_dir.glob("*.MS")]
         else:
             MSList = ["*.MS"]
 
         for i, MS in enumerate(MSList):
-            parser["_global"]["msin"] = f"../{self.synthms_dir.name}/{MS}"
+            parser["_global"]["msin"] = f"../{self.ms_dir.name}/{MS}"
             # Write settings to losito.parset with first line removed
             config_out = StringIO()
             parser.write(config_out)
@@ -212,7 +286,7 @@ class TelescopeSimulator:
 
     def prepare_synthms(self):
         # Prepare directories
-        self._prepare_dir(self.synthms_dir)
+        self._prepare_dir(self.ms_dir)
 
         # Set settings for synthms
         tstart = Time(self.config["synthms"]["tstart"]).mjd
@@ -220,29 +294,85 @@ class TelescopeSimulator:
         ra, dec = self.center_radec.ra.rad, self.center_radec.dec.rad
         # Set freq range so we get 2 .MS files. This is required because
         # the ddf-pipeline crashes when only 1 MS is provided.
-        minfreq = 143652344
-        maxfreq = 143847656
+        # Set -1 for full range
+        minfreq = -1  # 143652344
+        maxfreq = -1  # 143847656
+        chanpersb = 2
 
         # Write shell script
-        with open(self.synthms_dir / "synthms_run.sh", "w") as f:
+        with open(self.ms_dir / "synthms_run.sh", "w") as f:
             f.write(
                 f"#!/bin/bash\n"
                 f"cd /tmartinez\n"
                 f"source ./envs/losito_venv/bin/activate\n"
-                f"cd {self.mount_parent / self.synthms_dir.name}\n"
+                f"cd {self.mount_parent / self.ms_dir.name}\n"
                 f"synthms  --name {self.parent.name} --start {tstart}"
-                f" --tobs 8 --tres 8 --ra {ra} --dec {dec} --station HBA --minfreq {minfreq}"
-                f" --maxfreq {maxfreq} --chanpersb 2"
+                f" --tobs 8 --tres 8 --ra {ra} --dec {dec} --station HBA"
+                f" --minfreq {minfreq} --maxfreq {maxfreq}"
+                f" --chanpersb {chanpersb}"
             )
+
+    def prepare_DP3(self):
+        # Prepare directories
+        self._prepare_dir(self.DP3_dir)
+
+        # Input MS files
+        ms_list = sorted(list(self.ms_dir.glob("*.MS")))
+
+        # Divide into chunks of 10 MS files
+        # i + 1 because we're skipping the first MS file
+        ms_list_chunks = [
+            [
+                f'"../{self.ms_dir.name}/{ms.name}"'
+                for ms in ms_list[(i + 1) : (i + 1) + 10]
+            ]
+            for i in range(0, len(ms_list), 10)
+        ]
+
+        # Write parset files
+        for i, ms in enumerate(ms_list_chunks):
+            msin_str = ", ".join(ms)
+            nu = int(np.round(lofar_num2nu(103 + i * 10, station="HBA")[1] * 1e-6))
+            msout_str = (
+                f"../{self.ms_dir.name}/synth_DP3avg_SB{1 + 10*i:03d}_{nu}MHz.MS"
+            )
+            with open(self.DP3_dir / f"DP3.parset_{i}", "w") as f:
+                f.write(
+                    f"msin = [{msin_str}]\n"
+                    f"msout = {msout_str}\n"
+                    f"steps = [avg]\n"
+                    f"avg.type = average\n"
+                )
+
+        # Write shell script
+        with open(self.DP3_dir / "DP3_run.sh", "w") as f:
+            f.write(
+                f"#!/bin/bash\n"
+                f"cd /tmartinez\n"
+                f"source ./envs/losito_venv/bin/activate\n"
+                f"cd {self.mount_parent / self.DP3_dir.name}\n"
+            )
+            for i, ms in enumerate(ms_list_chunks):
+                f.write(f"DP3 DP3.parset_{i}\n")
+
+    def run_DP3(self):
+        cmd = [
+            "sh",
+            str(self.shell_script_dir / "container_exec.sh"),
+            str(self.mount_parent / self.DP3_dir.name / "DP3_run.sh"),
+        ]
+        log_file = self.DP3_dir / "TelSim_DP3.log"
+        p = self._run_command_with_logging(cmd, log_file)
+        return p
 
     def import_synthms_files(self):
         # Prepare directories
-        self._prepare_dir(self.synthms_dir)
+        self._prepare_dir(self.ms_dir)
 
         # Copy synthms files from default files
-        self.logger.info("Copying synthms files from default files.")
-        for dir in (self.defualt_file_dir / "synthms").glob("/*.MS"):
-            shutil.copytree(dir, self.synthms_dir / f"{self.parent.name}_{dir.name}")
+        self.logger.info("Copying synthms files from default files...")
+        for dir in (self.defualt_file_dir / "synthms").glob("*.MS"):
+            shutil.copytree(dir, self.ms_dir / f"{self.parent.name}_{dir.name}")
         return
 
     def prepare_ddf(self):
@@ -256,14 +386,13 @@ class TelescopeSimulator:
         ddf_config.read(self.defualt_file_dir / f"ddf_config-{ddf_preset}.cfg")
 
         # Update config
-        ddf_config["Data"]["MS"] = str(
-            [
-                f"../{self.synthms_dir.name}/{f.name}"
-                for f in self.synthms_dir.glob("*.MS")
-            ]
-        )
+        # Check if self.config has MS options
+        if self.config.has_option("data", "MS"):
+            ddf_config["Data"]["MS"] = self.config["ddf"]["MS"]
+        else:
+            ddf_config["Data"]["MS"] = f"../{self.ms_dir.name}/*.MS"
         ddf_config["Output"]["Name"] = str(self.ddf_dir / self.parent.name)
-        ddf_config["Image"]["Npix"] = str(self.map_size_px)
+        ddf_config["Image"]["NPix"] = str(self.map_size_px)
         ddf_config["Mask"]["External"] = f"../{self.mask_file.name}"
 
         # For DDF we need cell size in arcsec
@@ -287,18 +416,39 @@ class TelescopeSimulator:
         # Prepare directories
         self._prepare_dir(self.ddfpipeline_dir)
 
-        # Write mslist.txt with the files in synthms_dir
+        # Read available ms files
+        ms_list = sorted(list(self.ms_dir.glob("*.MS")))
+        if not len(ms_list):
+            raise FileNotFoundError(f"No MS files found in {self.ms_dir}.")
+
+        # Write mslist.txt with the files in ms_dir
         with open(self.ddfpipeline_dir / "mslist.txt", "w") as f:
-            for file in self.synthms_dir.glob("*.MS"):
-                # TODO: Not sure if relative path will work
-                f.write(f"../{self.synthms_dir.name}/{file.name}\n")
+            for file in ms_list:
+                f.write(f"../{self.ms_dir.name}/{file.name}\n")
+
+        # If desired, create evenly spaced sub-list
+        if self.config.has_option("ddf-pipeline", "make_ms_sublist") and (
+            make_sublist := self.config.getboolean("ddf-pipeline", "make_ms_sublist")
+        ):
+            self.logger.info("Creating ms sub-list for ddf-pipeline...")
+
+            if (n := len(ms_list)) < 24:
+                self.logger.warning(f"Warning -- only {n} ms files found!")
+
+            # Create evenly spaced sub-list
+            ms_sublist = ms_list[2::4]
+            with open(self.ddfpipeline_dir / "ms_sublist.txt", "w") as f:
+                for file in ms_sublist:
+                    f.write(f"../{self.ms_dir.name}/{file.name}\n")
 
         # Read default config
         ddfpipeline_config = ConfigParser()
         ddfpipeline_config.read(self.defualt_file_dir / "ddf-pipeline_config.cfg")
 
         # Update config
-        ddfpipeline_config["data"]["mslist"] = "mslist.txt"
+        ddfpipeline_config["data"]["mslist"] = (
+            "ms_sublist.txt" if make_sublist else "mslist.txt"
+        )
         ddfpipeline_config["data"]["full_mslist"] = "mslist.txt"
         ddfpipeline_config["image"]["imsize"] = str(self.map_size_px)
         if (npix := literal_eval(self.config["ddf-pipeline"]["Npix"])) is not None:
@@ -307,6 +457,22 @@ class TelescopeSimulator:
             ddfpipeline_config["solutions"]["ndir"] = self.config["ddf-pipeline"][
                 "ndir"
             ]
+
+        if (
+            ClusterCat_file := self.ClusterCat_dir
+            / self.sky_model_file.with_suffix(".pybdsf.srl.fits.ClusterCat.npy").name
+        ).exists():
+            self.logger.info(
+                f"ClusterCat file found, using it for ddf-pipeline:\n\t{ClusterCat_file}"
+            )
+            ddfpipeline_config["image"][
+                "clusterfile"
+            ] = f"../{self.ClusterCat_dir.name}/{ClusterCat_file.name}"
+
+        elif self.config.has_option("ddf-pipeline", "clusterfile"):
+            ddfpipeline_config["image"][
+                "clusterfile"
+            ] = f'../{self.config["ddf-pipeline"]["clusterfile"]}'
 
         # TODO: Not sure if relative path will work, but should be fine
         ddfpipeline_config["masking"][
@@ -326,13 +492,95 @@ class TelescopeSimulator:
                 f"pipeline.py ddf-pipeline_config.cfg"
             )
 
+    def prepare_predict(self):
+        # Prepare directories
+        self._prepare_dir(self.predict_dir)
+
+        # Read default config
+        pred_config = ConfigParser()
+        pred_config.optionxform = str  # Preserve case
+        pred_config.read(self.defualt_file_dir / f"ddf_config-Predict.cfg")
+
+        # Update config
+        # Check if self.config has MS options
+        if self.config.has_option("data", "MS"):
+            pred_config["Data"]["MS"] = self.config["data"]["MS"]
+        else:
+            pred_config["Data"]["MS"] = f"../{self.ms_dir.name}/*.MS"
+        pred_config["Predict"]["FromImage"] = f"../{self.sky_model_file}"
+        pred_config["Output"]["Name"] = str(self.predict_dir / self.parent.name)
+        # pred_config["Image"]["Npix"] = str(self.map_size_px)
+        # pred_config["Mask"]["External"] = f"../{self.mask_file.name}"
+
+        # For DDF we need cell size in arcsec
+        # pred_config["Image"]["Cell"] = str(abs(self.fits_header["CDELT1"]) * 3600)
+
+        # Write config
+        with open(self.predict_dir / "predict_config.cfg", "w") as f:
+            pred_config.write(f)
+
+        # Prepare shell script
+        with open(self.predict_dir / "predict_run.sh", "w") as f:
+            f.write(
+                f"#!/bin/bash\n"
+                f"source /hsopt/anaconda3/base.env\n"
+                f"conda activate cenv_ddf\n"
+                f"cd {self.predict_dir}\n"
+                f"DDF.py predict_config.cfg"
+            )
+
+    def prepare_ClusterCat(self):
+        self._prepare_dir(self.ClusterCat_dir)
+        bdsf_cat = self.sky_model_file.with_suffix(".pybdsf.srl.fits").name
+
+        ndir = self.config.get("ddf-pipeline", "ndir", fallback=45)
+
+        cmd = f"ClusterCat.py --SourceCat {bdsf_cat} --DoPlot=0 --NGen 100 --NCPU 96 --NCluster {ndir}"
+
+        # Prepare shell script
+        with open(self.ClusterCat_dir / "ClusterCat_run.sh", "w") as f:
+            f.write(
+                f"#!/bin/bash\n"
+                f"source /hsopt/anaconda3/base.env\n"
+                f"conda activate cenv_ddf\n"
+                f"cd {self.ClusterCat_dir}\n"
+                f"{cmd}"
+            )
+
+    def run_ClusterCat(self):
+        # Create pybdsf catalog
+        img = bdsf_on_model(
+            self.parent / self.sky_model_file,
+            out_dir=self.ClusterCat_dir,
+        )
+        img.write_catalog(
+            # TO DO: This is not DRY, since the outfile name is also defined in
+            # prepare_ClusterCat. This should be fixed.
+            outfile=str(
+                self.ClusterCat_dir
+                / self.sky_model_file.with_suffix(".pybdsf.srl.fits").name
+            ),
+            catalog_type="srl",
+            clobber=True,
+            format="fits",
+        )
+
+        # Run ClusterCat
+        cmd = [
+            "bash",
+            str(self.ClusterCat_dir / "ClusterCat_run.sh"),
+        ]
+        log_file = self.ClusterCat_dir / "TelSim_ClusterCat.log"
+        p = self._run_command_with_logging(cmd, log_file)
+        return p
+
     def run_synthms(self):
         cmd = [
             "sh",
             str(self.shell_script_dir / "container_exec.sh"),
-            str(self.mount_parent / self.synthms_dir.name / "synthms_run.sh"),
+            str(self.mount_parent / self.ms_dir.name / "synthms_run.sh"),
         ]
-        log_file = self.synthms_dir / "TelSim_synthms.log"
+        log_file = self.ms_dir / "TelSim_synthms.log"
         p = self._run_command_with_logging(cmd, log_file)
         return p
 
@@ -355,6 +603,15 @@ class TelescopeSimulator:
         p = self._run_command_with_logging(cmd, log_file)
         return p
 
+    def run_predict(self):
+        cmd = [
+            "bash",
+            str(self.predict_dir / "predict_run.sh"),
+        ]
+        log_file = self.predict_dir / "TelSim_predict.log"
+        p = self._run_command_with_logging(cmd, log_file)
+        return p
+
     def run_ddfpipeline(self):
         cmd = [
             "sh",
@@ -365,25 +622,80 @@ class TelescopeSimulator:
         p = self._run_command_with_logging(cmd, log_file)
         return p
 
+    def _welcome_message(self):
+        # Read ASCII art logo from file and display
+        with open(self.defualt_file_dir / "TelescopeSimulator_logo.txt") as f:
+            self.logger.info(
+                "Welcome to the"
+                + (lspace := "\n\n")
+                + (indent := "\t\t")
+                + indent.join([l for l in f.readlines()])
+                + lspace
+            )
+        self.logger.info(f"Running with config file:\n\t{self.config_file}")
+
+        # Iterate through config control options and print which steps will be run
+        steps = [
+            opt
+            for opt in self.config["control"]
+            if self.config.getboolean("control", opt)
+        ]
+
+        self.logger.info(
+            "The following steps will be run:\n\n\t" + "\n\t".join(steps) + "\n"
+        )
+
+        # For testing: Exit applicaiton here
+        if False:
+            self.logger.info("Exiting application.")
+            sys.exit()
+
     def run(
         self,
     ):
+        self._welcome_message()
         if self.do_synthms:
             self.prepare_synthms()
             p = self.run_synthms()
             p.wait()
-        else:
-            if not self.synthms_dir.exists():
+        elif any(
+            [
+                self.do_DP3,
+                self.do_losito,
+                self.do_predict,
+                self.do_ClusterCat,
+                self.do_ddf,
+                self.do_ddfpipeline,
+            ]
+        ):
+            if not self.ms_dir.exists() or not list(self.ms_dir.glob("*.MS")):
                 self.import_synthms_files()
+
+        if self.do_DP3:
+            self.prepare_DP3()
+            p = self.run_DP3()
+            p.wait()
 
         if self.do_losito:
             self.prepare_losito()
             p = self.run_losito()
             p.wait()
+
+        if self.do_predict:
+            self.prepare_predict()
+            p = self.run_predict()
+            p.wait()
+
+        if self.do_ClusterCat:
+            self.prepare_ClusterCat()
+            p = self.run_ClusterCat()
+            p.wait()
+
         if self.do_ddf:
             self.prepare_ddf()
             p = self.run_ddf()
             p.wait()
+
         if self.do_ddfpipeline:
             self.prepare_ddfpipeline()
             p = self.run_ddfpipeline()

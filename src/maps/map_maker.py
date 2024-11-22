@@ -391,7 +391,7 @@ class MapMaker:
 
     def make_threshold_mask(
         self,
-        sensitivity=1e-4,  # Jy/beam
+        sensitivity=5e-5,  # Jy/beam
         peak_flux_threshold=None,
         save=True,
         mask_size=None,
@@ -600,7 +600,6 @@ class MapMaker:
         nsrc = len(self.comp_df)
 
         # Place compact sources on map
-        self.comp_images = np.zeros((nsrc, self.img_size, self.img_size))
         for i, (_, source) in tqdm(
             enumerate(self.comp_df.iterrows()),
             desc="Adding compact sources",
@@ -613,7 +612,8 @@ class MapMaker:
             coords = source.x_coord, source.y_coord
 
             source_arr = self.comp_images[i]
-            source_arr *= source.flux  # Gaussian signal is normalized already
+            # Gaussian signal is normalized already
+            source_arr *= source.flux / self.arcsec_per_px**2  # Jy/pixel
 
             # Add source array to map
             self.add_source_image(source_arr, coords)
@@ -640,7 +640,7 @@ class MapMaker:
             source_arr = self.ext_data["images"][i] * self.ext_data["masks"][i]
 
             # Scale source to flux
-            source_arr = mputil.scale_to_flux(source_arr, source.flux)
+            source_arr *= (1 / source_arr.sum()) * source.flux / self.arcsec_per_px**2
 
             # Add source array to map
             self.add_source_image(source_arr, coords, centroid=centroid)
@@ -722,8 +722,8 @@ class MapMaker:
 if __name__ == "__main__":
 
     # Settings
-    trecs_name = "2.5deg_1e-7JyLimit"
-    map_size_deg = 2.5
+    trecs_name = "5deg_8e-5JyLimit"
+    map_size_deg = 5
     model_name = "Prototypes_Model_SizeCond"
     trecs_cat_file = (
         paths.STORAGE_PARENT
@@ -748,7 +748,7 @@ if __name__ == "__main__":
     mm.save("map_2.5deg_max80_1e-7JyLimit", override=True)
 
     # Make mask
-    _, mask_file = mm.make_threshold_mask(sensitivity=1e-4, save=True)
+    _, mask_file = mm.make_threshold_mask(sensitivity=5e-5, save=True)
 
     # Save masked map
     mm.save_masked_map(mask_file)

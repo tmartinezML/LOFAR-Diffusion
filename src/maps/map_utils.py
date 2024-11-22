@@ -6,6 +6,33 @@ from scipy.stats import multivariate_normal
 from scipy.ndimage import gaussian_filter, rotate
 
 
+def lofar_num2nu(num, station, n_chan=2, nu_clk=200.0e6):
+    """
+    Get channel freq in MHz from LOFAR SB
+    Parameters
+    ----------
+    num: SB number
+    station: str, LBA or HBA
+    n_chan: int, number of channels
+    nu_clk: clock frequency
+
+    Returns
+    -------
+    freq : (4,) array of floats, frequencies of channels
+    ref_freq: float, reference freq.
+    delta_nu: float, bandwidth of channel
+    """
+    if nu_clk == 200e6:
+        SBband = 195312.5
+    elif nu_clk == 160e6:
+        SBband = 156250.0
+    n = 1 if station == "LBA" else 2
+    nu_0 = nu_clk * (num / 1024 + (n - 1) / 2)  # ref freq of SB
+    delta_nu = nu_clk / (1024 * n_chan)  # difference between channels
+    f = np.arange(n_chan) * delta_nu + nu_0 - delta_nu * (n - 1) / 2
+    return f, np.mean(f), delta_nu
+
+
 def beam_solid_angle(beam_size):
     """
     Calculate the solid angle of a beam, given its size, in squared input units.

@@ -25,7 +25,7 @@ def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
         logger.handlers.clear()  # Clear the default handlers
     logger.setLevel(level)
     handler = logging.StreamHandler()
-    formatter = logging.Formatter("%(levelname)s (%(name)s): %(message)s")
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s (%(name)s): %(message)s", "%H:%M:%S")
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     return logger

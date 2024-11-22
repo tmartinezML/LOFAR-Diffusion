@@ -51,7 +51,7 @@ def plot_sky_map(
 
 
 def double_map_plot(
-    map1, map2, minmax=True, scale_fn=lambda x: np.tanh(7.5 * x), wcs=None, size=(8, 4)
+    map1, map2, minmax=False, scale_fn=lambda x: x, wcs=None, size=(14, 7)
 ):
 
     fig, axs = plt.subplots(
