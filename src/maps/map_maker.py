@@ -747,8 +747,13 @@ if __name__ == "__main__":
     # Save map
     mm.save("map_2.5deg_max80_1e-7JyLimit", override=True)
 
-    # Make mask
-    _, mask_file = mm.make_threshold_mask(sensitivity=5e-5, save=True)
+    # Make map-sized mask
+    _, mask_file = mm.make_threshold_mask(
+        sensitivity=5e-5, save=True, mask_size="model"
+    )
 
     # Save masked map
     mm.save_masked_map(mask_file)
+
+    # Make ddf-sized mask
+    mm.make_threshold_mask(sensitivity=5e-5, save=True, mask_size="ddf")
