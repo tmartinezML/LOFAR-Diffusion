@@ -717,20 +717,25 @@ class MapMaker:
             coords,
             centroid=centroid,
         )
-
-
-if __name__ == "__main__":
-
-    # Settings
-    trecs_name = "5deg_8e-5JyLimit"
-    map_size_deg = 5
-    model_name = "Prototypes_Model_SizeCond"
+    
+def run_map_maker(
+    *,
+    trecs_name,
+    map_name,
+    map_size_deg,
+    model_name="Prototypes_Model_SizeCond",
+    dset='prototypes',
+    sampler_settings={"n_devices": 2},
+):
+    # Check for existing files to prevent override
+    out_dir = paths.SKY_MAP_PARENT / map_name
+    if (out_dir / f'{map_name}.h5').exists() or (out_dir / f'{map_name}.fits').exists():
+        raise FileExistsError(f"Map {map_name} already exists. Aborting for safety.")
+    # Set file names
     trecs_cat_file = (
         paths.STORAGE_PARENT
         / f"diffusion/trecs_output/{trecs_name}/catalogue_continuum_wrapped.fits"
     )
-    dset = "prototypes"
-    sampler_settings = {"n_devices": 4}
 
     # Initialize MapMaker
     mm = MapMaker(
@@ -745,7 +750,7 @@ if __name__ == "__main__":
     mm.make_map()
 
     # Save map
-    mm.save("map_2.5deg_max80_1e-7JyLimit", override=True)
+    mm.save(map_name, override=True)
 
     # Make map-sized mask
     _, mask_file = mm.make_threshold_mask(
@@ -757,3 +762,22 @@ if __name__ == "__main__":
 
     # Make ddf-sized mask
     mm.make_threshold_mask(sensitivity=5e-5, save=True, mask_size="ddf")
+
+if __name__ == "__main__":
+
+    # Settings
+    trecs_name = "5deg_8e-5JyLimit"
+    map_name = f"map_{trecs_name}"
+    map_size_deg = 5
+    model_name = "Prototypes_Model_SizeCond"
+    dset = "prototypes"
+    sampler_settings = {"n_devices": 4}
+
+    run_map_maker(
+        trecs_name=trecs_name,
+        map_name=map_name,
+        map_size_deg=map_size_deg,
+        model_name=model_name,
+        dset=dset,
+        sampler_settings=sampler_settings,
+    )
