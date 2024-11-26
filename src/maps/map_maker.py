@@ -21,31 +21,15 @@ import utils.paths as paths
 import maps.map_utils as mputil
 import model.model_utils as mdutil
 import model.sampler as smplr
-from maps.estimate_npix import EstimateNpix
 from data.cutouts import save_images_h5py
-from data.segment import get_sample_mask, circular_mask
 from data.datasets import parse_dset_path
-
+from maps.estimate_npix import EstimateNpix
+from maps.map_utils import process_compact_source
+from data.segment import get_sample_mask, circular_mask
 
 # TODO:
 # - Add type hints & docstrings
 # - Review variable names
-def process_compact_source(i, source, img_size):
-    try:
-        # Generate source array & scale to flux
-        source_arr = mputil.gaussian_signal(
-            size=source.size,
-            angle=source.angle,
-            convolve=True,
-            img_size=img_size,
-        )
-        return i, source_arr, False
-
-    except Exception as e:
-        return i, None, str(e)
-
-    except Exception as e:
-        return i, None, str(e)
 
 
 class MapMaker:
@@ -317,7 +301,7 @@ class MapMaker:
             arcsec_per_px=self.arcsec_per_px,
             map_size_px=self.map_size_px,
         )
-        hdu = fits.PrimaryHDU(header=header, data=self.map_array)
+        hdu = fits.PrimaryHDU(header=header, data=np.expand_dims(self.map_array, 0))
         hdu.writeto(out_file, overwrite=True, output_verify="fix")
         self.logger.info("Map data saved.")
 
@@ -717,19 +701,20 @@ class MapMaker:
             coords,
             centroid=centroid,
         )
-    
+
+
 def run_map_maker(
     *,
     trecs_name,
     map_name,
     map_size_deg,
     model_name="Prototypes_Model_SizeCond",
-    dset='prototypes',
+    dset="prototypes",
     sampler_settings={"n_devices": 2},
 ):
     # Check for existing files to prevent override
     out_dir = paths.SKY_MAP_PARENT / map_name
-    if (out_dir / f'{map_name}.h5').exists() or (out_dir / f'{map_name}.fits').exists():
+    if (out_dir / f"{map_name}.h5").exists() or (out_dir / f"{map_name}.fits").exists():
         raise FileExistsError(f"Map {map_name} already exists. Aborting for safety.")
     # Set file names
     trecs_cat_file = (
@@ -762,6 +747,7 @@ def run_map_maker(
 
     # Make ddf-sized mask
     mm.make_threshold_mask(sensitivity=5e-5, save=True, mask_size="ddf")
+
 
 if __name__ == "__main__":
 

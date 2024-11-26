@@ -6,16 +6,18 @@ import torch
 import analysis.bdsf_evaluation as bdsfeval
 
 
-def random_image_grid(dset, n_img=25, idx_titles=False, **kwargs):
+def random_image_grid(dset, n_img=25, masks=None, idx_titles=False, **kwargs):
     def has_context(img):
         return isinstance(img, list) or isinstance(img, tuple)
 
     idxs = np.random.choice(len(dset), n_img, replace=False)
     imgs = [img if not has_context(img := dset[i]) else img[0] for i in idxs]
+    if masks is not None:
+        masks = [masks[i] for i in idxs]
 
     if idx_titles:
         kwargs["titles"] = idxs
-    return plot_image_grid(imgs, **kwargs)
+    return plot_image_grid(imgs, masks=masks, **kwargs)
 
 
 def plot_image_grid(
@@ -31,16 +33,14 @@ def plot_image_grid(
     titles=None,
     **imshow_kwargs,
 ):
-    if isinstance(imgs, list):
-        imgs = np.array(imgs)
-
+    n_imgs = len(imgs)
     if n_rows is None and n_cols is None:
-        n = int(np.sqrt(imgs.shape[0]))
+        n = int(np.sqrt(n_imgs))
         n_cols = n
-        n_rows = n + np.ceil((imgs.shape[0] - n**2) / n).astype(int)
+        n_rows = n + np.ceil((n_imgs - n**2) / n).astype(int)
     elif n_rows is None or n_cols is None:
         known = n_rows or n_cols
-        n = int(imgs.shape[0] // known) + int(bool(imgs.shape[0] % known))
+        n = int(n_imgs // known) + int(bool(n_imgs % known))
         n_rows = n_rows or n
         n_cols = n_cols or n
 
@@ -53,9 +53,9 @@ def plot_image_grid(
     flat_axs = axs.flat if isinstance(axs, np.ndarray) else [axs]
 
     if titles is not None:
-        assert len(titles) == len(imgs), (
+        assert len(titles) == n_imgs, (
             f"Number of titles ({len(titles)}) should match number of images "
-            f"({len(imgs)})."
+            f"({n_imgs})."
         )
     for i, (ax, img) in enumerate(zip(flat_axs, imgs)):
         ax.axis("off")

@@ -20,3 +20,4 @@ wandb/
 launch_singularity
 src/notebooks/media/
 src/maps/default_files/synthms/
+src/maps/default_files/synthms_old/

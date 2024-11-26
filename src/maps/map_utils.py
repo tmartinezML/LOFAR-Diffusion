@@ -6,6 +6,24 @@ from scipy.stats import multivariate_normal
 from scipy.ndimage import gaussian_filter, rotate
 
 
+def process_compact_source(i, source, img_size):
+    try:
+        # Generate source array & scale to flux
+        source_arr = gaussian_signal(
+            size=source.size,
+            angle=source.angle,
+            convolve=True,
+            img_size=img_size,
+        )
+        return i, source_arr, False
+
+    except Exception as e:
+        return i, None, str(e)
+
+    except Exception as e:
+        return i, None, str(e)
+
+
 def lofar_num2nu(num, station, n_chan=2, nu_clk=200.0e6):
     """
     Get channel freq in MHz from LOFAR SB
@@ -134,14 +152,11 @@ def gaussian_signal(size=1, angle=0, convolve=True, img_size=80):
 
 def add_source_image(map_array, map_size_deg, source_arr, coords, centroid=None):
 
-    # Convert coords to pixel coords
+    # Convert map coords to pixel coords
     map_size_px = map_array.shape[-2:]
-    x, y = coords
-    x_px, y_px = int((x + 0.5 * map_size_deg) * map_size_px[0]), int(
-        (y + 0.5 * map_size_deg) * map_size_px[1]
-    )
+    x_px, y_px = coord2pix(coords, map_size_deg, map_size_px)
 
-    # Set centroid coords
+    # Set centroid coords (relative to source array)
     x_c, y_c = (
         centroid
         if centroid is not None
@@ -170,6 +185,20 @@ def add_source_image(map_array, map_size_deg, source_arr, coords, centroid=None)
     # Add source to map
     map_array[x_slice, y_slice] += source_arr
     return map_array
+
+
+def coord2pix(coords, map_size_deg, map_size_px):
+    match map_size_px:
+        case int() | float():
+            map_size_px = (map_size_px, map_size_px)
+        case tuple() | list():
+            map_size_px = map_size_px
+        case _:
+            raise ValueError(f"Invalid map_size_px dtype: {type(map_size_px)}")
+    x, y = coords
+    x_px = int((x + 0.5 * map_size_deg) / map_size_deg * map_size_px[0]), 
+    y_px = int((y + 0.5 * map_size_deg) / map_size_deg * map_size_px[1])
+    return x_px, y_px
 
 
 def make_fits_header(
