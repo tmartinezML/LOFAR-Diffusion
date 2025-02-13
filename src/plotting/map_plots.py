@@ -3,7 +3,56 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 from astropy.wcs import WCS
 
+import utils.paths as paths
+import maps.map_utils as mputil
 from data.transforms import minmax_scale
+
+
+def plot_source_cutouts(
+    src_img,
+    title=None,
+    mask=None,
+    model_cutout=None,
+    sim_cutout=None,
+    fig_ax=None,
+):
+
+    if fig_ax is None:
+        fig, axs = plt.subplots(
+            1, 3, figsize=(10, 4), sharex=True, sharey=True, constrained_layout=True
+        )
+    else:
+        fig, axs = fig_ax
+
+    plot_sky_map(src_img, fig_ax=(fig, axs[0]), norm_quantile=None, cbar=False)
+    axs[0].set_title("Source")
+
+    if model_cutout is not None:
+        norm = Normalize(vmin=0, vmax=src_img.max())
+
+        plot_sky_map(
+            model_cutout,
+            fig_ax=(fig, axs[1]),
+            norm_quantile=None,
+            cbar=False,
+            norm=norm,
+        )
+        axs[1].set_title("Sky Model")
+
+    if sim_cutout is not None:
+        plot_sky_map(sim_cutout, fig_ax=(fig, axs[2]), norm_quantile=None, cbar=False)
+        axs[2].set_title("Simulated Obs.")
+
+    if mask is not None:
+        for ax in axs[:-1]:
+            ax.contour(mask, levels=[0.5], colors="red", alpha=0.2, linewidths=1)
+
+    for ax in axs:
+        ax.axis("off")
+
+    fig.suptitle(title, fontsize=21)
+
+    return fig, axs
 
 
 def point_process_scatter_plot(points, fig_ax=None, c="red", s=10, **kwargs):
@@ -17,16 +66,44 @@ def point_process_scatter_plot(points, fig_ax=None, c="red", s=10, **kwargs):
 
 
 def plot_sky_map(
-    map_array,
-    scale_fn=lambda x: np.tanh(7.5 * x),
+    map_inp,
+    scale_fn=lambda x: x,
     wcs=None,
     fig_ax=None,
     cbar=True,
     norm=None,
+    vmin=None,
+    vmax=None,
+    norm_quantile=0.995,
     size=(9, 9),
+    **imshow_kwargs,
 ):
+    # Get map array
+    match map_inp:
+        # Map array
+        case np.ndarray():
+            map_array = map_inp
+
+        # Anything else: Load map (invalid input handled within get_image)
+        case _:
+            map_array, wcs_in = mputil.get_image(map_inp)
+            wcs = wcs or wcs_in
+
     # Scale map
     scaled_map = scale_fn(map_array)
+
+    # Set up color norm
+    if norm_quantile is not None and norm is None:
+        norm = Normalize(
+            vmin=np.quantile(scaled_map[scaled_map < 0], norm_quantile),
+            vmax=np.quantile(scaled_map[scaled_map > 0], norm_quantile),
+            clip=True,
+        )
+
+    elif norm is None:
+        norm = Normalize(
+            vmin=vmin or np.nanmin(scaled_map), vmax=vmax or np.nanmax(scaled_map)
+        )
 
     # Plot map
     fig, ax = fig_ax or plt.subplots(
@@ -35,14 +112,14 @@ def plot_sky_map(
         constrained_layout=True,
     )
 
-    im = ax.imshow(scaled_map.squeeze(), origin="lower", norm=norm)
+    im = ax.imshow(scaled_map.squeeze(), origin="lower", norm=norm, **imshow_kwargs)
 
     if cbar:
         fig.colorbar(im, ax=ax, fraction=0.046, pad=0.05)
 
-    if wcs is None:
+    if wcs is None and fig_ax is None:
         ax.axis("off")
-    else:
+    elif wcs is not None:
         ax.grid(alpha=0.1)
         ax.set_xlabel("RA")
         ax.set_ylabel("Dec")
@@ -51,7 +128,14 @@ def plot_sky_map(
 
 
 def double_map_plot(
-    map1, map2, minmax=False, scale_fn=lambda x: x, wcs=None, size=(14, 7)
+    map1,
+    map2,
+    minmax=False,
+    scale_fn=lambda x: x,
+    norm_quantile=0.995,
+    wcs=None,
+    size=(14, 7),
+    norm=(None, None),
 ):
 
     fig, axs = plt.subplots(
@@ -71,6 +155,8 @@ def double_map_plot(
             wcs1, wcs2 = wcs
         case WCS():
             wcs1, wcs2 = wcs, wcs
+        case _:
+            raise ValueError(f"Unknown WCS input: {type(wcs)}")
 
     if wcs is not None:
         axs[0].remove()  # Remove the existing subplot
@@ -81,29 +167,56 @@ def double_map_plot(
         axs[1] = fig.add_subplot(1, 2, 2, projection=wcs2, sharex=axs[0], sharey=axs[0])
         axs[1].coords[1].set_auto_axislabel(False)
         axs[1].coords[1].set_ticklabel(rotation="vertical")
+
+        for ax in axs:
+            ax.grid(alpha=0.1)
+            ax.set_xlabel("RA")
+        axs[0].set_ylabel("Dec")
+
         if minmax:
             axs[1].coords[1].set_ticklabel_position("r")
 
-    norm = None
+    norm1, norm2 = norm
     if minmax:
         map1 = minmax_scale(map1)
         map2 = minmax_scale(map2)
         norm = Normalize(vmin=0, vmax=1)
-        # axs[2].axis("off")
+        norm1, norm2 = norm, norm
+
+    elif norm_quantile is not None:
+
+        def get_vmin(map):
+            negative_flag = map < 0
+            if negative_flag.sum() == 0:
+                return 0
+            return np.quantile(map[negative_flag], norm_quantile)
+
+        norm1 = Normalize(
+            vmin=get_vmin(map1),
+            vmax=np.quantile(map1[map1 > 0], norm_quantile),
+            clip=True,
+        )
+        norm2 = Normalize(
+            vmin=get_vmin(map2),
+            vmax=np.quantile(map2[map2 > 0], norm_quantile),
+            clip=True,
+        )
 
     _, _, im1 = plot_sky_map(
         map1,
         scale_fn=scale_fn,
         fig_ax=(fig, axs[0]),
         cbar=not minmax,
-        norm=norm,
+        norm=norm1,
+        norm_quantile=norm_quantile,
     )
     _, _, im2 = plot_sky_map(
         map2,
         scale_fn=scale_fn,
         fig_ax=(fig, axs[1]),
         cbar=not minmax,
-        norm=norm,
+        norm=norm2,
+        norm_quantile=norm_quantile,
     )
     axs[1].set_ylabel("")
 

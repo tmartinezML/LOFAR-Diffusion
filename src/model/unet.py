@@ -72,7 +72,8 @@ class configModuleBase(nn.Module):
             hasattr(config, "context")
             and "context_dim" in signature(cls).parameters.keys()
         ):
-            config.context_dim = len(config.context)
+            # config.context_dim = len(config.context)
+            pass
         return config.construct(cls, *args, **kwargs)
 
 

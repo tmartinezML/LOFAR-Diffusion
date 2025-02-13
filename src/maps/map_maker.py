@@ -1,7 +1,8 @@
 import ast
 import warnings
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 from pathlib import Path
+from configparser import ConfigParser
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 
 import h5py
 import torch
@@ -36,29 +37,43 @@ class MapMaker:
     def __init__(
         self,
         *,
-        map_size_deg,
-        model_name,
+        map_name,
+        model_name="Prototypes_Model_SizeCond",
+        map_size_deg=5,
         trecs_cat_file=None,
-        dset=None,
+        dset="prototypes",
         img_size=80,
         arcsec_per_px=1.5,
         max_sampling_size=80,
-        min_flux=0,
+        min_flux_Jy=0,
+        max_flux_Jy=10,  # Jy
         sampler_settings={"n_devices": 2},
     ):
         # Logger
         self.logger = utils.logging.get_logger(self.__class__.__name__)
 
+        # Set map name and output directory
+        self.map_name = map_name
+        self.out_dir = paths.SKY_MAP_PARENT / map_name
+        self.out_dir.mkdir(parents=False, exist_ok=True)
+        self.trecs_dir = self.out_dir / "trecs"
+        self.min_flux = min_flux_Jy
+        self.max_flux = max_flux_Jy
+
         # Map parameters
         self.map_size_deg = map_size_deg
         self.arcsec_per_px = arcsec_per_px
         self.map_size_px = int(map_size_deg * 3600 / arcsec_per_px)
+
+        # Initialize empty map array
         self.map_array = None
         self.reset_map_array()
+
+        # Diffusion Model and sampling parameters
+        self.model_name = model_name
         self.img_size = img_size
         self.max_sampling_size = max_sampling_size
-        self.model_name = model_name
-        self.min_flux = min_flux
+        self.sampler_settings = sampler_settings
 
         # Extended sources, stored in lists because of different sizes
         self.ext_data = {
@@ -77,7 +92,6 @@ class MapMaker:
                 "feret_diameter_max",
             ]
         )
-        self.model_size_distribution = None, None
 
         # Compact sources
         self.comp_images = None
@@ -85,25 +99,23 @@ class MapMaker:
             columns=["x_coord", "y_coord", "flux", "size", "angle"]
         )
 
-        # This will store TRACS catalog path and dataset path
+        # This will store TRECS catalog path and dataset path
         self.input_data = {}
 
         # Read in T-RECS catalog if passed
         if trecs_cat_file is not None:
-            self.input_data["trecs_cat_file"] = str(trecs_cat_file)
             self.read_TRECS(trecs_cat_file)
 
         # Get model size distribution if dataset is passed
+        self.model_size_distribution = None, None
         if dset is not None:
             self.input_data["dset"] = str(dset)
-            self.get_model_size_distribution(dset)
-
-        # Settings
-        self.sampler_settings = sampler_settings
+            self.get_model_size_distribution()
 
         self.logger.info("MapMaker initialized.")
 
-    def from_hdf(in_file):
+    @staticmethod
+    def load(in_file):
         match in_file:
             case str():
                 # Assume file name
@@ -121,8 +133,10 @@ class MapMaker:
             map_size_deg = f.attrs["map_size_deg"]
             model_name = f.attrs["model_name"]
             mm = MapMaker(
+                map_name=file_name,
                 map_size_deg=map_size_deg,
                 model_name=model_name,
+                dset=None,
             )
 
             mm.give_name(file_name)
@@ -137,7 +151,6 @@ class MapMaker:
 
             # Data arrays
             mm.map_array = f["sky_map"][:]
-            mm.comp_images = f["compact_sources"][:]
             mm.model_size_distribution = (
                 f["model_size_distribution/counts"][:],
                 f["model_size_distribution/bins"][:],
@@ -149,6 +162,7 @@ class MapMaker:
                 shapes = f[dset_name + "_shapes"][:]
                 return [arr.reshape(shape) for arr, shape in zip(data, shapes)]
 
+            mm.comp_images = read_var_len_data("compact_sources")
             mm.ext_data["images"] = read_var_len_data("extended_sources")
             mm.ext_data["masks"] = read_var_len_data("extended_source_masks")
 
@@ -183,11 +197,9 @@ class MapMaker:
         self.save_to_fits(override=override)
 
     def give_name(self, file_name):
-        if hasattr(self, "file_name"):
-            self.logger.warning(
-                f"Changing file name {self.file_name} with {file_name}."
-            )
-        self.file_name = file_name
+        if self.map_name is not None:
+            self.logger.warning(f"Changing file name {self.map_name} with {file_name}.")
+        self.map_name = file_name
         self.out_dir = paths.SKY_MAP_PARENT / file_name
 
     def _check_override(self, out_file, override):
@@ -203,10 +215,64 @@ class MapMaker:
                 return True
 
     def _check_hasname(self):
-        if not hasattr(self, "file_name"):
+        if not hasattr(self, "map_name"):
             self.logger.warning("No file name set - aborting. Use give_name() first.")
             return False
         return True
+
+    def prepare_TRECS(self):
+        # TODO: make t-recs dir class attribute??
+        self.trecs_dir.mkdir(parents=False, exist_ok=True)
+
+        # Write frequency file
+        with open(self.trecs_dir / "frequency_list.dat", "w") as f:
+            f.write("# Frequencies in MHz\n")
+            f.write("144\n")
+
+        # Read default parameter file
+        conf = ConfigParser(inline_comment_prefixes=("#", ";"))
+        conf.optionxform = str  # Preserve case
+        # Read with a default section title. This is a workaround so we can use
+        # ConfigParser, which requires section titles that T-RECS parameter
+        # files don't use.
+        with open(paths.MAP_DEFAULTS / "TRECS_parameter_file.ini", "r") as file:
+            conf.read_string("[DEFAULT]\n" + file.read())
+
+        # Set parameters
+        conf["DEFAULT"]["sim_side"] = str(self.map_size_deg)
+        conf["DEFAULT"]["seed"] = str(np.random.randint(1, 1e2))
+
+        # Write the modified content back to a file without the 'DEFAULT' section title
+        with open(self.trecs_dir / "parameter_file.ini", "w") as file:
+            file.write('# For explanations, see default TRECS parameter file."\n')
+            for key in conf["DEFAULT"]:
+                file.write(f"{key} = {conf['DEFAULT'][key]}\n")
+
+        # Write shell script for execution
+        with open(self.trecs_dir / "trecs_run.sh", "w") as f:
+            f.write(
+                "#!/bin/bash\n"
+                "export PATH=$PATH:/hs/fs08/data/group-brueggen/tmartinez/trecs/bin\n"
+                "export LD_LIBRARY_PATH=/hs/fs08/data/group-brueggen/tmartinez/software/cfitsio/lib\n"
+                f"cd {self.trecs_dir}\n"
+                f"trecs -c -w -p parameter_file.ini\n"
+            )
+
+    def run_TRECS(self):
+        # Run T-RECS
+        self.logger.info("Running T-RECS...")
+
+        cmd = [
+            "sh",
+            f'{str(self.trecs_dir / "trecs_run.sh")}',
+        ]
+
+        p = mputil.run_command_with_logging(
+            self.logger,
+            cmd,
+            self.trecs_dir / "trecs_run.log",
+        )
+        return p
 
     def save_to_hdf(self, file_name=None, override=False):
         # Set and check: file name, out file, override
@@ -215,7 +281,7 @@ class MapMaker:
                 return
         else:
             self.give_name(file_name)
-        out_file = self.out_dir / f"{self.file_name}.h5"
+        out_file = self.out_dir / f"{self.map_name}.h5"
         if self._check_override(out_file, override):
             return
 
@@ -236,6 +302,7 @@ class MapMaker:
             self.comp_images,
             out_file,
             dset_name="compact_sources",
+            dtype=h5py.vlen_dtype(self.comp_images[0].dtype),
         )
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=pd.errors.PerformanceWarning)
@@ -284,15 +351,19 @@ class MapMaker:
 
         self.logger.info("MapMaker saved.")
 
-    def save_to_fits(self, data=None, file_name=None, override=False):
-        # Set and check: file name, out file, override
+    def save_to_fits(self, chan_dim=False, file_name=None, override=False):
         # Set and check: file name, out file, override
         if file_name is None:
             if not self._check_hasname():
                 return
         else:
             self.give_name(file_name)
-        out_file = self.out_dir / f"{self.file_name}.fits"
+
+        # Set out file name. If chan_dim is True, add '_chanDim' to file name.
+        out_file = (
+            self.out_dir
+            / f"{self.map_name + '_chanDim' if chan_dim else self.map_name}.fits"
+        )
         if self._check_override(out_file, override):
             return
 
@@ -301,34 +372,63 @@ class MapMaker:
             arcsec_per_px=self.arcsec_per_px,
             map_size_px=self.map_size_px,
         )
-        hdu = fits.PrimaryHDU(header=header, data=np.expand_dims(self.map_array, 0))
+        hdu = fits.PrimaryHDU(
+            header=header,
+            data=np.expand_dims(self.map_array, 0) if chan_dim else self.map_array,
+        )
         hdu.writeto(out_file, overwrite=True, output_verify="fix")
         self.logger.info("Map data saved.")
 
-    def read_TRECS(self, trecs_cat_file):
+    def save_telsim_output(self):
+        # The telescope simulator requires the following:
+        # - The map in Jy/pixel with 2D array shape (see self.save_to_fits())
+        # - The same map but with 3D array, with the first axis being the channel axis
+        # - A mask with ddf shape
+
+        # Save map data as fits and hdf
+        self.save()
+
+        # Save map data with channel dimension
+        self.save_to_fits(chan_dim=True)
+
+        # Mask with ddf shape
+        self.make_threshold_mask(sensitivity=5e-5, save=True, mask_size="ddf")
+
+    def read_TRECS(self, trecs_cat_file=None):
+        if trecs_cat_file is None:
+            trecs_cat_file = self.trecs_dir / "catalogue_continuum_wrapped.fits"
+            if not trecs_cat_file.exists():
+                raise FileNotFoundError(f"File not found: {trecs_cat_file}")
+
         # Read in T-RECS catalog
         self.logger.info(f"Reading T-RECS catalog from\n\t{trecs_cat_file}...")
         trecs_df = Table.read(
             trecs_cat_file, hdu=1, unit_parse_strict="silent"
         ).to_pandas()
+        self.input_data["trecs_cat_file"] = str(trecs_cat_file)
 
         # Classes:
         # 1 - 3: SFGs
         # 4: FSRQ, 5: BL-Lac, 6: SS-AGN
         sfg_flag = trecs_df["RadioClass"].values < 4
-        compact_flag = trecs_df["RadioClass"].values < 6
+        # Extended sources must be SS-AGN (class 6) and larger than one pixel (1.5 arcsec).
+        # Anything else is considered compact.
+        compact_flag = (trecs_df["RadioClass"].values < 6) | (trecs_df["size"] <= 1.5)
         comp_df, ext_df = (
             trecs_df[compact_flag],
             trecs_df[~compact_flag],
         )
 
         self.logger.info("Extracting values...")
+
         # Fill extended sources df
+        self.ext_df["TRECS_index"] = ext_df.index.to_numpy()
         self.ext_df["x_coord"] = ext_df["x_coord"].values
         self.ext_df["y_coord"] = ext_df["y_coord"].values
         self.ext_df["flux"] = ext_df["I144"].values * 1e-3  # mJy to Jy
 
         # Fill compact sources df
+        self.comp_df["TRECS_index"] = comp_df.index.to_numpy()
         self.comp_df["x_coord"] = comp_df["x_coord"].values
         self.comp_df["y_coord"] = comp_df["y_coord"].values
         self.comp_df["flux"] = comp_df["I144"].values * 1e-3  # mJy to Jy
@@ -339,9 +439,27 @@ class MapMaker:
         self.comp_df["angle"] = comp_df["PA"].values
         self.comp_df.loc[~sfg_flag, "angle"] = 0
 
+        # Filter sources by flux
+        self.logger.info(
+            f"Filtering for flux between {self.min_flux:.1e} and {self.max_flux:.1e} Jy..."
+        )
+        # Remove sources with flux below min_flux
+        self.comp_df = self.comp_df[(cmp_flg := self.comp_df["flux"] >= self.min_flux)]
+        self.ext_df = self.ext_df[(ext_flg := self.ext_df["flux"] >= self.min_flux)]
+        dropouts_min = (~cmp_flg).sum() + (~ext_flg).sum()
+
+        # Remove sources with flux above max_flux
+        self.comp_df = self.comp_df[(cmp_flg := self.comp_df["flux"] <= self.max_flux)]
+        self.ext_df = self.ext_df[(ext_flg := self.ext_df["flux"] <= self.max_flux)]
+        dropouts_max = (~cmp_flg).sum() + (~ext_flg).sum()
+        self.logger.info(
+            f"Filtered {dropouts_min} compact sources below min_flux and {dropouts_max} above max_flux."
+        )
+
         self.logger.info("T-RECS catalog read.")
 
-    def get_model_size_distribution(self, dset, bins=100):
+    def get_model_size_distribution(self, dset=None, bins=100):
+        dset = dset or self.input_data["dset"]
         dset_path = parse_dset_path(dset)
         self.logger.info(f"Extracting model size distribution from\n\t{dset_path}...")
         mask_metadata = pd.read_hdf(dset_path, key="mask_metadata")
@@ -361,7 +479,7 @@ class MapMaker:
         ), "Mask shape does not match map shape."
         masked_map = self.map_array * mask
 
-        out_file = self.out_dir / f"{self.file_name}_masked.fits"
+        out_file = self.out_dir / f"{self.map_name}_masked.fits"
         self.logger.info(f"Saving masked map data to\n\t{out_file}")
         header = mputil.make_fits_header(
             arcsec_per_px=self.arcsec_per_px,
@@ -423,7 +541,7 @@ class MapMaker:
                 raise ValueError(msg)
 
         self.logger.info(
-            f"Creating mask with {mask_size} px (from map with {self.map_size_px} px)."
+            f"Mask size: {mask_size} px (from map with {self.map_size_px} px)."
         )
         mask = resize(mask, output_shape=(mask_size,) * 2).astype(bool).astype(int)
         # Bring dimensions to standard format
@@ -431,7 +549,7 @@ class MapMaker:
 
         if save and self._check_hasname():
             out_file = (
-                self.out_dir / f"{self.file_name}_thresholdMask_{file_suffix}.fits"
+                self.out_dir / f"{self.map_name}_thresholdMask_{file_suffix}.fits"
             )
             self.logger.info(f"Saving map data to\n\t{out_file}")
             hdu = fits.PrimaryHDU(mask)
@@ -488,7 +606,7 @@ class MapMaker:
         if save and self._check_hasname():
             out_file = (
                 self.out_dir
-                / f"{self.file_name}_objectMask_{str(flux_threshold).replace('.', 'p')}.fits"
+                / f"{self.map_name}_objectMask_{str(flux_threshold).replace('.', 'p')}.fits"
             )
             self.logger.info(f"Saving map data to\n\t{out_file}")
             hdu = fits.PrimaryHDU(all_sky_mask)
@@ -506,13 +624,12 @@ class MapMaker:
 
         if (a := self.map_array) is not None and a.any():
             self.logger.warning("Map array is not empty. Resetting...")
-            self.reset_map_array
+            self.reset_map_array()
 
         if not make_sources:
             self.logger.info(
                 "Skipping generation of sources. If no sources are present in the MapMaker instance, this will raise an error."
             )
-            return
 
         # Add compact & extended sources
         if make_sources:
@@ -532,31 +649,40 @@ class MapMaker:
 
         # Place compact sources on map
 
-        self.comp_images = np.zeros((nsrc, self.img_size, self.img_size))
+        self.comp_images = []
         for i, (_, source) in tqdm(
             enumerate(self.comp_df.iterrows()),
             desc="Making compact sources",
             total=nsrc,
         ):
-            # Generate source array & scale to flux
+            # Generate source array
             source_arr = mputil.gaussian_signal(
-                size=source.size,
+                size=source["size"],
                 angle=source.angle,
                 convolve=True,
-                img_size=self.img_size,
             )
-            self.comp_images[i] = source_arr
+
+            # Scale to flux
+            source_arr *= (1 / source_arr.sum()) * source.flux
+
+            # Add to image list
+            self.comp_images.append(source_arr)
 
     def make_compact_sources_parallel(self):
         self.logger.info("Generating compact sources in parallel...")
         nsrc = len(self.comp_df)
 
         # Place compact sources on map
-        self.comp_images = np.zeros((nsrc, self.img_size, self.img_size))
+        self.comp_images = [None] * nsrc
 
         with ProcessPoolExecutor(max_workers=16) as executor:
             futures = [
-                executor.submit(process_compact_source, i, source, self.img_size)
+                executor.submit(
+                    process_compact_source,
+                    i,
+                    source,
+                    self.arcsec_per_px,
+                )
                 for i, (_, source) in tqdm(
                     enumerate(self.comp_df.iterrows()),
                     total=nsrc,
@@ -575,6 +701,10 @@ class MapMaker:
                         pbar.update(1)
                     except Exception as e:
                         self.logger.error(f"Error in future result: {e}")
+
+        # Raise error if there are any Nones in the list
+        if any([img is None for img in self.comp_images]):
+            raise ValueError("Error generating compact sources - None in image list.")
 
     def add_compact_sources(self):
         if self.comp_images is None:
@@ -595,12 +725,8 @@ class MapMaker:
             # Get pixel coordinates
             coords = source.x_coord, source.y_coord
 
-            source_arr = self.comp_images[i]
-            # Gaussian signal is normalized already
-            source_arr *= source.flux / self.arcsec_per_px**2  # Jy/pixel
-
             # Add source array to map
-            self.add_source_image(source_arr, coords)
+            self.add_source_image(self.comp_images[i], coords)
 
     def add_extended_sources(self):
         # Place AGNs on map such that centroid matches the catalog x, y position
@@ -620,11 +746,8 @@ class MapMaker:
 
             # Get pixel coordinates & centroid
             coords = source.x_coord, source.y_coord
-            centroid = int(source["centroid-1"]), int(source["centroid-0"])
+            centroid = (source["centroid-1"], source["centroid-0"])
             source_arr = self.ext_data["images"][i] * self.ext_data["masks"][i]
-
-            # Scale source to flux
-            source_arr *= (1 / source_arr.sum()) * source.flux / self.arcsec_per_px**2
 
             # Add source array to map
             self.add_source_image(source_arr, coords, centroid=centroid)
@@ -645,8 +768,8 @@ class MapMaker:
         # we will generate all sources in the trecs cat then filter them.
         # self.logger.info(f"Filtering for minimum flux {self.min_flux} Jy...")
         # ext_df_filtered = self.ext_df[self.ext_df["flux"] >= self.min_flux]
-        ext_df_filtered = self.ext_df
-        nsrc = len(ext_df_filtered)
+        ext_df = self.ext_df
+        nsrc = len(ext_df)
 
         # Get sizes from distribution, will be used as sampling context
         sizes = size_rvs.rvs(size=nsrc)
@@ -664,15 +787,17 @@ class MapMaker:
             # timesteps=5,  # Debug
         ).squeeze()
 
+        image_list = []
+
         # If necessary, upscale images. Append to image list.
         for i, img in enumerate(samples):
             if (target_size := sizes[i]) != (current_size := context.squeeze()[i]):
                 img = mputil.upscale_image(img, current_size, target_size)
-            self.ext_data["images"].append(img)
+            image_list.append(img)
 
         # Get masks & analyze their properties
         self.logger.info("Calculating masks & properties...")
-        masks = [get_sample_mask(img) for img in self.ext_data["images"]]
+        masks = [get_sample_mask(img) for img in image_list]
         mask_regionprops = [
             regionprops_table(mask, properties=("centroid", "feret_diameter_max"))
             for mask in tqdm(masks, desc="Calculating region properties")
@@ -681,8 +806,18 @@ class MapMaker:
             for k, v in d.items():
                 d[k] = v[0]  # Convert arrays with one entry to scalars
 
+        # Scale the image to its respective Flux
+        self.logger.info("Scaling images to flux...")
+        for i, (_, source) in tqdm(
+            enumerate(ext_df.iterrows()),
+            desc="Scaling images",
+            total=nsrc,
+        ):
+            image_list[i] *= (1 / (image_list[i] * masks[i]).sum()) * source.flux
+
         # Set class attributes:
         self.logger.info("Setting class attributes...")
+        self.ext_data["images"] = image_list
         self.ext_data["masks"] = masks
         self.ext_df["size"] = sizes
         self.ext_df["context_size"] = context.squeeze()
@@ -705,37 +840,47 @@ class MapMaker:
 
 def run_map_maker(
     *,
-    trecs_name,
     map_name,
-    map_size_deg,
+    map_size_deg=5,
     model_name="Prototypes_Model_SizeCond",
     dset="prototypes",
     sampler_settings={"n_devices": 2},
 ):
+    # TODO: This hsould be a function in the MapMaker class, with an option to
+    # force re-run T-RECS. Default should be to check if there is already
+    # a T-RECS catalog, and use it if so.
+
     # Check for existing files to prevent override
     out_dir = paths.SKY_MAP_PARENT / map_name
     if (out_dir / f"{map_name}.h5").exists() or (out_dir / f"{map_name}.fits").exists():
         raise FileExistsError(f"Map {map_name} already exists. Aborting for safety.")
-    # Set file names
-    trecs_cat_file = (
-        paths.STORAGE_PARENT
-        / f"diffusion/trecs_output/{trecs_name}/catalogue_continuum_wrapped.fits"
-    )
 
     # Initialize MapMaker
     mm = MapMaker(
+        map_name=map_name,
         map_size_deg=map_size_deg,
         model_name=model_name,
-        trecs_cat_file=trecs_cat_file,
         dset=dset,
         sampler_settings=sampler_settings,
+        max_flux_Jy=10,
     )
+
+    # Run T-RECS
+    mm.prepare_TRECS()
+    p = mm.run_TRECS()
+    p.wait()
+
+    # Read data
+    mm.read_TRECS()
 
     # Make map
     mm.make_map()
 
     # Save map
     mm.save(map_name, override=True)
+
+    # Save chan-dim image
+    mm.save_to_fits(chan_dim=True, override=True)
 
     # Make map-sized mask
     _, mask_file = mm.make_threshold_mask(
@@ -752,18 +897,7 @@ def run_map_maker(
 if __name__ == "__main__":
 
     # Settings
-    trecs_name = "5deg_8e-5JyLimit"
-    map_name = f"map_{trecs_name}"
-    map_size_deg = 5
-    model_name = "Prototypes_Model_SizeCond"
-    dset = "prototypes"
-    sampler_settings = {"n_devices": 4}
+    map_name = "map_5deg_v5"
 
-    run_map_maker(
-        trecs_name=trecs_name,
-        map_name=map_name,
-        map_size_deg=map_size_deg,
-        model_name=model_name,
-        dset=dset,
-        sampler_settings=sampler_settings,
-    )
+    # Run MapMaker
+    run_map_maker(map_name=map_name)

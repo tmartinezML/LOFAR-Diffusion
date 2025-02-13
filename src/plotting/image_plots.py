@@ -6,7 +6,9 @@ import torch
 import analysis.bdsf_evaluation as bdsfeval
 
 
-def random_image_grid(dset, n_img=25, masks=None, idx_titles=False, **kwargs):
+def random_image_grid(
+    dset, n_img=25, masks=None, titles=None, idx_titles=False, **kwargs
+):
     def has_context(img):
         return isinstance(img, list) or isinstance(img, tuple)
 
@@ -15,8 +17,12 @@ def random_image_grid(dset, n_img=25, masks=None, idx_titles=False, **kwargs):
     if masks is not None:
         masks = [masks[i] for i in idxs]
 
-    if idx_titles:
+    if titles is not None:
+        kwargs["titles"] = [titles[i] for i in idxs]
+
+    elif idx_titles:
         kwargs["titles"] = idxs
+
     return plot_image_grid(imgs, masks=masks, **kwargs)
 
 
@@ -31,6 +37,7 @@ def plot_image_grid(
     n_rows=None,
     n_cols=None,
     titles=None,
+    img_side_len=5,
     **imshow_kwargs,
 ):
     n_imgs = len(imgs)
@@ -48,7 +55,7 @@ def plot_image_grid(
         nrows=n_rows,
         ncols=n_cols,
         tight_layout=True,
-        figsize=(5 * n_cols, 5 * n_rows),
+        figsize=(img_side_len * n_cols, img_side_len * n_rows),
     )
     flat_axs = axs.flat if isinstance(axs, np.ndarray) else [axs]
 
@@ -153,7 +160,13 @@ def metric_peek(
             axes = np.array([axes])
 
         for i in range(len(img_idxs)):
-            img = images[img_idxs[i]]
+            try:
+                img = images[img_idxs[i]]
+            except IndexError as e:
+                print(
+                    f"Bin index: {i_bin}, Loop index: {i}, Image index: {img_idxs[i]}"
+                )
+                raise e
             ax = axes.flatten()[i]
             ax.imshow(img)
             if masks is not None:

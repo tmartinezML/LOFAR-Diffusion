@@ -67,6 +67,7 @@ MOSAIC_DIR = Path(
 )
 CUTOUTS_DIR = LOFAR_DATA_PARENT / "cutouts"
 LOFAR_RES_CAT = LOFAR_DATA_PARENT / "6-LoTSS_DR2-public-resolved_sources.csv"
+LOTSS_DR2_CAT = LOFAR_DATA_PARENT / "LoTSS_DR2_v110_masked.srl.fits"
 
 # Check if files are present, if not download:
 files = {
@@ -84,6 +85,10 @@ for file, link in files.items():
         print("Downloading: ", file)
         urllib.request.urlretrieve(f"{link}/download", file, show_dl_progress)
         print("Done.")
+
+# Paths for map simulation files
+MAP_SHELL_SCRIPTS = BASE_PARENT / "src/maps/shell_scripts"
+MAP_DEFAULTS = BASE_PARENT / "src/maps/default_files"
 
 
 def cast_to_Path(path):

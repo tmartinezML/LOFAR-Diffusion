@@ -4,17 +4,57 @@ import matplotlib as mpl
 from analysis.stats_utils import norm, norm_err, norm_err_poisson, centers
 
 
+def parse_xy_logbins(bins, x, y):
+    # Get bins from input
+    match bins:
+        case None:
+            xbins = auto_log_bins((x, y), num=100)
+            ybins = xbins
+
+        case int() | np.array():
+            xbins = bins
+            ybins = bins
+
+        case tuple():
+            xbins, ybins = bins
+
+        case _:
+            raise ValueError(f"Invalid bins input: {bins}")
+
+    return xbins, ybins
+
+
+def auto_log_bins(inp, num=100):
+    return np.logspace(*auto_log_range(inp), num=num)
+
+
+# Function to automatically identify plot range for given key word
+def auto_log_range(inp):
+    # Combine data from both catalogs
+    data = np.concatenate(inp).flatten()
+
+    # Remove zero values
+    data = data[data != 0]
+
+    # Get min and max for logspace based on data
+    mn, mx = data.min(), data.max()
+    # We want to round to the first decimal, but still round up and down for
+    # the min and max values respectively. This is done by multiplying by 10.
+    out = (np.floor(np.log10(mn) * 10) / 10, np.ceil(np.log10(mx) * 10) / 10)
+
+    return out
+
+
 def add_distribution_plot(
     counts,
     edges,
     ax,
     label="",
-    color="black",
-    alpha=0.5,
-    fill=False,
     normalize=True,
     label_count=True,
     errorbar=True,
+    auto_xlim=True,
+    **stairs_kw,
 ):
     # Extract counts and edges from distribution
     c_norm = norm(counts) if normalize else counts
@@ -29,14 +69,16 @@ def add_distribution_plot(
     data_present = len(ax.lines) + len(ax.collections) > 0
 
     # Plot distribution and error bars
-    ax.stairs(c_norm, edges, alpha=alpha, fill=fill, label=label, color=color, lw=1.5)
+    default_stairs_kw = dict(lw=1.5, alpha=0.5, fill=False, label=label, color="black")
+    default_stairs_kw.update(stairs_kw)
+    s = ax.stairs(c_norm, edges, **default_stairs_kw)
     if errorbar:
         ax.errorbar(
             centers(edges),
             c_norm,
             yerr=c_norm_err,
-            alpha=0.75 * alpha,
-            color=color,
+            alpha=0.75 * default_stairs_kw["alpha"],
+            color=s.get_edgecolor(),
             ls="none",
             elinewidth=0.5,
             capsize=2.5,
@@ -44,12 +86,13 @@ def add_distribution_plot(
         )
 
     # Set x limits
-    _, x_max = ax.get_xlim()
-    fullbins = edges[1:][counts > 0]
-    new_xmax = (max(fullbins) if len(fullbins) else edges[-1]) * 1.02
-    if data_present:
-        new_xmax = max(new_xmax, x_max)
-    ax.set_xlim(edges[0] - 0.02 * new_xmax, new_xmax)
+    if auto_xlim:
+        _, x_max = ax.get_xlim()
+        fullbins = edges[1:][counts > 0]
+        new_xmax = (max(fullbins) if len(fullbins) else edges[-1]) * 1.02
+        if data_present:
+            new_xmax = max(new_xmax, x_max)
+        ax.set_xlim(edges[0] - 0.02 * new_xmax, new_xmax)
     return counts, edges
 
 

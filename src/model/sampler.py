@@ -380,6 +380,8 @@ class Sampler:
                 # At this point, i is the number of processed batches
                 t_per_batch = dt / i
                 eta = t_per_batch * (n_batches - i)
+                if do_extra_batch:
+                    eta += t_per_batch * extra_batch_size / batch_size
                 log += f" -- ETA: {utils.logging.format_timedelta(eta)} -- {utils.logging.format_timedelta(t_per_batch)}/batch..."
 
             # Gotta log the log

@@ -22,7 +22,8 @@ import bdsf
 import utils.paths as paths
 import utils.logging as logging
 from maps.telsim_utils import *
-from maps.map_utils import lofar_num2nu
+from analysis.bdsf_on_map import bdsf_on_model
+from maps.map_utils import lofar_num2nu, run_command_with_logging
 
 
 # To do:
@@ -31,10 +32,6 @@ from maps.map_utils import lofar_num2nu
 
 
 class TelescopeSimulator:
-
-    # Some global paths that are used within the class
-    shell_script_dir = paths.BASE_PARENT / "src/maps/shell_scripts"
-    defualt_file_dir = paths.BASE_PARENT / "src/maps/default_files"
 
     # Class function for parsing config name, which can be Path or str
     @classmethod
@@ -63,12 +60,6 @@ class TelescopeSimulator:
             case _:
                 raise TypeError(f"Invalid type for config_name: {type(config_name)}")
 
-        # Raise error if file does not exist
-        if not path.exists():
-            raise FileNotFoundError(
-                f"Config file not found:\n\t{path}\nInferred from input:\n\t{config_name}"
-            )
-
         return path
 
     def __init__(self, config_name):
@@ -78,7 +69,17 @@ class TelescopeSimulator:
 
         # Read config
         self.config_file = TelescopeSimulator.parse_config_name(config_name)
-        self.config = ConfigParser()
+        self.parent = self.config_file.parent
+
+        if not self.config_file.exists():
+            self.logger.info(
+                f"Config file not found:\n\t{self.config_file}\n"
+                f"Creating default config, then exiting."
+            )
+            self.make_default_config()
+            sys.exit()
+
+        self.config = ConfigParser(inline_comment_prefixes=("#", ";"))
         self.config.read(self.config_file)
 
         # Set paths and data attributes
@@ -88,7 +89,7 @@ class TelescopeSimulator:
         self.sky_model_file = paths.Path(self.config["data"]["sky_model"])
         self.mask_file = paths.Path(self.config["data"]["fits_mask"])
         self.override = self.config.getboolean("data", "override")
-        self.parent = self.config_file.parent
+
         # In singularity, the storage parent folder is mounted as root directory
         # (See singularity command in shell scripts)
         self.mount_parent = Path(
@@ -147,7 +148,7 @@ class TelescopeSimulator:
             self.sky_model_file_chandim = f"{self.sky_model_file.stem}_chanDim.fits"
             if not (self.parent / self.sky_model_file_chandim).exists():
                 self.logger.error(
-                    f"Predict step requires a fits file with 3 axes for channel dimension. "
+                    f"Predict step requires a fits file with 3 axes (chan, img, img). "
                     f"The file {self.sky_model_file_chandim} was not found. Exiting application."
                 )
                 sys.exit()
@@ -159,7 +160,7 @@ class TelescopeSimulator:
                 sys.exit()
 
         # Deprecated flag
-        if (flg := self._get_bool_default("control", "DP3")) is not None:
+        if (flg := self._get_bool_default("control", "DP3", default=None)) is not None:
             self.logger.warning(
                 f"DP3 control flag ({flg}) is deprecated since it was"
                 f" integrated in the synthms step. Will ignore."
@@ -198,26 +199,7 @@ class TelescopeSimulator:
         dir.mkdir()
 
     def _run_command_with_logging(self, cmd, log_file):
-        self.logger.info(f"Running command: {' '.join(cmd)}")
-        with (
-            subprocess.Popen(
-                cmd,
-                shell=False,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-            ) as p,
-            open(log_file, "w") as log,
-        ):
-
-            while p.poll() is None:
-                line = p.stdout.readline()
-                log.write(line)
-                print(line, end="")  # Not sure if this will lead to double printing
-
-            p.wait()
-
-        return p
+        return run_command_with_logging(self.logger, cmd, log_file)
 
     def _prepare_DP3(self):
         # Prepare directories
@@ -267,7 +249,7 @@ class TelescopeSimulator:
     def _run_DP3(self):
         cmd = [
             "sh",
-            str(self.shell_script_dir / "container_exec.sh"),
+            str(paths.MAP_SHELL_SCRIPTS / "container_exec.sh"),
             str(self.mount_parent / self.DP3_dir.name / "DP3_run.sh"),
         ]
         log_file = self.DP3_dir / "TelSim_DP3.log"
@@ -276,7 +258,7 @@ class TelescopeSimulator:
 
     def _welcome_message(self):
         # Read ASCII art logo from file and display
-        with open(self.defualt_file_dir / "TelescopeSimulator_logo.txt") as f:
+        with open(paths.MAP_DEFAULTS / "TelescopeSimulator_logo.txt") as f:
             self.logger.info(
                 "Welcome to the"
                 + (lspace := "\n\n")
@@ -302,6 +284,50 @@ class TelescopeSimulator:
             self.logger.info("Exiting application.")
             sys.exit()
 
+    def make_default_config(
+        self,
+    ):
+        # Make sure the parent directory exists
+        if not self.parent.exists():
+            self.logger.error(
+                f"Parent directory {self.parent} does not exist. Aborting."
+            )
+            raise FileNotFoundError(f"Parent directory {self.parent} not found.")
+
+        # Read config from default directory
+        config = ConfigParser()
+        config.optionxform = str  # Preserve case
+        config.read(paths.MAP_DEFAULTS / "TelSim_config.conf")
+
+        # Set sky model and mask file paths
+        sky_model_file = f"{self.parent.name}.fits"
+        if not (self.parent / sky_model_file).exists():
+            self.logger.error(
+                f"Sky model file {sky_model_file} not found in {self.parent}. Aborting."
+            )
+            raise FileNotFoundError(f"Sky model file {sky_model_file} not found.")
+        config["data"]["sky_model"] = sky_model_file
+
+        # Look for mask file in the same directory as the sky model
+        mask_files = [
+            f.name
+            for f in self.parent.glob("*ddfSize.fits")
+            if ("Mask" in f.stem) or ("mask" in f.stem)
+        ]
+        if len(mask_files) == 1:
+            config["data"]["fits_mask"] = mask_files[0]
+        elif len(mask_files) > 1:
+            self.logger.warning(
+                f"Multiple mask files found in {self.parent}. None specified."
+            )
+        else:
+            self.logger.warning(f"No mask file found in {self.parent}.")
+
+        with open(self.config_file, "w") as f:
+            config.write(f)
+
+        self.logger.info(f"Default config file written to\n\t{self.config_file}.")
+
     def run(
         self,
     ):
@@ -322,7 +348,17 @@ class TelescopeSimulator:
                 self.do_ddfpipeline,
             ]
         ):
-            if not self.ms_dir.exists() or not list(self.ms_dir.glob("*.MS")):
+            n_files = self.check_synthms_files()
+
+            if n_files > 24:
+                self.logger.error(f"{n_files} MS files - aborting for safety.")
+                sys.exit()
+
+            elif n_files < 24:
+                msg = f"Will import all synthms files from default files."
+                if n_files:
+                    msg += f" {n_files} files will be removed."
+                self.logger.info(msg)
                 self.import_synthms_files()
 
         # Predict: Simulate visibilities into MS with DDF
@@ -355,12 +391,41 @@ class TelescopeSimulator:
             p = self.run_ddfpipeline()
             p.wait()
 
+    def check_synthms_files(self):
+        self.logger.info("Checking for synthms files...")
+
+        # Check if folder exists
+        if not self.ms_dir.exists():
+            self.logger.info(f"Synthms directory {self.ms_dir} not found.")
+            return 0
+
+        # List MS files in synthms directory
+        ms_files = sorted(list(self.ms_dir.glob("*.MS")))
+        n_files = len(ms_files)
+
+        # Check if any MS files are found
+        if not n_files:
+            self.logger.info(f"No MS files found in {self.ms_dir}.")
+
+        # Check if there are less than 24 MS files
+        elif n_files < 24:
+            self.logger.info(f"Only {len(ms_files)} MS files found in {self.ms_dir}.")
+
+        # Check if there are more than 24 MS files
+        elif n_files > 24:
+            self.logger.info(f"More than 24 MS files found in {self.ms_dir}.")
+
+        else:
+            self.logger.info(f"All 24 MS files found in {self.ms_dir}.")
+
+        return n_files
+
     def import_synthms_files(self):
         # TODO: It should be possible to accelerate this through parallelization
         # Prepare directories
         self._prepare_dir(self.ms_dir)
 
-        ms_files = sorted(list((self.defualt_file_dir / "synthms").glob("*.MS")))
+        ms_files = sorted(list((paths.MAP_DEFAULTS / "synthms").glob("*.MS")))
         self.logger.info(f"Copying {len(ms_files)} synthms files from default files...")
         for ms in tqdm(ms_files):
             shutil.copytree(ms, self.ms_dir / f"{self.parent.name}_{ms.name}")
@@ -399,7 +464,7 @@ class TelescopeSimulator:
     def run_synthms(self):
         cmd = [
             "sh",
-            str(self.shell_script_dir / "container_exec.sh"),
+            str(paths.MAP_SHELL_SCRIPTS / "container_exec.sh"),
             str(self.mount_parent / self.ms_dir.name / "synthms_run.sh"),
         ]
         log_file = self.ms_dir / "TelSim_synthms.log"
@@ -414,7 +479,7 @@ class TelescopeSimulator:
         # Read default config
         pred_config = ConfigParser()
         pred_config.optionxform = str  # Preserve case
-        pred_config.read(self.defualt_file_dir / f"ddf_config-Predict.cfg")
+        pred_config.read(paths.MAP_DEFAULTS / f"ddf_config-Predict.cfg")
 
         # Update config
         # Check if self.config has MS options
@@ -456,9 +521,9 @@ class TelescopeSimulator:
         # Set parset file name based on whether we are doing the predict
         # or noise-only run
         parset_name = (
-            "losito_beam-predict-noise.parset"
+            "losito_predict-noise.parset"
             if self._get_bool_default("losito", "do_predict", default=False)
-            else "losito_beam-noise.parset"
+            else "losito_noise.parset"
         )
 
         # Read settings from default losito parset file
@@ -466,7 +531,7 @@ class TelescopeSimulator:
         config_in = StringIO()
         # Add _global section to the beginning of the file
         # (Because of the way LoSiTo reads the parset file)
-        with open(self.defualt_file_dir / parset_name) as f:
+        with open(paths.MAP_DEFAULTS / parset_name) as f:
             config_in.write("[_global]\n" + f.read())
         config_in.seek(0, os.SEEK_SET)
         parser.read_file(config_in)
@@ -496,7 +561,7 @@ class TelescopeSimulator:
                 f.write(config_out)
 
         # Write region file based on sky model file header
-        if (s := literal_eval(self.config["losito"]["region_size"])) is not None:
+        if (s := self._get_default("losito", "region_size")) is not None:
             self.logger.info(f"LoSiTo: Using region size {s} deg from config file.")
             map_size_deg = float(s)
         else:
@@ -529,7 +594,7 @@ class TelescopeSimulator:
     def run_losito(self):
         cmd = [
             "sh",
-            str(self.shell_script_dir / "container_exec.sh"),
+            str(paths.MAP_SHELL_SCRIPTS / "container_exec.sh"),
             str(self.mount_parent / self.losito_dir.name / "losito_run.sh"),
         ]
         log_file = self.losito_dir / "TelSim_losito.log"
@@ -537,14 +602,29 @@ class TelescopeSimulator:
         return p
 
     def prepare_ddf(self):
-        # Prepare directories
-        self._prepare_dir(self.ddf_dir)
+        # Check if resuming from previous run is desired
+        if do_resume := self._get_bool_default("ddf", "resume", default=False):
+            self.logger.info("Resuming from previous DDF run.")
+            if not (self.ddf_dir.exists()):
+                self.logger.error(
+                    f"Resume flag set to True, but directory {self.ddf_dir} not found. Exiting."
+                )
+                sys.exit()
+            if not (self.ddf_dir / f"{self.parent.name}.DicoModel").exists():
+                self.logger.error(
+                    f"Resume flag set to True, but DicoModel file not found. Exiting."
+                )
+                sys.exit()
+
+        # Prepare directories otherwise
+        else:
+            self._prepare_dir(self.ddf_dir)
 
         # Read default config
         ddf_config = ConfigParser()
         ddf_config.optionxform = str  # Preserve case
         ddf_preset = str(self.config.get("ddf", "preset", fallback="SSD"))
-        ddf_config.read(self.defualt_file_dir / f"ddf_config-{ddf_preset}.cfg")
+        ddf_config.read(paths.MAP_DEFAULTS / f"ddf_config-{ddf_preset}.cfg")
 
         # Update config
         # Check if self.config has MS options
@@ -558,6 +638,15 @@ class TelescopeSimulator:
 
         # For DDF we need cell size in arcsec
         ddf_config["Image"]["Cell"] = str(self.arcsec_per_px)
+
+        # Some settings are needed if we are resuming from a previous run
+        if do_resume:
+            ddf_config["Predict"]["InitDicoModel"] = f"{self.parent.name}.DicoModel"
+            ddf_config["Cache"]["Reset"] = "False"
+            # ddf_config["Cache"]["PSF"] = "force"
+            # ddf_config["Cache"]["Dirty"] = "forcedirty"
+            ddf_config["Cache"]["ResetWisdom"] = "False"
+            ddf_config["Cache"]["CF"] = "True"
 
         # Write config
         with open(self.ddf_dir / "ddf_config.cfg", "w") as f:
@@ -667,7 +756,7 @@ class TelescopeSimulator:
 
         # Read default config
         ddfpipeline_config = ConfigParser()
-        ddfpipeline_config.read(self.defualt_file_dir / "ddf-pipeline_config.cfg")
+        ddfpipeline_config.read(paths.MAP_DEFAULTS / "ddf-pipeline_config.cfg")
 
         # Update config:
 
@@ -693,6 +782,25 @@ class TelescopeSimulator:
 
         # Manual ClusterCat file
         if (
+            ClusterCat_file := self.config.get(
+                "ddf-pipeline", "clusterfile", fallback=None
+            )
+        ) is not None:
+
+            # Make sure the file exists
+            if not (ClusterCat_file := self.parent / ClusterCat_file).exists():
+                self.logger.error(
+                    f"ClusterCat file specified in config not found:\n\t{ClusterCat_file}"
+                    f"\nWill proceed with default behavior."
+                )
+
+            self.logger.info(
+                f"Will use specified ClusterCat file for ddf-pipeline:\n\t{ClusterCat_file}"
+            )
+            ddfpipeline_config["image"][
+                "clusterfile"
+            ] = f'../{self.config["ddf-pipeline"]["clusterfile"]}'
+        if (ClusterCat_file is None or not ClusterCat_file.exists()) and (
             ClusterCat_file := self.ClusterCat_dir
             / self.sky_model_file.with_suffix(".pybdsf.srl.fits.ClusterCat.npy").name
         ).exists():
@@ -702,10 +810,6 @@ class TelescopeSimulator:
             ddfpipeline_config["image"][
                 "clusterfile"
             ] = f"../{self.ClusterCat_dir.name}/{ClusterCat_file.name}"
-        elif self.config.has_option("ddf-pipeline", "clusterfile"):
-            ddfpipeline_config["image"][
-                "clusterfile"
-            ] = f'../{self.config["ddf-pipeline"]["clusterfile"]}'
 
         # External mask
         ddfpipeline_config["masking"][
@@ -728,7 +832,7 @@ class TelescopeSimulator:
     def run_ddfpipeline(self):
         cmd = [
             "sh",
-            str(self.shell_script_dir / "ddf-pipeline_container.sh"),
+            str(paths.MAP_SHELL_SCRIPTS / "ddf-pipeline_container.sh"),
             str(self.mount_parent / self.ddfpipeline_dir.name / "ddf-pipeline_run.sh"),
         ]
         log_file = self.ddfpipeline_dir / "TelSim_ddfpipeline.log"
@@ -737,7 +841,7 @@ class TelescopeSimulator:
 
 
 if __name__ == "__main__":
-    # Config file as first arg
-    config_file = sys.argv[1]
-    ts = TelescopeSimulator(config_file)
+    # Config string as first arg. Can be map name or file.
+    config_str = sys.argv[1]
+    ts = TelescopeSimulator(config_str)
     ts.run()

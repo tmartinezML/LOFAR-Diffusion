@@ -7,4 +7,5 @@
  ▝▀▚▖  █  ▐▌  ▐▌▐▌ ▐▌▐▌   ▐▛▀▜▌ █ ▐▌ ▐▌▐▛▀▚▖ 
 ▗▄▄▞▘▗▄█▄▖▐▌  ▐▌▝▚▄▞▘▐▙▄▄▖▐▌ ▐▌ █ ▝▚▄▞▘▐▌ ▐▌ 
 
-    (c) Tobias Vičánek Martínez, 2024
+    (C) Tobias Vičánek Martínez, 2024
+        Hamburg Observatory, Germany

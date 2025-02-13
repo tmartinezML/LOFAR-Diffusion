@@ -24,6 +24,20 @@ def norm_err_poisson(counts):
     return err
 
 
+def err_poisson(counts):
+    CI = poisson_conf_interval(counts, interval="frequentist-confidence")
+    err = [
+        counts - CI[0],
+        CI[1] - counts,
+    ]
+
+    # Set to 0 if counts are 0
+    err[0][counts == 0] = 0
+    err[1][counts == 0] = 0
+
+    return err
+
+
 def cdf(counts):
     return norm(counts).cumsum(axis=0)
 

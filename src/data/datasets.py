@@ -118,10 +118,20 @@ class ImagePathDataset(torch.utils.data.Dataset):
         img = self.data[i]
         if self.transforms is not None:
             img = self.transforms(img)
-        context = [getattr(self, attr)[i] for attr in self._context]
+
+        context = torch.cat(
+            [
+                (
+                    c
+                    if isinstance(c := getattr(self, attr)[i], torch.Tensor)
+                    else torch.Tensor(c)
+                )
+                for attr in self._context
+            ]
+        )
 
         if len(context):
-            return img, torch.tensor(context)
+            return img, context
 
         else:
             return img
