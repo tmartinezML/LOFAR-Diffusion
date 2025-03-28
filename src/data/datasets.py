@@ -23,6 +23,12 @@ import data.transforms as T
 logger = utils.logging.get_logger(__name__)
 
 
+def print_available_datasets():
+    print(f"Available datasets in {paths.LOFAR_DATA_PARENT}:")
+    for k, v in paths.LOFAR_SUBSETS.items():
+        print(f"  {k} ({v.name})")
+
+
 def parse_dset_path(dset):
     match dset:
         case Path():
@@ -247,7 +253,7 @@ class ImagePathDataset(torch.utils.data.Dataset):
                 )
                 idxs = np.sort(np.random.choice(idxs, n_subset, replace=False))
 
-            logger.info("Loading images...")
+            logger.info(f"Loading images from '{key}'...")
             self.data = torch.tensor(images[idxs], dtype=torch.float32)
 
             # See if names are available
@@ -267,14 +273,17 @@ class ImagePathDataset(torch.utils.data.Dataset):
                     attributes = [
                         k
                         for k in f.keys()
-                        if k
-                        not in [
-                            key,  # Usually: images
-                            "names",
-                            "catalog",
-                            "selections",
-                            "mask_metadata",
-                        ]
+                        if (
+                            k
+                            not in [
+                                key,  # Usually: images
+                                "names",
+                                "catalog",
+                                "selections",
+                                "mask_metadata",
+                            ]
+                        )
+                        and ("images" not in k)
                     ]
                 case None:
                     attributes = []
@@ -285,7 +294,11 @@ class ImagePathDataset(torch.utils.data.Dataset):
             for key in attributes:
                 logger.info(f"Loading '{key}'...")
                 try:
-                    setattr(self, key, torch.tensor(f[key][idxs], dtype=torch.float32))
+                    setattr(
+                        self,
+                        key.replace("-", ""),
+                        torch.tensor(f[key][idxs], dtype=torch.float32),
+                    )
                 except IndexError:
                     logger.error(f"Index error loading '{key}' - will skip.")
 
@@ -469,7 +482,9 @@ class LOFARDataset(ImagePathDataset):
 
 
 class SamplesDataset(LOFARDataset):
-    def __init__(self, path_or_name, img_size=80, train_mode=False, **kwargs):
+    def __init__(
+        self, path_or_name, img_size=80, train_mode=False, key="samples", **kwargs
+    ):
 
         match path_or_name:
 
@@ -492,7 +507,7 @@ class SamplesDataset(LOFARDataset):
         super().__init__(
             path,
             img_size=img_size,
-            key="samples",
+            key=key,
             train_mode=train_mode,
             **kwargs,
         )

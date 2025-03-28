@@ -46,7 +46,7 @@ class MapMaker:
         arcsec_per_px=1.5,
         max_sampling_size=80,
         min_flux_Jy=0,
-        max_flux_Jy=10,  # Jy
+        max_flux_Jy=2,  # Jy
         sampler_settings={"n_devices": 2},
     ):
         # Logger
@@ -862,7 +862,7 @@ def run_map_maker(
         model_name=model_name,
         dset=dset,
         sampler_settings=sampler_settings,
-        max_flux_Jy=10,
+        max_flux_Jy=2,
     )
 
     # Run T-RECS
@@ -897,7 +897,7 @@ def run_map_maker(
 if __name__ == "__main__":
 
     # Settings
-    map_name = "map_5deg_v5"
+    map_name = "map_verif_v1"
 
     # Run MapMaker
     run_map_maker(map_name=map_name)

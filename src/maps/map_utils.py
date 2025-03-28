@@ -140,13 +140,13 @@ def beam_solid_angle(beam_size):
 
 
 def get_image(file, get_wcs=True):
-    hdul = fits.open(file)
-    image = hdul[0].data
-    if get_wcs:
-        wcs = WCS(hdul[0].header, naxis=2)
-        return image, wcs
-    else:
-        return image
+    with fits.open(file) as hdul:
+        image = hdul[0].data
+        if get_wcs:
+            wcs = WCS(hdul[0].header, naxis=2)
+            return image, wcs
+        else:
+            return image
 
 
 def scale_to_flux(img, flux):
@@ -221,7 +221,7 @@ def gaussian_signal(size=1, angle=0, convolve=True, img_size=None):
     # Convolve with beam
     if convolve:
         # Beam size: FWHM = 6 arcsec = 4 px
-        img = gaussian_filter(img, sigma=4 / 2.355, mode='constant')
+        img = gaussian_filter(img, sigma=4 / 2.355, mode="constant")
 
     # If the size is really small, we migth get a zero image.
     # In that case, we make an image with the center pixel set to 1.

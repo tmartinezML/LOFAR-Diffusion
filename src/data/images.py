@@ -168,6 +168,8 @@ def create_subset(
         img_dataset.attrs["las_threshold"] = las_thr
         img_dataset.attrs["flux_threshold"] = flux_thr
         img_dataset.attrs["peak_flux"] = peak_flux
+        img_dataset.attrs["SNR_threshold"] = SNR_thr
+        img_dataset.attrs["edge_threshold"] = edge_thr
         img_dataset.attrs["processed_file"] = str(cutouts_file)
         processed_attrs = {
             key: value

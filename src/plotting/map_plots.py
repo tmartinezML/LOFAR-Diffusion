@@ -71,6 +71,7 @@ def plot_sky_map(
     wcs=None,
     fig_ax=None,
     cbar=True,
+    cbar_label="Flux Density (Jy/beam)",
     norm=None,
     vmin=None,
     vmax=None,
@@ -115,7 +116,7 @@ def plot_sky_map(
     im = ax.imshow(scaled_map.squeeze(), origin="lower", norm=norm, **imshow_kwargs)
 
     if cbar:
-        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.05)
+        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.05, label=cbar_label)
 
     if wcs is None and fig_ax is None:
         ax.axis("off")
@@ -135,14 +136,62 @@ def double_map_plot(
     norm_quantile=0.995,
     wcs=None,
     size=(14, 7),
+    fig_ax=None,
     norm=(None, None),
+    cbar_label="Flux Density (Jy/beam)",
+    kw_map1={},
+    kw_map2={},
 ):
+    single_cbar = False
 
-    fig, axs = plt.subplots(
+    match norm:
+        case (norm1, norm2):
+            norm1, norm2 = norm
+
+        case None:
+            norm1, norm2 = None, None
+
+        case Normalize():
+            print("Using single norm for both maps")
+            norm1 = norm2 = norm
+            single_cbar = True
+
+    if minmax:
+        single_cbar = True
+        map1 = minmax_scale(map1)
+        map2 = minmax_scale(map2)
+        norm = Normalize(vmin=0, vmax=1)
+        norm1, norm2 = norm, norm
+
+    elif (
+        norm_quantile is not None
+        and not single_cbar
+        and ((norm1, norm2) == (None, None))
+    ):
+        single_cbar = False
+
+        def get_vmin(map):
+            negative_flag = map < 0
+            if negative_flag.sum() == 0:
+                return 0
+            return np.quantile(map[negative_flag], norm_quantile)
+
+        norm1 = Normalize(
+            vmin=get_vmin(map1),
+            vmax=np.quantile(map1[map1 > 0], norm_quantile),
+            clip=True,
+        )
+        norm2 = Normalize(
+            vmin=get_vmin(map2),
+            vmax=np.quantile(map2[map2 > 0], norm_quantile),
+            clip=True,
+        )
+
+    fig, axs = fig_ax or plt.subplots(
         1,
         2,
         figsize=size,
-        gridspec_kw={"hspace": 0.01, "wspace": (0.03 if minmax else 0.15)},
+        gridspec_kw={"hspace": 0.01, "wspace": (0.05 if single_cbar else 0.15)},
         sharex=True,
         sharey=True,
         # constrained_layout=True,
@@ -169,58 +218,47 @@ def double_map_plot(
         axs[1].coords[1].set_ticklabel(rotation="vertical")
 
         for ax in axs:
-            ax.grid(alpha=0.1)
+            ax.grid(alpha=0.05, ls="--")
             ax.set_xlabel("RA")
+
         axs[0].set_ylabel("Dec")
 
-        if minmax:
+        if single_cbar:
             axs[1].coords[1].set_ticklabel_position("r")
 
-    norm1, norm2 = norm
-    if minmax:
-        map1 = minmax_scale(map1)
-        map2 = minmax_scale(map2)
-        norm = Normalize(vmin=0, vmax=1)
-        norm1, norm2 = norm, norm
+    match cbar_label:
+        case str() | None:
+            cbar_label1 = cbar_label2 = cbar_label
 
-    elif norm_quantile is not None:
+        case (str(), str()):
+            cbar_label1, cbar_label2 = cbar_label
 
-        def get_vmin(map):
-            negative_flag = map < 0
-            if negative_flag.sum() == 0:
-                return 0
-            return np.quantile(map[negative_flag], norm_quantile)
-
-        norm1 = Normalize(
-            vmin=get_vmin(map1),
-            vmax=np.quantile(map1[map1 > 0], norm_quantile),
-            clip=True,
-        )
-        norm2 = Normalize(
-            vmin=get_vmin(map2),
-            vmax=np.quantile(map2[map2 > 0], norm_quantile),
-            clip=True,
-        )
+        case _:
+            raise ValueError(f"Unknown cbar_label input: {cbar_label}")
 
     _, _, im1 = plot_sky_map(
         map1,
         scale_fn=scale_fn,
         fig_ax=(fig, axs[0]),
-        cbar=not minmax,
+        cbar=not single_cbar,
+        cbar_label=cbar_label1,
         norm=norm1,
         norm_quantile=norm_quantile,
+        **kw_map1,
     )
     _, _, im2 = plot_sky_map(
         map2,
         scale_fn=scale_fn,
         fig_ax=(fig, axs[1]),
-        cbar=not minmax,
+        cbar=True,  # not single_cbar,
+        cbar_label=cbar_label2,
         norm=norm2,
         norm_quantile=norm_quantile,
+        **kw_map2,
     )
     axs[1].set_ylabel("")
 
-    if minmax:
+    if False:  # single_cbar:
         # Add new subplot axis for colorbar
         fig.subplots_adjust(right=0.85)
         pos = axs[1].get_position()

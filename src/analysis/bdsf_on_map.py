@@ -186,7 +186,7 @@ def bdsf_on_array(
 
 if __name__ == "__main__":
 
-    map_name = "map_5deg_v4_comp"
+    map_name = "map_verif_v1"
     ddf_parent = "ddf"
     map_file = (
         paths.SKY_MAP_PARENT / map_name / ddf_parent / f"{map_name}.int.restored.fits"
@@ -196,4 +196,4 @@ if __name__ == "__main__":
     img = bdsf_on_map(map_file)
 
     # Run BDSF on the model
-    # img = bdsf_on_model(map_name)
+    img = bdsf_on_model(map_name)

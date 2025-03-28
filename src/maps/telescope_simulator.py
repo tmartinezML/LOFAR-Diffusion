@@ -499,8 +499,10 @@ class TelescopeSimulator:
         with open(self.predict_dir / "predict_run.sh", "w") as f:
             f.write(
                 f"#!/bin/bash\n"
-                f"source /hsopt/anaconda3/base.env\n"
-                f"conda activate cenv_ddf\n"
+                # f"source /hsopt/anaconda3/base.env\n"
+                # f"conda activate cenv_ddf\n"
+                f"source {paths.MAP_SHELL_SCRIPTS / 'mamba_init.sh'}\n"
+                f"micromamba activate cenv_ddf2\n"
                 f"cd {self.predict_dir}\n"
                 f"DDF.py predict_config.cfg"
             )
@@ -656,9 +658,12 @@ class TelescopeSimulator:
         with open(self.ddf_dir / "ddf_run.sh", "w") as f:
             f.write(
                 f"#!/bin/bash\n"
-                f"source /hsopt/anaconda3/base.env\n"
-                f"conda activate cenv_ddf\n"
+                # f"source /hsopt/anaconda3/base.env\n"
+                # f"conda activate cenv_ddf\n"
+                f"source {paths.MAP_SHELL_SCRIPTS / 'mamba_init.sh'}\n"
+                f"micromamba activate cenv_ddf2\n"
                 f"cd {self.ddf_dir}\n"
+                # f"which python3\n"
                 f"DDF.py ddf_config.cfg"
             )
 

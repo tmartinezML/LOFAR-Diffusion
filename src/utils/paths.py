@@ -56,6 +56,7 @@ LOFAR_SUBSETS = IndexedOrderedDict(
         k: LOFAR_DATA_PARENT / f"subsets/{v}"
         for k, v in {
             "prototypes": "LOFAR_prototypes.hdf5",
+            "200p": "200p-SNR5-unclipped.hdf5",
             "0-clip": "0-clip.hdf5",
         }.items()
     }

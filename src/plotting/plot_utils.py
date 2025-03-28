@@ -31,7 +31,13 @@ def auto_log_bins(inp, num=100):
 # Function to automatically identify plot range for given key word
 def auto_log_range(inp):
     # Combine data from both catalogs
-    data = np.concatenate(inp).flatten()
+    match inp:
+        # Tuple or list of arbitrary length, filled with arrays:
+        case [np.ndarray(), *more_arrays] | (np.ndarray(), *more_arrays):
+            data = np.concatenate(inp).ravel()
+
+        case np.ndarray():
+            data = inp.ravel()
 
     # Remove zero values
     data = data[data != 0]

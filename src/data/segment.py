@@ -103,7 +103,7 @@ def refine_mask(img, mask, n=20, step=0.1, sigma_threshold=5):
 
         # Elliptic mask for local background. Start with a small ellipse,
         # and increase its size until the encompassed background covers at least
-        # n pixels or the whole background region
+        # n times the mask pixels or the whole background region
         c = 1
         ell_mask = elliptic_mask(region, scaling=c)
         while np.sum(ell_mask * (1 - mask_dilated)) < min(
@@ -246,7 +246,7 @@ def circular_mask(shape, center=None, radius=None):
     return mask
 
 
-def get_sample_mask(img, expand=False, dilate=0):
+def get_sample_mask(img, expand=False, dilate=0, smooth=True):
     cmask = circular_mask(img.shape)
     safe_background = img[~cmask].flatten()
     source_mask = img > np.mean(safe_background) + 3 * safe_background.std()
@@ -262,9 +262,13 @@ def get_sample_mask(img, expand=False, dilate=0):
             source_mask = expand_islands(source_mask, exp_mask)
             i += 1
 
-    source_mask = smooth_mask(source_mask)
+    if smooth:
+        source_mask = smooth_mask(source_mask)
 
-    if dilate:
+    if dilate > 0:
         source_mask = binary_dilation(source_mask, iterations=dilate)
+
+    elif dilate < 0:
+        source_mask = binary_erosion(source_mask, iterations=-dilate)
 
     return source_mask.astype(int)
